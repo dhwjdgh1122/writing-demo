@@ -1,0 +1,33 @@
+{
+  "name": "writing-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20.12" },
+  "scripts": {
+    "dev": "tsx watch server/dev.ts",
+    "check": "tsc --noEmit",
+    "test": "tsx --test tests/editor.test.ts tests/api.test.ts tests/provider.test.ts",
+    "test:browser": "playwright test",
+    "build": "npm run check && node scripts/build.mjs",
+    "start": "node dist/server/index.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/express": "^5.0.0",
+    "@types/node": "^20.19.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vite": "^6.4.0"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "capturedAt": "2026-11-07T10:12:23.773Z",
+  "source": "금요일까지 자료를 보내 주세여.",
+  "document": "안녕하세요.\n금요일까지 자료를 보내 주세여.\n감사합니다.",
+  "requests": [
+    {
+      "endpoint": "corrections",
+      "status": 200,
+      "result": {
+        "requestId": "5abf94ad-8390-4adc-8ce3-072763ce50c2",
+        "sourceText": "금요일까지 자료를 보내 주세여.",
+        "candidates": [
+          {
+            "id": "066e6b37-323b-4b09-bf15-10a0f36d4cf5",
+            "text": "금요일까지 자료를 보내 주세요."
+          }
+        ]
+      }
+    },
+    {
+      "endpoint": "explanations",
+      "status": 200,
+      "result": {
+        "requestId": "425e2820-5578-4a2b-9d92-7ed2c71953f3",
+        "sourceText": "금요일까지 자료를 보내 주세여.",
+        "candidates": [
+          {
+            "id": "066e6b37-323b-4b09-bf15-10a0f36d4cf5",
+            "text": "금요일까지 자료를 보내 주세요."
+          }
+        ],
+        "explanations": [
+          {
+            "candidateId": "066e6b37-323b-4b09-bf15-10a0f36d4cf5",
+            "explanation": "원문의 오타인 '보내 주세여'를 '보내 주세요'로 수정하여 맞춤법을 바르게 고쳤습니다."
+          }
+        ]
+      }
+    }
+  ],
+  "screens": [
+    "01-selection.png",
+    "02-candidates.png",
+    "03-explanation.png",
+    "04-applied.png",
+    "05-unconfigured.png"
+  ],
+  "checks": {
+    "candidatesDisplayed": true,
+    "explanationsDisplayed": true,
+    "selectedRangeApplied": true,
+    "unconfiguredPreservesOriginal": true
+  },
+  "appliedCandidate": "금요일까지 자료를 보내 주세요."
+}
