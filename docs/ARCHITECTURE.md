@@ -1,6 +1,6 @@
 # 구조 설계 — 독립 웹 데모
 
-> 역할: 화면·서버·LLM의 경계, API·데이터·코드 구조를 정의한다. 상태: 2026-11-06 기본 화면·서버·자동 검증 및 Gemini 어댑터 구현. Gemini 3.5 Flash-Lite로 실제 후보 생성·적용을 확인했고 설명 API도 구현·예문 검증했다. 실행·검증 결과와 명령은 README에서 확인한다.
+> 역할: 화면·서버·LLM의 경계, API·데이터·코드 구조를 정의한다. 현재 Gemini·엘리스 어댑터를 서버 설정으로 선택한다. 실행·설정 명령은 [README](../README.md), 과거 구현·실제 호출 결과와 한계는 [검증 기록](검증%20기록.md)에서 확인한다.
 
 ## 1. 기술 구성
 
@@ -14,7 +14,7 @@
 | 상태 관리 | React reducer + 요청별 식별자 | 편집·선택 변경 시 관련 상태를 함께 무효화 |
 | 패키지 관리 | npm | 한 프로젝트 안에서 화면·서버 의존성 관리 |
 | 저장 | 브라우저 메모리, DB 없음 | 첫 범위에 문서 저장·로그인·히스토리가 없음 |
-| 모델 제공자·모델 | Gemini, 모델명은 서버 설정 | 무료 구간부터 시험; 현재 예시는 gemini-3.5-flash-lite, 실제 교정·설명 예문 확인 |
+| 모델 제공자·모델 | Gemini 또는 엘리스 Serverless, 서버 설정으로 선택 | Gemini 연결 유지. 엘리스 gpt-4o-mini 교정 호출 확인, 설명 인용 차단·품질 한계는 검증 기록 참고 |
 
 현재 범위에 맞춰 이 구성으로 독립 구현했다.
 
@@ -29,7 +29,7 @@ flowchart LR
     A[브라우저: 원문 입력과 선택] --> B[선택 텍스트로 교정 요청]
     B --> C[서버: 입력 검증]
     C --> D[모델 연결 모듈]
-    D --> E[Gemini API: 교정·설명 생성]
+    D --> E[선택한 Gemini 또는 엘리스 API: 교정·설명 생성]
     E --> D
     D --> F[서버: 응답 검증과 후보 ID 부여]
     F --> G[브라우저: 요청 유효성 확인]
@@ -149,14 +149,14 @@ API는 모델 제공자와 독립적인 앱 내부 계약이다. health·correct
 | 503 / MODEL_UNAVAILABLE | 공급자가 일시적인 요청 실패 응답 반환 | 원문 유지·잠시 기다린 뒤 수동 재시도 |
 | 504 / MODEL_TIMEOUT | 제한 시간 초과 | 원문 유지·수동 재시도 |
 
-서버 요청당 모델 호출 제한 시간은 45초이며 자동 재시도를 하지 않는다. 브라우저에도 50초 제한을 두었다. 사용자 재시도마다 새 ID를 사용한다. 취소 후 모델 측 처리가 이미 진행되었다면 사용량까지 취소되었다고 보장하지 않는다. 테스트 제공자로 시간 제한을 확인했으며 Gemini 어댑터는 AbortSignal을 fetch에 전달한다. 실제 제공자의 응답 시간은 실행마다 달라질 수 있으므로 검증 기록에 별도로 남긴다.
+서버 요청당 모델 호출 제한 시간은 45초이며 자동 재시도를 하지 않는다. 브라우저에도 50초 제한을 두었다. 사용자 재시도마다 새 ID를 사용한다. 취소 후 모델 측 처리가 이미 진행되었다면 사용량까지 취소되었다고 보장하지 않는다. 테스트 제공자로 시간 제한을 확인했으며 Gemini·엘리스 어댑터는 AbortSignal을 fetch에 전달한다. 실제 제공자의 응답 시간은 실행마다 달라질 수 있으므로 검증 기록에 별도로 남긴다.
 
 ## 5. 모델 연결 경계
 
 - 내부 인터페이스는 `generateCandidates(sourceText, signal)`를 구현했다. `generateExplanations(sourceText, candidates, signal)`도 구현했다. 설명 메서드가 없는 제공자는 설명 요청 시 미설정 안내를 반환한다.
 - 제공자별 요청 형식·모델명·응답 추출은 `server/llm/` 안에서 처리한다. 화면은 제공자 SDK를 직접 호출하지 않는다.
 - API가 준비되기 전에는 `MODEL_NOT_CONFIGURED`를 반환한다. 테스트용 고정 응답은 테스트에서 명시적으로 주입하며 실제 데모의 교정 성공으로 사용하지 않는다.
-- `config.ts`는 `LLM_PROVIDER=gemini`를 읽어 `gemini.ts` 어댑터를 생성한다. 키·모델이 없으면 미설정 제공자를 사용하고, 알 수 없는 제공자·잘못된 모델 경로는 설정 오류로 중단한다. 다른 제공자를 추가할 때 인터페이스를 구현하고 이 생성 함수에 연결한다.
+- `config.ts`는 `LLM_PROVIDER=gemini`이면 기존 `gemini.ts`, `LLM_PROVIDER=elice`이면 `elice.ts` 어댑터를 생성한다. 각 제공자의 필수 키·모델·URL이 없으면 미설정 제공자를 사용하고, 알 수 없는 제공자·잘못된 설정은 오류로 중단한다. 화면에는 모델 선택 메뉴가 없으며 설정 변경 후 서버를 재시작한다. 다른 제공자로 자동 대체하지 않는다.
 - 개발·빌드 실행 모두 프로젝트 루트의 `.env`를 Node의 `loadEnvFile`로 읽는다. 기존 프로세스 환경변수가 우선한다. 키는 서버에서만 사용하며 `VITE_` 접두사나 화면 번들에 넣지 않는다. `.env.example`에는 변수명과 모델 예시만 두고 `.env`는 Git에서 제외한다.
 - Gemini는 `POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`를 사용한다. 키는 `x-goog-api-key` 헤더로 보내고 리다이렉트는 거절한다. 교정 지침은 `systemInstruction`, 선택 텍스트는 사용자 메시지의 JSON 데이터로 분리한다. 모델 입력에는 요청 ID·선택 위치·전체 문서를 넣지 않는다.
 - `generationConfig`에서 JSON Schema로 `{ candidates: string[] }` 형식을 요청한다. Gemini 응답 1개 안에 교정 후보 1~3개를 담으며 출력 최대 8,192토큰, API 호출은 실행 1회당 1번이다. 검색·도구 호출·자동 재시도·모델 자동 교체는 하지 않는다.
@@ -165,6 +165,16 @@ API는 모델 제공자와 독립적인 앱 내부 계약이다. health·correct
 - 현재 모델 예시 `gemini-3.5-flash-lite`는 2026-11-06 공식 가격표의 무료 구간을 참고했다. 실제 프로젝트에서 해당 모델의 무료 사용 가능 여부를 확인해야 한다. 코드로 요금제를 판별하거나 무료 사용을 강제할 수 없다. 유료 결제 설정은 이번 범위에 포함하지 않는다.
 - 모델 입력에서 교정 지시와 사용자 문장을 구분한다. 문장 안의 지시문을 앱 명령으로 취급하지 않도록 프롬프트와 응답 검증을 설계한다.
 - 생성과 설명에 같은 모델을 쓸 수 있지만 동일 모델 사용을 전제로 화면을 설계하지 않는다.
+
+### 엘리스 Serverless 어댑터
+
+- `ELICE_API_KEY`·`ELICE_MODEL`·`ELICE_BASE_URL`을 서버에서 읽는다. 현재 연결 대상은 GPT-4o mini이며 키는 `Authorization: Bearer` 헤더로만 보낸다. Gemini 설정·연결 코드는 유지한다.
+- HTTPS `mlapi.run/<모델 UUID>` 또는 그 뒤에 `/v1`을 붙인 주소를 받아 `/v1/chat/completions`로 POST한다. 자격정보·쿼리·프래그먼트가 붙은 URL, 다른 호스트, 리다이렉트는 거절한다.
+- `messages`의 system에 기존 지침, user에 선택 원문 또는 원문·현재 후보의 JSON을 넣는다. `response_format: { type: 'json_object' }`, `n: 1`, `stream: false`, `max_tokens: 2000`을 사용한다. 출력 상한은 엘리스 비스트리밍 요청 제한인 2,000토큰에 맞춘다. 긴 출력이 잘리면 오류 처리하며 스트리밍이나 자동 재요청으로 우회하지 않는다.
+- `choices[0].message.content`의 JSON을 파싱한 뒤 기존 후보·설명 스키마와 ID 대응을 검사한다. 정상 종료 `stop`만 수용하고 refusal·content_filter는 차단, 길이 초과·도구 호출·잘못된 JSON은 오류로 처리한다. HTTP 앱 계층의 기존 설명 인용 검사도 유지한다.
+- HTTP 400·401·403·404·422는 설정 오류, 402·429는 크레딧·사용량 제한, 나머지 요청 실패는 일시적 장애로 안내한다. 키와 외부 오류 본문을 일반 로그·화면에 노출하지 않는다.
+- `scripts/check-elice.mjs`는 명시적으로 실행할 때만 실제 교정 1회·설명 1회를 호출하는 점검 도구다. 임시 로컬 HTTP 앱을 통해 공통 검증까지 확인하며 실패하면 중단한다. `.env`의 제공자 선택과 실행 중인 서버는 바꾸지 않는다. 기존 Gemini 평가 스크립트는 그대로 유지한다.
+- 모델 목록 조회와 실제 교정 응답은 확인했다. 해당 실행에서 설명은 인용 검사에 차단됐으며 교정 후보에도 오류가 있었다. 자세한 결과는 [검증 기록의 ELICE-01](검증%20기록.md#elice-01)을 따른다. 교육 지원 잔액·한도·품질 전반을 검증한 것은 아니다.
 
 연결 근거: [Gemini generateContent API](https://ai.google.dev/api/generate-content), [공식 메서드 명세](https://aistudio.google.com/api-reference/generate-content/generate-content), [가격표](https://ai.google.dev/gemini-api/docs/pricing). 연결 코드는 테스트 응답으로 검증했으며 실제 계정 호출 검증과 구분한다.
 
@@ -193,7 +203,7 @@ writing-demo/
 │   ├── app.ts                # health·corrections·explanations·검증·오류 처리
 │   ├── dev.ts                # Vite와 API를 함께 실행
 │   ├── index.ts              # 빌드한 정적 화면과 API 실행
-│   └── llm/                  # provider 인터페이스·config·prompt·gemini 어댑터
+│   └── llm/                  # provider 인터페이스·config·prompt·gemini/elice 어댑터
 ├── shared/                   # 입출력 스키마·공통 제한값
 ├── scripts/                  # 화면·서버 빌드·실제 설명 평가
 └── tests/                    # 선택 적용·늦은 응답·API 오류·브라우저 확인
@@ -201,7 +211,7 @@ writing-demo/
 
 하나의 패키지와 잠금 파일을 사용한다. `server/dev.ts`에서 Vite를 Express 미들웨어로 연결해 API와 화면을 5173번 포트 하나로 제공한다. 빌드 후에는 `server/index.ts`가 정적 화면과 API를 제공한다. 명령어는 README에 기록한다.
 
-현재 API 두 개 규모에서는 라우트·서비스 폴더를 먼저 나누지 않고 `app.ts`에 배치했다. 테스트 제공자는 테스트에서만 주입한다. 실제 실행은 환경변수에 따라 Gemini 또는 미설정 제공자를 사용하며, 시작·health 조회만으로 외부 모델을 호출하지 않는다.
+현재 API 두 개 규모에서는 라우트·서비스 폴더를 먼저 나누지 않고 `app.ts`에 배치했다. 테스트 제공자는 테스트에서만 주입한다. 실제 실행은 환경변수에 따라 Gemini·엘리스 또는 미설정 제공자를 사용하며, 시작·health 조회만으로 외부 모델을 호출하지 않는다.
 
 ## 8. 실행·검증과 남은 선택
 
