@@ -55,7 +55,7 @@ export function createApp(provider: CorrectionProvider = unavailableProvider, ti
       else if (error instanceof ProviderError) {
         switch (error.kind) {
           case 'configuration': fail(503, 'MODEL_CONFIGURATION_ERROR', 'AI 연결 설정을 확인해주세요. API 키·모델명·프로젝트 접근 권한을 확인한 뒤 다시 실행해주세요.', false); break;
-          case 'quota': fail(429, 'MODEL_QUOTA_EXCEEDED', 'AI 사용량 또는 요청 횟수 제한에 도달했습니다. Google AI Studio에서 한도를 확인하고 시간이 지난 뒤 다시 실행해주세요.', true); break;
+          case 'quota': fail(429, 'MODEL_QUOTA_EXCEEDED', 'AI 사용량 또는 요청 횟수 제한에 도달했습니다. 사용 중인 AI 서비스의 한도·크레딧을 확인한 뒤 다시 실행해주세요.', true); break;
           case 'blocked': fail(422, 'MODEL_BLOCKED', `AI가 이 문장의 ${label} 결과를 제공하지 않았습니다. 입력 문장을 확인해주세요.`, false); break;
           case 'invalid': fail(502, 'MODEL_RESPONSE_INVALID', `완전한 ${label} 결과를 받지 못했습니다. 원문은 유지됩니다. 다시 실행해주세요.`, true); break;
           case 'unavailable': fail(503, 'MODEL_UNAVAILABLE', 'AI 서비스가 일시적으로 요청을 처리하지 못했습니다. 잠시 기다린 뒤 다시 실행해주세요. 원문은 유지됩니다.', true); break;
