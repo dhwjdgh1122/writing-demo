@@ -1,5 +1,6 @@
 import { defineConfig } from '@playwright/test';
 export default defineConfig({
+  forbidOnly: Boolean(process.env.CI),
   testDir: './tests/browser', fullyParallel: false, workers: 1,
   use: { baseURL: 'http://127.0.0.1:5174', channel: 'msedge', headless: true, trace: 'retain-on-failure' },
   // Isolate tests from the user's live API key and running demo.
