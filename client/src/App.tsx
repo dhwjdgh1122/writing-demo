@@ -56,6 +56,7 @@ export default function App() {
     editorRef.current?.focus();
     editorRef.current?.setSelectionRange(state.selection!.start, state.selection!.end);
     const isSuccess = document.execCommand('insertText', false, nextState.selection!.text);
+    runRef.current?.focus();
   };
 
   return <div className="app-shell">
