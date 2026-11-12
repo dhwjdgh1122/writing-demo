@@ -48,7 +48,15 @@ export default function App() {
   const problem = documentLength > LIMITS.document ? '원문은 20,000자 이내로 줄여주세요.' : selectionProblem(state.selection?.text);
   const disabled = Boolean(problem || state.pending || composing);
   const connectionText = { checking: '연결 확인 중', ready: 'AI 설정 확인됨', missing: 'AI 연결 대기', offline: '서버 연결 확인 필요' }[connection];
-  const apply = (candidateId: string) => { dispatch({ type: 'apply', candidateId }); runRef.current?.focus(); };
+  const apply = (candidateId: string) => {
+    dispatch({type: 'apply', candidateId});
+    const nextState = editorReducer(state, {type: 'apply', candidateId})
+    if (state.selectionRevision === nextState.selectionRevision)
+      return
+    editorRef.current?.focus();
+    editorRef.current?.setSelectionRange(state.selection!.start, state.selection!.end);
+    const isSuccess = document.execCommand('insertText', false, nextState.selection!.text);
+  };
 
   return <div className="app-shell">
     <header className="site-header"><a className="brand" href="/" aria-label="문장 교정 데모 처음으로"><span className="brand-mark"><Icon name="pen" size={21} /></span><span>문장 교정<span className="brand-demo">DEMO</span></span></a><span className="header-note">문장의 의도는 그대로, 표현은 더 명확하게.</span><span className={`connection-badge ${connection}`}><i />{connectionText}</span></header>
