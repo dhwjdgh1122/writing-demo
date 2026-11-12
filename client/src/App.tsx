@@ -54,7 +54,7 @@ export default function App() {
     if (state.selectionRevision === nextState.selectionRevision)
       return
     editorRef.current?.focus();
-    editorRef.current?.setSelectionRange(state.selection!.start, state.selection!.end);
+    editorRef.current?.setSelectionRange(state.result!.snapshot.start, state.result!.snapshot!.end);
     const isSuccess = document.execCommand('insertText', false, nextState.selection!.text);
     runRef.current?.focus();
   };
