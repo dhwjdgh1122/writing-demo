@@ -146,6 +146,8 @@ npm.cmd start
 
 #5의 기준 사례로 **현재 설정 제공자·현재 프롬프트**를 평가하려면 `node --import tsx scripts/evaluate-explanation-criteria.mjs`로 입력만 먼저 점검합니다. 실제 호출은 끝에 `--live`를 붙이며 최대 6회 요청합니다. API 사용량이 발생하고 재시도·자동 모델 전환은 하지 않습니다. 앱 API의 형식·인용 검사를 거친 응답과 차단 전 어댑터 결과를 분리 저장합니다. 브라우저 표시나 사용자 효과 시험은 아닙니다. [1차 평가 결과와 한계](docs/검증%20기록.md#explanation-eval-01)를 참고하세요.
 
+추가 사례는 `--cases=tests/fixtures/explanation-guidance-extra.json`으로 선택할 수 있습니다. 기본은 여전히 dry run이고, `--live`를 함께 지정할 때만 선택한 사례당 한 번 호출합니다(한 실행 최대 6사례). [부드러운 선택 안내 추가 평가](docs/검증%20기록.md#explanation-eval-03)에 실제 응답과 남은 오류를 기록했습니다.
+
 ## 현재 한계
 
 - 설명에 실제 후보와 다른 표현을 인용하거나 의미 변화를 잘못 설명하는 사례가 있습니다.
