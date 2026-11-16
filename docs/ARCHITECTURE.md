@@ -179,7 +179,7 @@ API는 모델 제공자와 독립적인 앱 내부 계약이다. health·correct
 - `ELICE_API_KEY`·`ELICE_MODEL`·`ELICE_BASE_URL`을 서버에서 읽는다. 현재 연결 대상은 GPT-4o mini이며 키는 `Authorization: Bearer` 헤더로만 보낸다. Gemini 설정·연결 코드는 유지한다.
 - HTTPS `mlapi.run/<모델 UUID>` 또는 그 뒤에 `/v1`을 붙인 주소를 받아 `/v1/chat/completions`로 POST한다. 자격정보·쿼리·프래그먼트가 붙은 URL, 다른 호스트, 리다이렉트는 거절한다.
 - `messages`의 system에 기존 지침, user에 선택 원문 또는 원문·현재 후보의 JSON을 넣는다. 설명에는 Gemini와 같은 서버 계산 `comparison`을 포함한다. `response_format: { type: 'json_object' }`, `n: 1`, `stream: false`, `max_tokens: 2000`을 사용한다. 출력 상한은 엘리스 비스트리밍 요청 제한인 2,000토큰에 맞춘다. 긴 출력이 잘리면 오류 처리하며 스트리밍이나 자동 재요청으로 우회하지 않는다.
-- `choices[0].message.content`의 JSON을 파싱한 뒤 기존 후보·설명 스키마와 ID 대응을 검사한다. 정상 종료 `stop`만 수용하고 refusal·content_filter는 차단, 길이 초과·도구 호출·잘못된 JSON은 오류로 처리한다. HTTP 앱 계층의 기존 설명 인용 검사도 유지한다.
+- `choices[0].message.content`의 JSON을 파싱한 뒤 후보 스키마 또는 내부 설명 구조·인용 출처를 검사하고, 조합한 설명의 길이와 ID 대응도 확인한다. 정상 종료 `stop`만 수용하고 refusal·content_filter는 차단, 길이 초과·도구 호출·잘못된 JSON은 오류로 처리한다. HTTP 앱 계층의 기존 설명 인용 검사도 유지한다.
 - HTTP 400·401·403·404·422는 설정 오류, 402·429는 크레딧·사용량 제한, 나머지 요청 실패는 일시적 장애로 안내한다. 키와 외부 오류 본문을 일반 로그·화면에 노출하지 않는다.
 - `scripts/check-elice.mjs`는 명시적으로 실행할 때만 실제 교정 1회·설명 1회를 호출하는 점검 도구다. 임시 로컬 HTTP 앱을 통해 공통 검증까지 확인하며 실패하면 중단한다. `.env`의 제공자 선택과 실행 중인 서버는 바꾸지 않는다. 기존 Gemini 평가 스크립트는 그대로 유지한다.
 - 모델 목록 조회와 실제 교정 응답은 확인했다. 해당 실행에서 설명은 인용 검사에 차단됐으며 교정 후보에도 오류가 있었다. 자세한 결과는 [검증 기록의 ELICE-01](검증%20기록.md#elice-01)을 따른다. 교육 지원 잔액·한도·품질 전반을 검증한 것은 아니다.
@@ -211,7 +211,7 @@ writing-demo/
 │   ├── app.ts                # health·corrections·explanations·검증·오류 처리
 │   ├── dev.ts                # Vite와 API를 함께 실행
 │   ├── index.ts              # 빌드한 정적 화면과 API 실행
-│   └── llm/                  # 제공자·설정·지침·설명 변경 구간 입력
+│   └── llm/                  # 제공자·설정·지침·변경 구간 입력·인용 출처 검사
 ├── shared/                   # 입출력 스키마·공통 제한값·diff 계산
 ├── scripts/                  # 화면·서버 빌드·실제 설명 평가
 └── tests/                    # 선택 적용·늦은 응답·API 오류·브라우저 확인

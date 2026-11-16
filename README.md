@@ -146,7 +146,7 @@ npm.cmd start
 
 #5의 기준 사례로 **현재 설정 제공자·현재 프롬프트**를 평가하려면 `node --import tsx scripts/evaluate-explanation-criteria.mjs`로 입력만 먼저 점검합니다. 실제 호출은 끝에 `--live`를 붙이며 최대 6회 요청합니다. API 사용량이 발생하고 재시도·자동 모델 전환은 하지 않습니다. 앱 API의 형식·인용 검사를 거친 응답과 차단 전 어댑터 결과를 분리 저장합니다. 브라우저 표시나 사용자 효과 시험은 아닙니다. [1차 평가 결과와 한계](docs/검증%20기록.md#explanation-eval-01)를 참고하세요.
 
-추가 사례는 `--cases=tests/fixtures/explanation-guidance-extra.json`으로 선택할 수 있습니다. 오탈자·띄어쓰기 구분과 혼합 후보 사례는 `--cases=tests/fixtures/explanation-accuracy-extra.json`입니다. 기본은 여전히 dry run이고, `--live`를 함께 지정할 때만 선택한 사례당 한 번 호출합니다(한 실행 최대 6사례). 보고서에는 서버에서 계산한 변경 구간 입력도 저장합니다. [최신 설명 평가](docs/검증%20기록.md#explanation-eval-05)에 실제 응답·서비스 오류와 미실행 범위를 기록했습니다.
+추가 사례는 `--cases=tests/fixtures/explanation-guidance-extra.json`으로 선택할 수 있습니다. 오탈자·띄어쓰기 구분과 혼합 후보 사례는 `--cases=tests/fixtures/explanation-accuracy-extra.json`입니다. 기본은 여전히 dry run이고, `--live`를 함께 지정할 때만 선택한 사례당 한 번 호출합니다(한 실행 최대 6사례). 추가 인용 사례는 `--cases=tests/fixtures/explanation-reference-extra.json`입니다. 보고서에는 서버에서 계산한 변경 구간 입력과 출력 처리 코드 해시도 저장합니다. 어댑터 결과는 인용 검증·조합을 마친 문자열이며 거부된 원시 구조 응답은 저장하지 않습니다. [최신 설명 평가](docs/검증%20기록.md#explanation-eval-06)에 실제 응답·서비스 오류와 미실행 범위를 기록했습니다.
 
 ## 현재 한계
 
