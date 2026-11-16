@@ -179,6 +179,7 @@ writing-demo/
 |---|---|
 | [PRD](docs/PRD.md) | 목적·사용자·범위·검증 목표 |
 | [기능명세](docs/FEATURE_SPEC.md) | 입력·동작·예외·인수조건 |
+| [교정 설명 평가 기준](docs/교정%20설명%20평가%20기준.md) | 설명의 사용자 기대·대표 사례·수동 품질 평가 방법 |
 | [화면 설계](docs/DESIGN.md) | 화면 구성·조작·표시 상태 |
 | [구조 설계](docs/ARCHITECTURE.md) | 화면·서버·AI 연결과 데이터 흐름 |
 | [작업 목록](docs/TASKS.md) | 일정 계획·Issue 색인·Projects 운영 안내 |
