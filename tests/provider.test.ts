@@ -137,7 +137,14 @@ test('explanations use only source and candidates; IDs are preserved and identic
   const provider = createGeminiProvider(config, async (_url, options) => {
     calls++;
     const body = JSON.parse(String(options?.body));
-    assert.deepEqual(JSON.parse(body.contents[0].parts[0].text), { sourceText: '목요일에 안내합니다.', candidates });
+    assert.deepEqual(JSON.parse(body.contents[0].parts[0].text), {
+      sourceText: '목요일에 안내합니다.',
+      candidates: [
+        { ...candidates[0], comparison: { mode: 'edits', edits: [{ sourceStart: 0, candidateStart: 0,
+          before: '목요일', after: '이후', sourceContext: '목요일에 안내합니다.', candidateContext: '이후에 안내합니다.', changeType: 'text-change' }] } },
+        { ...candidates[1], comparison: { mode: 'edits', edits: [] } },
+      ],
+    });
     assert.match(body.systemInstruction.parts[0].text, /정당화하지 않는다/);
     return new Response(JSON.stringify(completion({ explanations: [
       { candidateId: 'same', explanation: '더 명확해졌습니다.' },

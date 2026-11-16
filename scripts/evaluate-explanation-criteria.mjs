@@ -7,6 +7,7 @@ import { createApp } from '../server/app.ts';
 import { loadLocalProvider } from '../server/llm/config.ts';
 import { explanationInstruction } from '../server/llm/prompt.ts';
 import { explanationInputSchema } from '../shared/contracts.ts';
+import { buildExplanationInput } from '../server/llm/explanation-input.ts';
 
 const args = process.argv.slice(2);
 if (args.some(arg => arg !== '--live' && !arg.startsWith('--cases=')) || args.filter(arg => arg === '--live').length > 1 || args.filter(arg => arg.startsWith('--cases=')).length > 1) throw new Error('Usage: node --import tsx scripts/evaluate-explanation-criteria.mjs [--live] [--cases=path.json]');
@@ -29,6 +30,7 @@ if (!args.includes('--live')) {
     fixturePath, fixtureSha256: hash(fixture), provider: process.env.LLM_PROVIDER?.trim(),
     model: (process.env.LLM_PROVIDER?.trim() === 'elice' ? process.env.ELICE_MODEL : process.env.GEMINI_MODEL)?.trim(),
     promptSha256: hash(explanationInstruction), prompt: explanationInstruction, cases,
+    derivedModelInputs: cases.map(c => ({ caseId: c.id, input: buildExplanationInput(c.sourceText, c.candidates) })),
     path: 'Loopback HTTP /api/explanations through createApp and configured provider; no browser.',
     notes: 'Fixed candidates, one request per case; no correction generation, retries or model switching. Adapter output is after schema validation and identical-text normalization, before app quote check. Not raw model output. E-06 excluded.',
     runs: [],
