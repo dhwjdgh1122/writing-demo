@@ -146,15 +146,19 @@ test('explanations use only source and candidates; IDs are preserved and identic
       ],
     });
     assert.match(body.systemInstruction.parts[0].text, /정당화하지 않는다/);
+    assert.deepEqual(body.generationConfig.responseJsonSchema.properties.explanations.items.required,
+      ['candidateId', 'references', 'changeSummary', 'guidance']);
     return new Response(JSON.stringify(completion({ explanations: [
-      { candidateId: 'same', explanation: '더 명확해졌습니다.' },
-      { candidateId: 'date', explanation: '목요일이 이후로 바뀌어 날짜가 불분명해졌습니다.' },
+      { candidateId: 'same', references: [], changeSummary: '더 명확해졌습니다.', guidance: '' },
+      { candidateId: 'date', references: [{ side: 'source', text: '목요일' }, { side: 'candidate', text: '이후' }],
+        changeSummary: '{{0}}이 {{1}}로 바뀌어 날짜가 불분명해졌습니다.', guidance: '원래 날짜를 전달하려면 {{0}}을 유지하는 편이 좋습니다.' },
     ] })));
   });
   const result = await provider.generateExplanations!('목요일에 안내합니다.', candidates, signal()) as { candidateId: string; explanation: string }[];
   assert.equal(calls, 1);
   assert.match(result[0].explanation, /원문과 동일/);
   assert.equal(result[1].candidateId, 'date');
+  assert.equal(result[1].explanation, '‘목요일’이 ‘이후’로 바뀌어 날짜가 불분명해졌습니다. 원래 날짜를 전달하려면 ‘목요일’을 유지하는 편이 좋습니다.');
 });
 
 test('explanation output rejects unknown, duplicated, missing IDs and unsupported length', async () => {
@@ -163,7 +167,9 @@ test('explanation output rejects unknown, duplicated, missing IDs and unsupporte
     [{ candidateId: 'one', explanation: '설명' }, { candidateId: 'one', explanation: '중복' }],
     [], [{ candidateId: 'one', explanation: ' ' }], [{ candidateId: 'one', explanation: '가'.repeat(401) }],
   ]) {
-    const provider = createGeminiProvider(config, fakeFetch(completion({ explanations })));
+    const drafts = explanations.map(e => ({ candidateId: e.candidateId,
+      references: [{ side: 'source', text: '원문' }], changeSummary: e.explanation.trim() ? `{{0}} ${e.explanation}` : e.explanation, guidance: '' }));
+    const provider = createGeminiProvider(config, fakeFetch(completion({ explanations: drafts })));
     await assert.rejects(provider.generateExplanations!('원문', [{ id: 'one', text: '후보' }], signal()), failure('invalid'));
   }
 });

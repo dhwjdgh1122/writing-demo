@@ -30,9 +30,10 @@ if (!args.includes('--live')) {
     fixturePath, fixtureSha256: hash(fixture), provider: process.env.LLM_PROVIDER?.trim(),
     model: (process.env.LLM_PROVIDER?.trim() === 'elice' ? process.env.ELICE_MODEL : process.env.GEMINI_MODEL)?.trim(),
     promptSha256: hash(explanationInstruction), prompt: explanationInstruction, cases,
+    outputContractSha256: hash(readFileSync('server/llm/explanation-output.ts', 'utf8')),
     derivedModelInputs: cases.map(c => ({ caseId: c.id, input: buildExplanationInput(c.sourceText, c.candidates) })),
     path: 'Loopback HTTP /api/explanations through createApp and configured provider; no browser.',
-    notes: 'Fixed candidates, one request per case; no correction generation, retries or model switching. Adapter output is after schema validation and identical-text normalization, before app quote check. Not raw model output. E-06 excluded.',
+    notes: 'Fixed candidates, one request per case; no correction generation, retries or model switching. Adapter output is after reference validation, rendering and identical-text normalization, before app quote check. Not raw model output; invalid structured drafts are not captured. E-06 excluded.',
     runs: [],
   };
   mkdirSync('docs/evaluations', { recursive: true });

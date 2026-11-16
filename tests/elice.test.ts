@@ -118,16 +118,22 @@ test('Elice explanations bind source and candidate IDs and normalize unchanged c
     ] });
     assert.match(body.messages[0].content, /정당화하지 않는다/);
     return Response.json(completion({ explanations: [
-      { candidateId: 'changed', explanation: '안내 날짜가 불분명해졌습니다.' },
-      { candidateId: 'same', explanation: '더 좋아졌습니다.' },
+      { candidateId: 'changed', references: [{ side: 'source', text: '목요일' }, { side: 'candidate', text: '이후' }],
+        changeSummary: '{{0}}이 {{1}}로 바뀌어 안내 날짜가 불분명해졌습니다.', guidance: '' },
+      { candidateId: 'same', references: [], changeSummary: '더 좋아졌습니다.', guidance: '' },
     ] }));
   });
   const result = await provider.generateExplanations!(sourceText, candidates, signal()) as { candidateId: string; explanation: string }[];
   assert.equal(result[0].candidateId, 'changed');
+  assert.equal(result[0].explanation, '‘목요일’이 ‘이후’로 바뀌어 안내 날짜가 불분명해졌습니다.');
   assert.equal(result[1].explanation, '원문과 동일하여 변경된 표현이나 의미가 없습니다.');
   for (const explanations of [
     [], [{ candidateId: 'wrong', explanation: '설명' }],
     [{ candidateId: 'one', explanation: '설명' }, { candidateId: 'one', explanation: '중복' }],
     [{ candidateId: 'one', explanation: ' ' }], [{ candidateId: 'one', explanation: '가'.repeat(401) }],
-  ]) await assert.rejects(createEliceProvider(config, fakeFetch(completion({ explanations }))).generateExplanations!('원문', [{ id: 'one', text: '후보' }], signal()), failure('invalid'));
+  ]) {
+    const drafts = explanations.map(e => ({ candidateId: e.candidateId,
+      references: [{ side: 'source', text: '원문' }], changeSummary: e.explanation.trim() ? `{{0}} ${e.explanation}` : e.explanation, guidance: '' }));
+    await assert.rejects(createEliceProvider(config, fakeFetch(completion({ explanations: drafts }))).generateExplanations!('원문', [{ id: 'one', text: '후보' }], signal()), failure('invalid'));
+  }
 });

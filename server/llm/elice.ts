@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { modelOutputSchema, explanationsSchema, explanationsMatch } from '../../shared/contracts.js';
+import { modelOutputSchema } from '../../shared/contracts.js';
 import { ProviderError, type CorrectionProvider } from './provider.js';
 import { correctionInstruction, explanationInstruction } from './prompt.js';
 import { buildExplanationInput } from './explanation-input.js';
+import { renderExplanations } from './explanation-output.js';
 
 const envelopeSchema = z.object({
   choices: z.array(z.object({
@@ -74,10 +75,7 @@ export function createEliceProvider(config: { apiKey: string; model: string; bas
     },
     async generateExplanations(sourceText, candidates, signal) {
       const decoded = await generate(explanationInstruction, buildExplanationInput(sourceText, candidates), signal);
-      const result = z.object({ explanations: explanationsSchema }).strict().safeParse(decoded);
-      if (!result.success || !explanationsMatch(candidates, result.data.explanations)) throw new ProviderError('invalid');
-      return result.data.explanations.map(e => candidates.find(c => c.id === e.candidateId)?.text === sourceText
-        ? { ...e, explanation: '원문과 동일하여 변경된 표현이나 의미가 없습니다.' } : e);
+      return renderExplanations(sourceText, candidates, decoded);
     },
   };
 }

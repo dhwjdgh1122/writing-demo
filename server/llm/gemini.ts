@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { modelOutputSchema, explanationsSchema, explanationsMatch } from '../../shared/contracts.js';
+import { modelOutputSchema } from '../../shared/contracts.js';
 import { ProviderError, type CorrectionProvider } from './provider.js';
 import { correctionInstruction, explanationInstruction } from './prompt.js';
 import { buildExplanationInput } from './explanation-input.js';
+import { explanationResponseSchema, renderExplanations } from './explanation-output.js';
 
 // One Gemini completion contains our 1–3 alternatives, not three API calls.
 const envelopeSchema = z.object({
@@ -69,17 +70,8 @@ export function createGeminiProvider(config: { apiKey: string; model: string }, 
       return result.data.candidates;
     },
     async generateExplanations(sourceText, candidates, signal) {
-      const decoded = await generate(explanationInstruction, buildExplanationInput(sourceText, candidates), {
-        type: 'object', properties: { explanations: { type: 'array', minItems: 1, maxItems: 3,
-          items: { type: 'object', properties: { candidateId: { type: 'string', enum: candidates.map(c => c.id) }, explanation: { type: 'string' } },
-            required: ['candidateId', 'explanation'], additionalProperties: false } } },
-        required: ['explanations'], additionalProperties: false,
-      }, signal);
-      const result = z.object({ explanations: explanationsSchema }).strict().safeParse(decoded);
-      if (!result.success || !explanationsMatch(candidates, result.data.explanations)) throw new ProviderError('invalid');
-      // An identical candidate has no change to justify, regardless of model wording.
-      return result.data.explanations.map(e => candidates.find(c => c.id === e.candidateId)?.text === sourceText
-        ? { ...e, explanation: '원문과 동일하여 변경된 표현이나 의미가 없습니다.' } : e);
+      const decoded = await generate(explanationInstruction, buildExplanationInput(sourceText, candidates), explanationResponseSchema(candidates), signal);
+      return renderExplanations(sourceText, candidates, decoded);
     },
   };
 }

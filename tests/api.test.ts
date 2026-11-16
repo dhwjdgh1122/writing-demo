@@ -4,6 +4,39 @@ import { once } from 'node:events';
 import { createApp } from '../server/app.js';
 import { ProviderError, type CorrectionProvider } from '../server/llm/provider.js';
 import { createGeminiProvider } from '../server/llm/gemini.js';
+import { createEliceProvider } from '../server/llm/elice.js';
+
+test('referenced provider explanations preserve the browser API and safely reject invalid source references', async t => {
+  const input = { requestId: 'refs-1', sourceText: '금요일까지 보내 주세여.', candidates: [{ id: 'one', text: '금요일까지 보내 주세요.' }] };
+  for (const name of ['gemini', 'elice']) {
+    let broken = false, calls = 0;
+    const fetcher: typeof fetch = async () => {
+      calls++;
+      const output = { explanations: [{ candidateId: 'one', references: [
+        { side: 'source', text: broken ? '주세오' : '주세여' }, { side: 'candidate', text: '주세요' },
+      ], changeSummary: '{{0}}를 {{1}}로 고쳤습니다.', guidance: '' }] };
+      return Response.json(name === 'gemini'
+        ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(output) }] } }] }
+        : { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(output) } }] });
+    };
+    const provider = name === 'gemini'
+      ? createGeminiProvider({ apiKey: 'test', model: 'gemini-test' }, fetcher)
+      : createEliceProvider({ apiKey: 'test', model: 'test', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' }, fetcher);
+    const { base } = await setup(t, provider);
+    const request = () => fetch(`${base}/api/explanations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+    const success = await request();
+    assert.equal(success.status, 200);
+    assert.deepEqual(await success.json(), { ...input, explanations: [{ candidateId: 'one', explanation: '‘주세여’를 ‘주세요’로 고쳤습니다.' }] });
+    broken = true;
+    const failure = await request();
+    assert.equal(failure.status, 502);
+    const body = await failure.json();
+    assert.equal(body.error.code, 'MODEL_RESPONSE_INVALID');
+    assert.equal(body.explanations, undefined);
+    assert.ok(!JSON.stringify(body).includes('주세오'));
+    assert.equal(calls, 2);
+  }
+});
 
 async function setup(t: TestContext, provider?: CorrectionProvider, timeoutMs?: number) {
   const server = createApp(provider, timeoutMs).listen(0, '127.0.0.1');
