@@ -10,7 +10,14 @@ const changeSchema = z.object({
   kind: z.enum(kinds), before: z.string().max(2000), after: z.string().max(2000), effect: z.string().max(400),
 }).strict();
 const noteSchema = z.object({ text: z.string().min(1).max(2000), reason: z.string().min(1).max(400) }).strict();
-const singleDraftSchema = z.object({ changes: z.array(changeSchema).max(12), notes: z.array(noteSchema).max(2) }).strict();
+// The model never needs to supply an empty effect for a surface correction.
+const surfaceChangeSchema = changeSchema.pick({ before: true, after: true }).extend({ kind: z.enum(surfaceKinds) }).strict();
+const meaningChangeSchema = changeSchema.extend({ kind: z.enum(meaningKinds) }).strict();
+const singleDraftSchema = z.object({
+  notes: z.array(noteSchema).max(2),
+  surfaceChanges: z.array(surfaceChangeSchema).max(12),
+  meaningChanges: z.array(meaningChangeSchema).max(12),
+}).strict().refine(d => d.surfaceChanges.length + d.meaningChanges.length <= 12);
 // Each change owns its evidence and effect. No separate reference table or summary template.
 const draftSchema = z.object({
   candidateId: requestIdSchema, changes: z.array(changeSchema).max(12), notes: z.array(noteSchema).max(2),
@@ -29,20 +36,25 @@ const isSurface = (kind: typeof kinds[number]): kind is typeof surfaceKinds[numb
 export function explanationResponseSchema() {
   // Keep nested array bounds local to avoid the previous Gemini schema complexity rejection.
   return { type: 'object', properties: {
-      changes: { type: 'array', items: { type: 'object', properties: {
-        kind: { type: 'string', enum: [...kinds] }, before: { type: 'string' }, after: { type: 'string' }, effect: { type: 'string' },
-      }, required: ['kind', 'before', 'after', 'effect'], additionalProperties: false } },
       notes: { type: 'array', items: { type: 'object', properties: {
         text: { type: 'string' }, reason: { type: 'string' },
       }, required: ['text', 'reason'], additionalProperties: false } },
-    }, required: ['changes', 'notes'], additionalProperties: false };
+      surfaceChanges: { type: 'array', items: { type: 'object', properties: {
+        kind: { type: 'string', enum: [...surfaceKinds] }, before: { type: 'string' }, after: { type: 'string' },
+      }, required: ['kind', 'before', 'after'], additionalProperties: false } },
+      meaningChanges: { type: 'array', items: { type: 'object', properties: {
+        kind: { type: 'string', enum: [...meaningKinds] }, before: { type: 'string' }, after: { type: 'string' }, effect: { type: 'string' },
+      }, required: ['kind', 'before', 'after', 'effect'], additionalProperties: false } },
+    }, required: ['notes', 'surfaceChanges', 'meaningChanges'], additionalProperties: false };
 }
 
 export function renderSingleExplanation(source: string, candidate: Candidate, decoded: unknown, observe?: ExplanationDraftObserver): Explanation {
   const parsed = singleDraftSchema.safeParse(decoded);
   if (!parsed.success) return fail('schema');
+  const { notes, surfaceChanges, meaningChanges } = parsed.data;
   return renderExplanations(source, [candidate], {
-    explanations: [{ ...parsed.data, candidateId: candidate.id }],
+    explanations: [{ candidateId: candidate.id, notes,
+      changes: [...meaningChanges, ...surfaceChanges.map(c => ({ ...c, effect: '' }))] }],
   }, observe)[0];
 }
 

@@ -116,7 +116,7 @@ test('Elice explanations bind source and candidate IDs and normalize unchanged c
         before: '목요일', after: '이후', sourceContext: sourceText, candidateContext: '이후에 안내합니다.', changeType: 'text-change' }] } },
     });
     assert.match(body.messages[0].content, /정당화하지 않는다/);
-    return Response.json(completion({ changes: [{ kind: 'date', before: '목요일', after: '이후', effect: '안내 날짜가 불분명해졌습니다' }], notes: [] }));
+    return Response.json(completion({ surfaceChanges: [], meaningChanges: [{ kind: 'date', before: '목요일', after: '이후', effect: '안내 날짜가 불분명해졌습니다' }], notes: [] }));
   });
   const result = await provider.generateExplanations!(sourceText, candidates, signal()) as { candidateId: string; explanation: string }[];
   assert.equal(result[0].candidateId, 'changed');

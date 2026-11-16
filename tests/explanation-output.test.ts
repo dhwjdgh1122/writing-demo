@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { explainCandidates } from '../server/llm/explain-candidates.js';
-import { renderExplanations, explanationResponseSchema } from '../server/llm/explanation-output.js';
+import { renderExplanations, renderSingleExplanation, explanationResponseSchema } from '../server/llm/explanation-output.js';
 import { ProviderError } from '../server/llm/provider.js';
 import { createGeminiProvider } from '../server/llm/gemini.js';
 import { createEliceProvider } from '../server/llm/elice.js';
@@ -12,6 +12,52 @@ const draft = () => ({ candidateId: 'one', changes: [{ kind: 'spacing', before: 
 const render = (value: unknown) => renderExplanations(source, candidates, { explanations: [value] })[0].explanation;
 const invalid = (error: unknown) => error instanceof ProviderError && error.kind === 'invalid';
 const stage = (expected: string) => (error: unknown) => invalid(error) && (error as ProviderError).validationFailure === expected;
+
+test('split wire contract preserves meaningful effects, surface labels and remaining-usage notes', () => {
+  const before = '등록비를 결재한 8명에게 보냇습니다.';
+  const candidate = { id: 'one', text: '등록비를 결재한 10명에게 보냈습니다.' };
+  const decoded = {
+    notes: [{ text: '결재', reason: '등록비 납부 문맥에 맞는 단어가 필요합니다' }],
+    surfaceChanges: [{ kind: 'spelling', before: '보냇습니다', after: '보냈습니다' }],
+    meaningChanges: [{ kind: 'quantity', before: '8명', after: '10명', effect: '자료를 받는 인원이 늘어납니다' }],
+  };
+  let observed: unknown;
+  const result = renderSingleExplanation(before, candidate, decoded, rows => { observed = rows; });
+  assert.equal(result.candidateId, 'one');
+  assert.ok(result.explanation.startsWith('‘8명’ → ‘10명’: 자료를 받는 인원이 늘어납니다'));
+  assert.ok(result.explanation.includes('‘보냇습니다’ → ‘보냈습니다’: 맞춤법·오탈자 수정'));
+  assert.ok(result.explanation.includes('남아 있는 ‘결재’ 표현'));
+  assert.ok(result.explanation.includes('수치·인원 정보를 유지'));
+  assert.deepEqual(observed, [{ candidateId: 'one', notes: decoded.notes,
+    changes: [...decoded.meaningChanges, { ...decoded.surfaceChanges[0], effect: '' }] }]);
+});
+
+test('split contract rejects wrong categories, extra surface prose and missing meaning effects without repairing output', () => {
+  const surface = { kind: 'spacing', before: '확인한후', after: '확인한 후' };
+  const run = (decoded: unknown) => renderSingleExplanation(source, candidates[0], decoded);
+  const valid = { notes: [], surfaceChanges: [surface], meaningChanges: [] };
+  assert.equal(run(valid).explanation, render(draft()));
+  for (const decoded of [
+    { ...valid, surfaceChanges: [{ ...surface, effect: '' }] },
+    { ...valid, surfaceChanges: [{ ...surface, effect: '날짜가 바뀝니다' }] },
+    { ...valid, surfaceChanges: [{ ...surface, kind: 'date' }] },
+    { notes: [], surfaceChanges: [], meaningChanges: [{ ...surface, kind: 'date' }] },
+    { notes: [], surfaceChanges: [], meaningChanges: [{ ...surface, effect: '설명' }] },
+    { changes: [draft().changes[0]], notes: [] },
+  ]) assert.throws(() => run(decoded), stage('schema'));
+  assert.throws(() => run({ notes: [], surfaceChanges: [], meaningChanges: [{ ...surface, kind: 'date', effect: '' }] }), stage('change'));
+});
+
+test('split wire bounds cover combined changes and notes before exposing normalized drafts', () => {
+  const surface = { kind: 'spacing', before: '확인한후', after: '확인한 후' };
+  const meaning = { kind: 'date', before: '확인한후', after: '확인한 후', effect: '주장' };
+  let observed = false;
+  for (const decoded of [
+    { notes: [], surfaceChanges: Array(7).fill(surface), meaningChanges: Array(6).fill(meaning) },
+    { notes: Array(3).fill({ text: '자료', reason: '설명' }), surfaceChanges: [surface], meaningChanges: [] },
+  ]) assert.throws(() => renderSingleExplanation(source, candidates[0], decoded, () => { observed = true; }), stage('schema'));
+  assert.equal(observed, false);
+});
 
 test('a change owns both quotes and is rendered exactly once without model-authored particles or reference indices', () => {
   assert.equal(render(draft()), '‘확인한후’ → ‘확인한 후’: 띄어쓰기 수정.');
@@ -139,7 +185,7 @@ test('both adapters expose only bounded drafts and reject bad evidence without r
     let calls = 0, bad = false, captured: unknown;
     const fetcher: typeof fetch = async () => {
       calls++;
-      const decoded = { changes: [{ ...draft().changes[0], before: bad ? 'sensitive invented content' : '확인한후' }], notes: [] };
+      const decoded = { surfaceChanges: [{ kind: 'spacing', before: bad ? 'sensitive invented content' : '확인한후', after: '확인한 후' }], meaningChanges: [], notes: [] };
       return Response.json(name === 'gemini'
         ? { providerSecret: 'not an explanation', candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(decoded) }] } }] }
         : { providerSecret: 'not an explanation', choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(decoded) } }] });
@@ -160,8 +206,8 @@ test('both adapters expose only bounded drafts and reject bad evidence without r
 
 test('compact provider schema has no reference indices and local bounds reject excessive changes and notes', () => {
   const shape = explanationResponseSchema();
-  assert.deepEqual(shape.required, ['changes', 'notes']);
-  assert.ok(!('maxItems' in shape.properties.changes));
+  assert.deepEqual(shape.required, ['notes', 'surfaceChanges', 'meaningChanges']);
+  assert.ok(!('maxItems' in shape.properties.surfaceChanges));
   assert.throws(() => render({ ...draft(), changes: Array(13).fill(draft().changes[0]) }), stage('schema'));
   assert.throws(() => render({ ...draft(), notes: Array(3).fill({ text: '자료', reason: '확인' }) }), stage('schema'));
 });
@@ -177,7 +223,7 @@ test('both adapters isolate each candidate, bind IDs on the server, and keep obs
       inputs.push(input);
       assert.deepEqual(Object.keys(input).sort(), ['candidate', 'sourceText']);
       assert.deepEqual(Object.keys(input.candidate).sort(), ['comparison', 'text']);
-      const decoded = { changes: [{ kind: 'wording', before: '원문', after: input.candidate.text, effect: '' }], notes: [] };
+      const decoded = { surfaceChanges: [{ kind: 'wording', before: '원문', after: input.candidate.text }], meaningChanges: [], notes: [] };
       await Promise.resolve();
       active--;
       return Response.json(name === 'gemini'
@@ -207,7 +253,7 @@ test('isolated explanation failure stops later candidates and never returns part
       calls++;
       if (calls === 2 && mode === 'unavailable') throw new ProviderError('unavailable');
       if (calls === 2 && mode === 'schema') return { changes: [], notes: [], candidateId: 'injected' };
-      return { changes: [{ kind: 'wording', before: calls === 2 ? '없는 원문' : '원문', after: input.candidate.text, effect: '' }], notes: [] };
+      return { surfaceChanges: [{ kind: 'wording', before: calls === 2 ? '없는 원문' : '원문', after: input.candidate.text }], meaningChanges: [], notes: [] };
     }, rows => { observed.push(...rows); }, id => { attempts.push(id); });
     await assert.rejects(pending, e => e instanceof ProviderError && (mode === 'unavailable' ? e.kind === mode : e.validationFailure === mode));
     assert.equal(calls, 2);
@@ -231,7 +277,7 @@ test('shared cancellation prevents later calls, including when an upstream ignor
   const controller = new AbortController(); let calls = 0;
   const run = () => explainCandidates('원문', [{ id: 'a', text: '가' }, { id: 'b', text: '나' }], controller.signal, async () => {
     calls++; controller.abort();
-    return { changes: [{ kind: 'wording', before: '원문', after: '가', effect: '' }], notes: [] };
+    return { surfaceChanges: [{ kind: 'wording', before: '원문', after: '가' }], meaningChanges: [], notes: [] };
   });
   await assert.rejects(run(), { name: 'AbortError' });
   await assert.rejects(run(), { name: 'AbortError' });

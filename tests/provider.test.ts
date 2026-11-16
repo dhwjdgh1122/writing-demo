@@ -144,8 +144,8 @@ test('explanations use only source and candidates; IDs are preserved and identic
           before: '목요일', after: '이후', sourceContext: '목요일에 안내합니다.', candidateContext: '이후에 안내합니다.', changeType: 'text-change' }] } },
     });
     assert.match(body.systemInstruction.parts[0].text, /정당화하지 않는다/);
-    assert.deepEqual(body.generationConfig.responseJsonSchema.required, ['changes', 'notes']);
-    return new Response(JSON.stringify(completion({ changes: [{ kind: 'date', before: '목요일', after: '이후', effect: '날짜가 불분명해졌습니다' }], notes: [] })));
+    assert.deepEqual(body.generationConfig.responseJsonSchema.required, ['notes', 'surfaceChanges', 'meaningChanges']);
+    return new Response(JSON.stringify(completion({ surfaceChanges: [], meaningChanges: [{ kind: 'date', before: '목요일', after: '이후', effect: '날짜가 불분명해졌습니다' }], notes: [] })));
   });
   const result = await provider.generateExplanations!('목요일에 안내합니다.', candidates, signal()) as { candidateId: string; explanation: string }[];
   assert.equal(calls, 1);

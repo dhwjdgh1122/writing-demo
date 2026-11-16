@@ -17,7 +17,7 @@ export async function explainCandidates(source: string, candidates: Candidate[],
   for (const candidate of candidates) {
     signal.throwIfAborted();
     if (candidate.text === source) {
-      results.push(renderSingleExplanation(source, candidate, { changes: [], notes: [] }));
+      results.push(renderSingleExplanation(source, candidate, { notes: [], surfaceChanges: [], meaningChanges: [] }));
       continue;
     }
     observeCall?.(candidate.id);

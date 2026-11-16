@@ -12,8 +12,8 @@ test('referenced provider explanations preserve the browser API and safely rejec
     let broken = false, calls = 0;
     const fetcher: typeof fetch = async () => {
       calls++;
-      const output = { changes: [
-        { kind: 'spelling', before: broken ? '주세오' : '주세여', after: '주세요', effect: '' },
+      const output = { meaningChanges: [], surfaceChanges: [
+        { kind: 'spelling', before: broken ? '주세오' : '주세여', after: '주세요' },
       ], notes: [] };
       return Response.json(name === 'gemini'
         ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(output) }] } }] }
@@ -52,7 +52,7 @@ test('atomic changes reach the existing API while invalid evidence exposes only 
   for (const name of ['gemini', 'elice']) {
     let broken = false;
     const fetcher: typeof fetch = async () => {
-      const output = { changes: [
+      const output = { surfaceChanges: [], meaningChanges: [
         { kind: 'quantity', before: broken ? '10명' : '8명', after: '10명', effect: '인원이 늘어납니다' },
       ], notes: [] };
       return Response.json(name === 'gemini'
@@ -91,7 +91,7 @@ test('isolated explanation calls share the API deadline and timeout exposes no p
   const provider = createEliceProvider({ apiKey: 'test', model: 'test', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' }, async (_url, options) => {
     calls++;
     if (calls === 1) return Response.json({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({
-      changes: [{ kind: 'wording', before: '원문', after: '가', effect: '' }], notes: [],
+      surfaceChanges: [{ kind: 'wording', before: '원문', after: '가' }], meaningChanges: [], notes: [],
     }) } }] });
     return new Promise<Response>((_resolve, reject) => options?.signal?.addEventListener('abort', () => {
       aborted = true; reject(options.signal?.reason);
