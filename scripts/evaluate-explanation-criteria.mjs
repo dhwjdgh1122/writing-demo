@@ -8,15 +8,15 @@ import { loadLocalProvider } from '../server/llm/config.ts';
 import { explanationInstruction } from '../server/llm/prompt.ts';
 import { explanationInputSchema } from '../shared/contracts.ts';
 
-const fixturePath = 'tests/fixtures/explanation-criteria-cases.json';
+const args = process.argv.slice(2);
+if (args.some(arg => arg !== '--live' && !arg.startsWith('--cases=')) || args.filter(arg => arg === '--live').length > 1 || args.filter(arg => arg.startsWith('--cases=')).length > 1) throw new Error('Usage: node --import tsx scripts/evaluate-explanation-criteria.mjs [--live] [--cases=path.json]');
+const fixturePath = args.find(arg => arg.startsWith('--cases='))?.slice('--cases='.length) || 'tests/fixtures/explanation-criteria-cases.json';
 const fixture = readFileSync(fixturePath, 'utf8');
 const cases = JSON.parse(fixture);
-if (cases.length !== 6 || new Set(cases.map(c => c.id)).size !== cases.length) throw new Error('Expected six distinct cases.');
+if (!Array.isArray(cases) || cases.length < 1 || cases.length > 6 || new Set(cases.map(c => c.id)).size !== cases.length) throw new Error('Expected one to six distinct cases.');
 for (const c of cases) explanationInputSchema.parse({ requestId: c.id, sourceText: c.sourceText, candidates: c.candidates });
-const args = process.argv.slice(2);
-if (args.some(arg => arg !== '--live') || args.length > 1) throw new Error('Usage: node --import tsx scripts/evaluate-explanation-criteria.mjs [--live]');
 if (!args.includes('--live')) {
-  console.log(JSON.stringify({ dryRun: true, cases: cases.map(c => c.id), candidates: cases.reduce((n,c) => n+c.candidates.length,0), maxCalls: 6, skipped: 'E-06: incomplete original evidence' }));
+  console.log(JSON.stringify({ dryRun: true, fixturePath, cases: cases.map(c => c.id), candidates: cases.reduce((n,c) => n+c.candidates.length,0), maxCalls: cases.length }));
 } else {
   // .env values, raw provider envelopes, credentials and headers are never saved.
   const provider = loadLocalProvider();
@@ -26,7 +26,7 @@ if (!args.includes('--live')) {
   const report = {
     startedAt, codeCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     runnerSha256: hash(readFileSync('scripts/evaluate-explanation-criteria.mjs', 'utf8')),
-    fixtureSha256: hash(fixture), provider: process.env.LLM_PROVIDER?.trim(),
+    fixturePath, fixtureSha256: hash(fixture), provider: process.env.LLM_PROVIDER?.trim(),
     model: (process.env.LLM_PROVIDER?.trim() === 'elice' ? process.env.ELICE_MODEL : process.env.GEMINI_MODEL)?.trim(),
     promptSha256: hash(explanationInstruction), prompt: explanationInstruction, cases,
     path: 'Loopback HTTP /api/explanations through createApp and configured provider; no browser.',
