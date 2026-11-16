@@ -147,18 +147,17 @@ test('explanations use only source and candidates; IDs are preserved and identic
     });
     assert.match(body.systemInstruction.parts[0].text, /정당화하지 않는다/);
     assert.deepEqual(body.generationConfig.responseJsonSchema.properties.explanations.items.required,
-      ['candidateId', 'references', 'meaningChanges', 'changeSummary', 'guidance']);
+      ['candidateId', 'changes', 'notes']);
     return new Response(JSON.stringify(completion({ explanations: [
-      { candidateId: 'same', references: [], meaningChanges: [], changeSummary: '더 명확해졌습니다.', guidance: '' },
-      { candidateId: 'date', references: [{ side: 'source', text: '목요일' }, { side: 'candidate', text: '이후' }],
-        meaningChanges: [{ kind: 'date', sourceRefs: [0], candidateRefs: [1] }], changeSummary: '{{0}}이 {{1}}로 바뀌어 날짜가 불분명해졌습니다.', guidance: '' },
+      { candidateId: 'same', changes: [], notes: [] },
+      { candidateId: 'date', changes: [{ kind: 'date', before: '목요일', after: '이후', effect: '날짜가 불분명해졌습니다' }], notes: [] },
     ] })));
   });
   const result = await provider.generateExplanations!('목요일에 안내합니다.', candidates, signal()) as { candidateId: string; explanation: string }[];
   assert.equal(calls, 1);
   assert.match(result[0].explanation, /원문과 동일/);
   assert.equal(result[1].candidateId, 'date');
-  assert.equal(result[1].explanation, '‘목요일’이 ‘이후’로 바뀌어 날짜가 불분명해졌습니다. 맞춤법·띄어쓰기는 다듬되, 날짜·시간 정보는 원문의 뜻에 맞게 유지하면 됩니다.');
+  assert.equal(result[1].explanation, '‘목요일’ → ‘이후’: 날짜가 불분명해졌습니다. 원래 뜻을 전달하려면 날짜·시간 정보를 유지하면 됩니다.');
 });
 
 test('explanation output rejects unknown, duplicated, missing IDs and unsupported length', async () => {
@@ -168,7 +167,7 @@ test('explanation output rejects unknown, duplicated, missing IDs and unsupporte
     [], [{ candidateId: 'one', explanation: ' ' }], [{ candidateId: 'one', explanation: '가'.repeat(401) }],
   ]) {
     const drafts = explanations.map(e => ({ candidateId: e.candidateId,
-      references: [{ side: 'source', text: '원문' }], meaningChanges: [], changeSummary: e.explanation.trim() ? `{{0}} ${e.explanation}` : e.explanation, guidance: '' }));
+      changes: [{ kind: 'other', before: '원문', after: '후보', effect: e.explanation }], notes: [] }));
     const provider = createGeminiProvider(config, fakeFetch(completion({ explanations: drafts })));
     await assert.rejects(provider.generateExplanations!('원문', [{ id: 'one', text: '후보' }], signal()), failure('invalid'));
   }

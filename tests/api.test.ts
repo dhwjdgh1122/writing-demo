@@ -12,9 +12,9 @@ test('referenced provider explanations preserve the browser API and safely rejec
     let broken = false, calls = 0;
     const fetcher: typeof fetch = async () => {
       calls++;
-      const output = { explanations: [{ candidateId: 'one', references: [
-        { side: 'source', text: broken ? '주세오' : '주세여' }, { side: 'candidate', text: '주세요' },
-      ], meaningChanges: [], changeSummary: '{{0}}를 {{1}}로 고쳤습니다.', guidance: '' }] };
+      const output = { explanations: [{ candidateId: 'one', changes: [
+        { kind: 'spelling', before: broken ? '주세오' : '주세여', after: '주세요', effect: '' },
+      ], notes: [] }] };
       return Response.json(name === 'gemini'
         ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(output) }] } }] }
         : { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(output) } }] });
@@ -26,7 +26,7 @@ test('referenced provider explanations preserve the browser API and safely rejec
     const request = () => fetch(`${base}/api/explanations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
     const success = await request();
     assert.equal(success.status, 200);
-    assert.deepEqual(await success.json(), { ...input, explanations: [{ candidateId: 'one', explanation: '‘주세여’를 ‘주세요’로 고쳤습니다.' }] });
+    assert.deepEqual(await success.json(), { ...input, explanations: [{ candidateId: 'one', explanation: '‘주세여’ → ‘주세요’: 맞춤법·오탈자 수정.' }] });
     broken = true;
     const failure = await request();
     assert.equal(failure.status, 502);
@@ -48,14 +48,13 @@ async function setup(t: TestContext, provider?: CorrectionProvider, timeoutMs?: 
   return { base, post: (body: unknown) => fetch(`${base}/api/corrections`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) };
 }
 
-test('meaning-linked guidance reaches the existing API while invalid links expose only the safe error contract', async t => {
+test('atomic changes reach the existing API while invalid evidence exposes only the safe error contract', async t => {
   for (const name of ['gemini', 'elice']) {
     let broken = false;
     const fetcher: typeof fetch = async () => {
-      const output = { explanations: [{ candidateId: 'one', references: [
-        { side: 'source', text: '8명' }, { side: 'candidate', text: '10명' },
-      ], meaningChanges: [{ kind: 'quantity', sourceRefs: [broken ? 1 : 0], candidateRefs: [1] }],
-      changeSummary: '{{0}} 대신 {{1}} 인원으로 바뀌었습니다.', guidance: '' }] };
+      const output = { explanations: [{ candidateId: 'one', changes: [
+        { kind: 'quantity', before: broken ? '10명' : '8명', after: '10명', effect: '인원이 늘어납니다' },
+      ], notes: [] }] };
       return Response.json(name === 'gemini'
         ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(output) }] } }] }
         : { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(output) } }] });
@@ -70,13 +69,13 @@ test('meaning-linked guidance reaches the existing API while invalid links expos
     assert.equal(success.status, 200);
     const data = await success.json();
     assert.deepEqual(Object.keys(data.explanations[0]).sort(), ['candidateId', 'explanation']);
-    assert.equal(data.explanations[0].explanation, '‘8명’ 대신 ‘10명’ 인원으로 바뀌었습니다. 맞춤법·띄어쓰기는 다듬되, 수치·인원 정보는 원문의 뜻에 맞게 유지하면 됩니다.');
+    assert.equal(data.explanations[0].explanation, '‘8명’ → ‘10명’: 인원이 늘어납니다. 원래 뜻을 전달하려면 수치·인원 정보를 유지하면 됩니다.');
     broken = true;
     const failure = await request();
     assert.equal(failure.status, 502);
     const error = await failure.json();
     assert.equal(error.error.code, 'MODEL_RESPONSE_INVALID');
-    assert.ok(!JSON.stringify(error).includes('meaning-link'));
+    assert.ok(!JSON.stringify(error).includes('validationFailure'));
   }
 });
 test('without API, returns honest health state and 503 instead of fabricated candidates', async t => {

@@ -1,4 +1,31 @@
 import { test, expect, type Page } from '@playwright/test';
+import { renderExplanations } from '../../server/llm/explanation-output';
+
+test('rendered change records remain readable and apply correctly in the existing explanation panel', async ({ page }) => {
+  // Inject a server-rendered fixture: UI verification, not a live model quality result.
+  const source = '승인되면 8명에게 보낼 예정입니다.';
+  const candidate = { id: 'atomic', text: '10명에게 보냅니다.' };
+  const explanations = renderExplanations(source, [candidate], { explanations: [{ candidateId: candidate.id, changes: [
+    { kind: 'condition', before: '승인되면', after: '', effect: '승인 없이 보낸다는 뜻이 됩니다' },
+    { kind: 'quantity', before: '8명', after: '10명', effect: '받는 인원이 늘어납니다' },
+    { kind: 'certainty', before: '보낼 예정입니다.', after: '보냅니다.', effect: '예정이 확정적인 표현으로 바뀝니다' },
+  ], notes: [] }] });
+  await page.route('**/api/corrections', async route => route.fulfill({ json: { ...route.request().postDataJSON(), candidates: [candidate] } }));
+  await page.route('**/api/explanations', async route => route.fulfill({ json: { ...route.request().postDataJSON(), explanations } }));
+  await page.goto('/');
+  await page.getByLabel('원문 입력').fill(source);
+  await select(page, 0, source.length);
+  await page.getByRole('button', { name: '교정 실행' }).click();
+  await page.getByRole('button', { name: /교정 이유/ }).click();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(page.locator('.candidate-explanation p')).toHaveText(explanations[0].explanation);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.locator('.candidate-explanation').screenshot({ path: `test-results/atomic-explanation-${width}.png` });
+  }
+  await page.getByRole('button', { name: '이 문장 적용', exact: true }).click();
+  await expect(page.getByLabel('원문 입력')).toHaveValue(candidate.text);
+});
 
 async function select(page: Page, start: number, end: number) {
   await page.getByLabel('원문 입력').evaluate((el: HTMLTextAreaElement, range) => { el.focus(); el.setSelectionRange(range[0], range[1]); }, [start, end]);

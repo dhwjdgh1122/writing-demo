@@ -35,7 +35,7 @@ if (!args.includes('--live')) {
     outputContractSha256: hash(readFileSync('server/llm/explanation-output.ts', 'utf8')),
     derivedModelInputs: cases.map(c => ({ caseId: c.id, input: buildExplanationInput(c.sourceText, c.candidates) })),
     path: 'Loopback HTTP /api/explanations through createApp and configured provider; no browser.',
-    notes: 'Fixed candidates, one request per case; no correction generation, retries or model switching. modelDrafts is a schema/ID-validated snapshot before reference/link checks; not a correctness verdict. Schema-invalid drafts, provider envelopes and headers are not captured. Adapter output is after validation/rendering/identical normalization, before app quote check. E-06 excluded.',
+    notes: 'Fixed candidates, one request per case; no correction generation, retries or model switching. modelDrafts is a schema/ID-validated snapshot before evidence/change checks; not a correctness verdict. Schema-invalid drafts, provider envelopes and headers are not captured. Adapter output is after validation/rendering/identical normalization, before app quote check. E-06 excluded.',
     runs: [],
   };
   mkdirSync('docs/evaluations', { recursive: true });

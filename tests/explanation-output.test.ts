@@ -7,208 +7,160 @@ import { createEliceProvider } from '../server/llm/elice.js';
 
 const source = '자료를 확인한후 연락해 주세요.';
 const candidates = [{ id: 'one', text: '자료를 확인한 후 연락해 주세요.' }];
-const draft = () => ({ candidateId: 'one', references: [
-  { side: 'source', text: '확인한후' }, { side: 'candidate', text: '확인한 후' },
-], meaningChanges: [], changeSummary: '{{0}}를 {{1}}로 띄어 썼습니다.', guidance: '' });
+const draft = () => ({ candidateId: 'one', changes: [{ kind: 'spacing', before: '확인한후', after: '확인한 후', effect: '' }], notes: [] });
+const render = (value: unknown) => renderExplanations(source, candidates, { explanations: [value] })[0].explanation;
 const invalid = (error: unknown) => error instanceof ProviderError && error.kind === 'invalid';
+const stage = (expected: string) => (error: unknown) => invalid(error) && (error as ProviderError).validationFailure === expected;
 
-test('renders only exact, side-bound references and joins optional guidance without exposing templates', () => {
-  const changed = { ...draft(), guidance: '{{0}}의 공백을 수정한 내용입니다.' };
-  assert.deepEqual(renderExplanations(source, candidates, { explanations: [changed] }), [{
-    candidateId: 'one', explanation: '‘확인한후’를 ‘확인한 후’로 띄어 썼습니다. ‘확인한후’의 공백을 수정한 내용입니다.',
-  }]);
-  assert.equal(renderExplanations(source, candidates, { explanations: [draft()] })[0].explanation,
-    '‘확인한후’를 ‘확인한 후’로 띄어 썼습니다.');
+test('a change owns both quotes and is rendered exactly once without model-authored particles or reference indices', () => {
+  assert.equal(render(draft()), '‘확인한후’ → ‘확인한 후’: 띄어쓰기 수정.');
+  assert.ok(!render(draft()).includes('유지'));
 });
 
-test('rejects observed fabricated text, normalized typos, wrong side and cross-candidate citations', () => {
-  for (const bad of [
-    { side: 'source', text: '확한후' }, // F S-02 unquoted fabrication, now a reference.
-    { side: 'source', text: '확인한 후' }, // Incorrectly normalizing the source.
-    { side: 'candidate', text: '확인한후' },
-    { side: 'source', text: '확인한\n후' },
-    { side: 'source', text: ' ' },
-  ]) assert.throws(() => renderExplanations(source, candidates, { explanations: [{ ...draft(), references: [bad, draft().references[1]] }] }), invalid);
-  const typo = { ...draft(), references: [{ side: 'source', text: '주세여' }, { side: 'candidate', text: '주세오' }] };
-  assert.throws(() => renderExplanations('보내 주세여.', [{ id: 'one', text: '보내 주세요.' }], { explanations: [typo] }), invalid);
-  const other = { id: 'two', text: '즉시 확인해 주세요.' };
-  assert.throws(() => renderExplanations(source, [...candidates, other], { explanations: [
-    { ...draft(), references: [{ side: 'candidate', text: '즉시' }], meaningChanges: [], changeSummary: '{{0}}로 바뀌었습니다.' },
-    { candidateId: 'two', references: [{ side: 'candidate', text: '즉시' }], meaningChanges: [], changeSummary: '{{0}}로 바뀌었습니다.', guidance: '' },
-  ] }), invalid);
-});
-
-test('rejects missing, unused, malformed and literal quotes instead of silently dropping or repairing data', () => {
-  for (const changeSummary of ['{{2}}', '{{-1}}', '{{01}}', '{{x}}', '{{0}', '{{0}}', '수정했습니다.', "'확인한후'를 수정했습니다.", '   ']) {
-    assert.throws(() => renderExplanations(source, candidates, { explanations: [{ ...draft(), changeSummary }] }), invalid);
+test('rejects fabricated, normalized, wrong-side and cross-candidate evidence', () => {
+  for (const before of ['확한후', '확인한 후', '확인한\n후', ' ']) {
+    assert.throws(() => render({ ...draft(), changes: [{ ...draft().changes[0], before }] }), stage('reference'));
   }
-  assert.throws(() => renderExplanations(source, candidates, { explanations: [{ ...draft(), references: [] }] }), invalid);
-  assert.throws(() => renderExplanations(source, candidates, { explanations: [{ ...draft(), explanation: 'legacy' }] }), invalid);
+  assert.throws(() => render({ ...draft(), changes: [{ ...draft().changes[0], after: '확인한후' }] }), stage('reference'));
+  assert.throws(() => renderExplanations(source, [...candidates, { id: 'two', text: '즉시 확인해 주세요.' }], { explanations: [
+    { ...draft(), changes: [{ kind: 'wording', before: '자료를', after: '즉시', effect: '' }] },
+    { candidateId: 'two', changes: [{ kind: 'wording', before: '자료를 확인한후', after: '즉시 확인해', effect: '' }], notes: [] },
+  ] }), stage('reference'));
 });
 
-test('validates IDs, final expanded code-point length and fixed unchanged handling', () => {
-  for (const explanations of [[], [draft(), draft()], [{ ...draft(), candidateId: 'unknown' }]]) {
-    assert.throws(() => renderExplanations(source, candidates, { explanations }), invalid);
+test('spacing cannot conceal a changed letter and unchanged words cannot be claimed as changes', () => {
+  assert.throws(() => renderExplanations('보내 주세여.', [{ id: 'one', text: '보내주세요.' }], { explanations: [
+    { ...draft(), changes: [{ kind: 'spacing', before: '보내 주세여', after: '보내주세요', effect: '' }] },
+  ] }), stage('change'));
+  for (const change of [{ kind: 'usage', before: '자료를', after: '자료를', effect: '' }, { kind: 'other', before: '', after: '', effect: '변경' }]) {
+    assert.throws(() => render({ ...draft(), changes: [change] }), stage('change'));
   }
-  const longSource = '🌊'.repeat(200);
-  const lengthy = { candidateId: 'one', references: [{ side: 'source', text: longSource }], meaningChanges: [], changeSummary: '{{0}}{{0}}', guidance: '' };
-  assert.throws(() => renderExplanations(longSource, [{ id: 'one', text: '후보' }], { explanations: [lengthy] }), invalid);
-  assert.equal(renderExplanations(longSource, [{ id: 'one', text: '후보' }], { explanations: [{ ...lengthy, meaningChanges: [], changeSummary: '{{0}}' }] })[0].explanation,
-    `‘${longSource}’`);
-  assert.equal(renderExplanations(source, [{ id: 'one', text: source }], { explanations: [{ candidateId: 'one', references: [], meaningChanges: [], changeSummary: '잘못된 모델 설명', guidance: '' }] })[0].explanation,
-    '원문과 동일하여 변경된 표현이나 의미가 없습니다.');
+  assert.throws(() => render({ ...draft(), changes: [] }), stage('change'));
 });
 
-test('literal reference contents are inserted once, including braces, whitespace and emoji', () => {
-  const literal = '🌊 {{1}}\n자료';
-  const one = { candidateId: 'one', references: [{ side: 'source', text: literal }], meaningChanges: [], changeSummary: '{{0}}를 줄였습니다.', guidance: '' };
-  assert.equal(renderExplanations(literal, [{ id: 'one', text: '자료' }], { explanations: [one] })[0].explanation,
-    `‘${literal}’를 줄였습니다.`);
-});
-
-test('reference validation does not claim to check unquoted meaning, completeness or grammatical direction', () => {
-  const unsupported = { ...draft(), meaningChanges: [], changeSummary: '{{0}}를 {{1}}로 바꾸어 발송 날짜가 확정되었습니다.' };
-  assert.match(renderExplanations(source, candidates, { explanations: [unsupported] })[0].explanation, /발송 날짜가 확정/);
-  // Both strings exist on the right sides; the semantic claim still needs evaluation.
-});
-
-test('both adapters reject invalid reference results without retry, fallback or leaking model text', async () => {
-  const decoded = { explanations: [{ ...draft(), references: [{ side: 'source', text: 'sensitive invented content' }] }] };
-  for (const providerName of ['gemini', 'elice']) {
-    let calls = 0;
-    const fetcher: typeof fetch = async () => {
-      calls++;
-      return Response.json(providerName === 'gemini'
-        ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(decoded) }] } }] }
-        : { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(decoded) } }] });
-    };
-    const provider = providerName === 'gemini'
-      ? createGeminiProvider({ apiKey: 'test', model: 'gemini-test' }, fetcher)
-      : createEliceProvider({ apiKey: 'test', model: 'test', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' }, fetcher);
-    await assert.rejects(provider.generateExplanations!(source, candidates, new AbortController().signal), e => invalid(e) && !String(e).includes('sensitive'));
-    assert.equal(calls, 1);
+test('surface labels are server-generated; free quotes, legacy templates and missing meaning effects are rejected', () => {
+  assert.throws(() => render({ ...draft(), changes: [{ ...draft().changes[0], effect: '내용이 정확합니다' }] }), stage('change'));
+  for (const effect of ['', ' ', '"새 문장"입니다', '{{0}}를 바꿨습니다', '첫 줄\n다음 줄']) {
+    assert.throws(() => render({ ...draft(), changes: [{ ...draft().changes[0], kind: 'other', effect }] }), stage('change'));
   }
+  assert.throws(() => render({ ...draft(), changeSummary: 'legacy' }), stage('schema'));
 });
 
 const complexSource = '승인되면 8명에게 보낼 예정입니다.';
 const complexCandidate = [{ id: 'one', text: '10명에게 보냅니다.' }];
-const complexDraft = () => ({ candidateId: 'one', references: [
-  { side: 'source', text: '승인되면' }, { side: 'source', text: '8명' },
-  { side: 'candidate', text: '10명' }, { side: 'source', text: '보낼 예정입니다.' },
-  { side: 'candidate', text: '보냅니다.' },
-], meaningChanges: [
-  { kind: 'condition', sourceRefs: [0], candidateRefs: [] },
-  { kind: 'quantity', sourceRefs: [1], candidateRefs: [2] },
-  { kind: 'certainty', sourceRefs: [3], candidateRefs: [4] },
-], changeSummary: '{{0}} 조건이 빠지고 {{1}} 대신 {{2}} 인원으로 바뀌었으며 {{3}} 대신 {{4}} 표현을 사용해 발송이 확정되었습니다.', guidance: '' });
+const complexDraft = () => ({ candidateId: 'one', changes: [
+  { kind: 'condition', before: '승인되면', after: '', effect: '승인 없이 보낸다는 뜻이 됩니다' },
+  { kind: 'quantity', before: '8명', after: '10명', effect: '받는 인원이 늘어납니다' },
+  { kind: 'certainty', before: '보낼 예정입니다.', after: '보냅니다.', effect: '예정이 확정적인 표현으로 바뀝니다' },
+], notes: [] });
 const renderComplex = (value: unknown) => renderExplanations(complexSource, complexCandidate, { explanations: [value] })[0].explanation;
-const stage = (expected: string) => (error: unknown) => error instanceof ProviderError && error.kind === 'invalid' && error.validationFailure === expected;
 
-test('every declared meaningful change contributes an information category; concrete facts remain in the summary', () => {
-  const explanation = renderComplex(complexDraft());
-  const guidance = explanation.slice(explanation.indexOf('맞춤법'));
-  for (const original of ['승인되면', '8명', '보낼 예정입니다.']) assert.ok(explanation.includes(original));
-  for (const kind of ['조건', '수치·인원', '확정·예정·가능성']) assert.ok(guidance.includes(kind));
-  for (const quoted of ['승인되면', '8명', '보낼 예정입니다.', '10명', '보냅니다.']) assert.ok(!guidance.includes(quoted));
-  const repeated = complexDraft();
-  repeated.meaningChanges.push(repeated.meaningChanges[0]);
-  assert.equal(renderComplex(repeated), explanation); // Shared evidence is not repeated in the final guidance.
+test('every supplied meaningful change renders its own evidence and effect; guidance deduplicates categories', () => {
+  const text = renderComplex(complexDraft());
+  for (const value of ['승인되면', '8명', '10명', '승인 없이', '받는 인원', '예정이 확정']) assert.ok(text.includes(value));
+  const guidance = text.slice(text.indexOf('원래 뜻'));
+  for (const label of ['조건', '수치·인원', '확정·예정·가능성']) assert.ok(guidance.includes(label));
+  for (const quote of ['승인되면', '8명', '10명']) assert.ok(!guidance.includes(quote));
+  assert.throws(() => renderComplex({ ...complexDraft(), changes: [...complexDraft().changes, complexDraft().changes[0]] }), stage('change'));
 });
 
-test('rejects wrong-side, missing, duplicate and summary-disconnected meaning references and conflicting free-form guidance', () => {
-  for (const change of [
-    { kind: 'quantity', sourceRefs: [2], candidateRefs: [1] },
-    { kind: 'quantity', sourceRefs: [11], candidateRefs: [2] },
-    { kind: 'quantity', sourceRefs: [1, 1], candidateRefs: [2] },
-    { kind: 'quantity', sourceRefs: [], candidateRefs: [] },
-  ]) assert.throws(() => renderComplex({ ...complexDraft(), meaningChanges: [change] }), stage('meaning-link'));
-  assert.throws(() => renderComplex({ ...complexDraft(), changeSummary: '{{0}} 조건이 사라졌습니다.' }), stage('meaning-link'));
-  assert.throws(() => renderComplex({ ...complexDraft(), guidance: '{{1}} 내용과 {{2}} 내용을 유지하면 됩니다.' }), stage('meaning-link'));
+test('addition-only and deletion-only changes retain their direction and do not recommend new facts as original', () => {
+  const d = { candidateId: 'one', changes: [{ kind: 'date', before: '', after: '내일', effect: '날짜가 새로 지정됩니다' }], notes: [] };
+  const text = renderExplanations('자료를 보냅니다.', [{ id: 'one', text: '내일 자료를 보냅니다.' }], { explanations: [d] })[0].explanation;
+  assert.ok(text.startsWith('‘내일’ 추가:'));
+  assert.ok(text.includes('추가된 날짜·시간 정보'));
+  assert.ok(!text.includes('원래 뜻'));
+  assert.ok(renderComplex(complexDraft()).startsWith('‘승인되면’ 삭제:'));
 });
 
-test('handles added-only information separately instead of recommending it as original information', () => {
-  const addition = { candidateId: 'one', references: [{ side: 'candidate', text: '내일' }],
-    meaningChanges: [{ kind: 'date', sourceRefs: [], candidateRefs: [0] }],
-    changeSummary: '{{0}} 날짜가 추가되었습니다.', guidance: '' };
-  const text = renderExplanations('자료를 보냅니다.', [{ id: 'one', text: '내일 자료를 보냅니다.' }], { explanations: [addition] })[0].explanation;
-  assert.ok(text.includes('원문에 없어'));
-  assert.ok(!text.includes('유지하는 편'));
-  assert.throws(() => renderExplanations('내일 자료를 보냅니다.', [{ id: 'one', text: '내일 보냅니다.' }], { explanations: [addition] }), stage('meaning-link'));
+test('remaining usage notes must quote the same unchanged expression in source and its own candidate', () => {
+  const d = { candidateId: 'one', changes: [{ kind: 'spelling', before: '않앗습니다', after: '않았습니다', effect: '' }],
+    notes: [{ text: '결재', reason: '대금 납부 맥락에 맞는 단어가 필요합니다' }] };
+  const run = (value: unknown) => renderExplanations('아직 결재하지 않앗습니다.', [{ id: 'one', text: '아직 결재하지 않았습니다.' }], { explanations: [value] });
+  assert.ok(run(d)[0].explanation.includes('남아 있는 ‘결재’ 표현'));
+  assert.throws(() => run({ ...d, notes: [{ text: '결제', reason: '새 단어 제안' }] }), stage('reference'));
+  assert.throws(() => run({ ...d, notes: [{ text: '않앗습니다', reason: '이미 수정됨' }] }), stage('reference'));
 });
 
-test('enforces final length after generated guidance and reports only bounded validation stages', () => {
-  const long = '가'.repeat(380);
-  const value = { candidateId: 'one', references: [{ side: 'source', text: long }],
-    meaningChanges: [{ kind: 'other', sourceRefs: [0], candidateRefs: [] }], changeSummary: '{{0}} 내용이 삭제되었습니다.', guidance: '' };
-  assert.throws(() => renderExplanations(long, [{ id: 'one', text: '나' }], { explanations: [value] }), stage('length'));
-  assert.throws(() => renderComplex({ ...complexDraft(), meaningChanges: undefined }), stage('schema'));
-  assert.throws(() => renderComplex({ ...complexDraft(), candidateId: 'unknown' }), stage('ids'));
-  assert.throws(() => renderComplex({ ...complexDraft(), references: [{ side: 'source', text: 'sensitive absent' }] }), stage('reference'));
-  assert.throws(() => renderComplex({ ...complexDraft(), changeSummary: '{{99}}' }), stage('template'));
+test('even a wrongly classified whole-source change cannot copy source typos into preservation guidance', () => {
+  const before = '회의는 화요일에 시작됍니다.', after = '회의는 화요일에 시작됩니다.';
+  const d = { candidateId: 'one', changes: [{ kind: 'action', before, after, effect: '표현이 바뀝니다' }], notes: [] };
+  const result = renderExplanations(before, [{ id: 'one', text: after }], { explanations: [d] })[0].explanation;
+  const guide = result.slice(result.indexOf('원래 뜻'));
+  assert.ok(!guide.includes('됍니다'));
+  assert.ok(guide.includes('행동 내용'));
+  // Incorrect classification is still a model-quality issue, not validated here.
 });
 
-test('undeclared meaning changes remain a model-quality limitation, not a successful semantic check', () => {
-  const incomplete = { ...complexDraft(), meaningChanges: [] };
-  assert.ok(!renderComplex(incomplete).includes('맞춤법')); // Prompt compliance must still be assessed on real cases.
-});
-
-test('even a misclassified whole-source reference is not copied into the preservation recommendation', () => {
-  const source = '회의는 화요일에 시작됍니다.';
-  const candidate = { id: 'one', text: '회의는 화요일에 시작됩니다.' };
-  const badClassification = { candidateId: 'one', references: [{ side: 'source', text: source }, { side: 'candidate', text: candidate.text }],
-    meaningChanges: [{ kind: 'action', sourceRefs: [0], candidateRefs: [1] }],
-    changeSummary: '{{0}} 대신 {{1}} 표현을 사용했습니다.', guidance: '' };
-  const result = renderExplanations(source, [candidate], { explanations: [badClassification] })[0].explanation;
-  const recommendation = result.slice(result.indexOf('맞춤법'));
-  assert.ok(!recommendation.includes('됍니다'));
-  assert.ok(!recommendation.includes(source));
-  assert.ok(recommendation.includes('맞춤법·띄어쓰기는 다듬되'));
-  // The incorrect action classification still needs semantic evaluation; this only prevents literal copying.
-});
-
-test('evaluation observes bounded drafts before link rejection, with detached data and no observation on bad schema or IDs', () => {
-  const original = complexDraft();
-  let observations = 0;
-  assert.equal(renderExplanations(complexSource, complexCandidate, { explanations: [original] }, drafts => {
-    observations++;
-    drafts[0].references[0].text = 'changed by observer';
-  })[0].explanation, renderComplex(original));
-  assert.equal(original.references[0].text, '승인되면');
-  let captured: unknown;
-  assert.throws(() => renderExplanations(complexSource, complexCandidate,
-    { explanations: [{ ...original, meaningChanges: [{ kind: 'quantity', sourceRefs: [2], candidateRefs: [1] }] }] },
-    drafts => { captured = drafts; }), stage('meaning-link'));
-  assert.ok(captured);
-  for (const bad of [{ ...original, unknown: 'provider envelope' }, { ...original, candidateId: 'other' }]) {
-    assert.throws(() => renderExplanations(complexSource, complexCandidate, { explanations: [bad] }, () => { observations++; }), invalid);
+test('IDs and fixed unchanged handling remain strict', () => {
+  for (const explanations of [[], [draft(), draft()], [{ ...draft(), candidateId: 'unknown' }]]) {
+    assert.throws(() => renderExplanations(source, candidates, { explanations }), invalid);
   }
-  assert.equal(observations, 1);
+  assert.equal(renderExplanations(source, [{ id: 'one', text: source }], { explanations: [{ candidateId: 'one', changes: [], notes: [] }] })[0].explanation,
+    '원문과 동일하여 변경된 표현이나 의미가 없습니다.');
 });
 
-test('both adapters optionally expose only explanation drafts to the evaluator, never the provider envelope', async () => {
+test('final code-point limit includes evidence and guidance, without truncating the model response', () => {
+  const before = '🌊'.repeat(350), after = '나';
+  const make = (n: number) => ({ candidateId: 'one', changes: [{ kind: 'other', before: before.slice(0, n * 2), after, effect: '내용이 달라집니다' }], notes: [] });
+  assert.throws(() => renderExplanations(before, [{ id: 'one', text: after }], { explanations: [make(350)] }), stage('length'));
+  assert.ok(renderExplanations(before, [{ id: 'one', text: after }], { explanations: [make(100)] })[0].explanation.includes('🌊'.repeat(100)));
+});
+
+test('literal braces, whitespace and emoji in evidence are inserted once and never treated as templates', () => {
+  const before = '🌊 {{1}}\n자료';
+  const d = { candidateId: 'one', changes: [{ kind: 'wording', before, after: '자료', effect: '' }], notes: [] };
+  assert.equal(renderExplanations(before, [{ id: 'one', text: '자료' }], { explanations: [d] })[0].explanation, `‘${before}’ → ‘자료’: 표현 다듬기.`);
+});
+
+test('string checks do not claim to detect missing meaning changes or false unquoted effects', () => {
+  const d = { ...draft(), changes: [{ ...draft().changes[0], kind: 'date', effect: '발송 날짜가 확정됩니다' }] };
+  assert.ok(render(d).includes('발송 날짜가 확정됩니다'));
+  assert.ok(!renderComplex({ ...complexDraft(), changes: [complexDraft().changes[1]] }).includes('승인'));
+});
+
+test('manual observation is detached, before evidence checks, and absent on bad schema or candidate IDs', () => {
+  const d = draft(); let calls = 0;
+  const result = renderExplanations(source, candidates, { explanations: [d] }, rows => { calls++; rows[0].changes[0].before = 'mutated'; });
+  assert.equal(result[0].explanation, render(d));
+  assert.equal(d.changes[0].before, '확인한후');
+  let captured: unknown;
+  assert.throws(() => renderExplanations(source, candidates, { explanations: [{ ...d, changes: [{ ...d.changes[0], before: 'absent' }] }] }, rows => { captured = rows; }), stage('reference'));
+  assert.ok(captured);
+  for (const bad of [{ ...d, unknown: true }, { ...d, candidateId: 'other' }]) {
+    assert.throws(() => renderExplanations(source, candidates, { explanations: [bad] }, () => { calls++; }), invalid);
+  }
+  assert.equal(calls, 1);
+});
+
+test('both adapters expose only bounded drafts and reject bad evidence without retry or provider-envelope leakage', async () => {
   for (const name of ['gemini', 'elice']) {
-    let captured: unknown;
-    const decoded = { explanations: [draft()] };
-    const fetcher: typeof fetch = async () => Response.json(name === 'gemini'
-      ? { providerSecret: 'not an explanation', candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(decoded) }] } }] }
-      : { providerSecret: 'not an explanation', choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(decoded) } }] });
-    const observe = (value: unknown) => { captured = value; };
+    let calls = 0, bad = false, captured: unknown;
+    const fetcher: typeof fetch = async () => {
+      calls++;
+      const decoded = { explanations: [{ ...draft(), changes: [{ ...draft().changes[0], before: bad ? 'sensitive invented content' : '확인한후' }] }] };
+      return Response.json(name === 'gemini'
+        ? { providerSecret: 'not an explanation', candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(decoded) }] } }] }
+        : { providerSecret: 'not an explanation', choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(decoded) } }] });
+    };
+    const observe = (rows: unknown) => { captured = rows; };
     const provider = name === 'gemini'
       ? createGeminiProvider({ apiKey: 'test', model: 'gemini-test' }, fetcher, observe)
       : createEliceProvider({ apiKey: 'test', model: 'test', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' }, fetcher, observe);
     const result = await provider.generateExplanations!(source, candidates, new AbortController().signal);
-    assert.deepEqual(captured, decoded.explanations);
-    assert.ok(!JSON.stringify(result).includes('meaningChanges'));
+    assert.deepEqual(captured, [draft()]);
     assert.ok(!JSON.stringify(captured).includes('providerSecret'));
+    assert.ok(!JSON.stringify(result).includes('changes'));
+    bad = true;
+    await assert.rejects(provider.generateExplanations!(source, candidates, new AbortController().signal), e => invalid(e) && !String(e).includes('sensitive'));
+    assert.equal(calls, 2);
   }
 });
 
-test('compact provider schema still enforces full nested bounds locally', () => {
-  const shape = explanationResponseSchema(complexCandidate).properties.explanations.items.properties.meaningChanges;
-  assert.ok(!('maxItems' in shape));
-  const one = complexDraft();
-  assert.throws(() => renderComplex({ ...one, meaningChanges: Array(13).fill(one.meaningChanges[0]) }), stage('schema'));
-  for (const indices of [[-1], [12], [0.5], Array(13).fill(0)]) {
-    assert.throws(() => renderComplex({ ...one, meaningChanges: [{ kind: 'condition', sourceRefs: indices, candidateRefs: [] }] }), stage('schema'));
-  }
+test('compact provider schema has no reference indices and local bounds reject excessive changes and notes', () => {
+  const shape = explanationResponseSchema(candidates).properties.explanations.items;
+  assert.deepEqual(shape.required, ['candidateId', 'changes', 'notes']);
+  assert.ok(!('maxItems' in shape.properties.changes));
+  assert.throws(() => render({ ...draft(), changes: Array(13).fill(draft().changes[0]) }), stage('schema'));
+  assert.throws(() => render({ ...draft(), notes: Array(3).fill({ text: '자료', reason: '확인' }) }), stage('schema'));
 });
