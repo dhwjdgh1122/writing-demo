@@ -12,9 +12,9 @@ test('referenced provider explanations preserve the browser API and safely rejec
     let broken = false, calls = 0;
     const fetcher: typeof fetch = async () => {
       calls++;
-      const output = { explanations: [{ candidateId: 'one', changes: [
+      const output = { changes: [
         { kind: 'spelling', before: broken ? '주세오' : '주세여', after: '주세요', effect: '' },
-      ], notes: [] }] };
+      ], notes: [] };
       return Response.json(name === 'gemini'
         ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(output) }] } }] }
         : { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(output) } }] });
@@ -52,9 +52,9 @@ test('atomic changes reach the existing API while invalid evidence exposes only 
   for (const name of ['gemini', 'elice']) {
     let broken = false;
     const fetcher: typeof fetch = async () => {
-      const output = { explanations: [{ candidateId: 'one', changes: [
+      const output = { changes: [
         { kind: 'quantity', before: broken ? '10명' : '8명', after: '10명', effect: '인원이 늘어납니다' },
-      ], notes: [] }] };
+      ], notes: [] };
       return Response.json(name === 'gemini'
         ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(output) }] } }] }
         : { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(output) } }] });
@@ -84,6 +84,29 @@ test('without API, returns honest health state and 503 instead of fabricated can
   const response = await post({ requestId: 'r1', sourceText: '원문' });
   assert.equal(response.status, 503);
   assert.equal((await response.json()).error.code, 'MODEL_NOT_CONFIGURED');
+});
+
+test('isolated explanation calls share the API deadline and timeout exposes no partial explanations', async t => {
+  let calls = 0, aborted = false;
+  const provider = createEliceProvider({ apiKey: 'test', model: 'test', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' }, async (_url, options) => {
+    calls++;
+    if (calls === 1) return Response.json({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({
+      changes: [{ kind: 'wording', before: '원문', after: '가', effect: '' }], notes: [],
+    }) } }] });
+    return new Promise<Response>((_resolve, reject) => options?.signal?.addEventListener('abort', () => {
+      aborted = true; reject(options.signal?.reason);
+    }, { once: true }));
+  });
+  const { base } = await setup(t, provider, 100);
+  const response = await fetch(`${base}/api/explanations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+    requestId: 'deadline', sourceText: '원문', candidates: ['가', '나', '다'].map((text, i) => ({ id: String(i), text })),
+  }) });
+  const body = await response.json();
+  assert.equal(response.status, 504);
+  assert.equal(body.error.code, 'MODEL_TIMEOUT');
+  assert.equal(body.explanations, undefined);
+  assert.equal(calls, 2);
+  assert.equal(aborted, true);
 });
 test('rejects unselected context, blank inputs, and length violations before model calls', async t => {
   let calls = 0;

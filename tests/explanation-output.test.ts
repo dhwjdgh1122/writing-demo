@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { explainCandidates } from '../server/llm/explain-candidates.js';
 import { renderExplanations, explanationResponseSchema } from '../server/llm/explanation-output.js';
 import { ProviderError } from '../server/llm/provider.js';
 import { createGeminiProvider } from '../server/llm/gemini.js';
@@ -138,7 +139,7 @@ test('both adapters expose only bounded drafts and reject bad evidence without r
     let calls = 0, bad = false, captured: unknown;
     const fetcher: typeof fetch = async () => {
       calls++;
-      const decoded = { explanations: [{ ...draft(), changes: [{ ...draft().changes[0], before: bad ? 'sensitive invented content' : '확인한후' }] }] };
+      const decoded = { changes: [{ ...draft().changes[0], before: bad ? 'sensitive invented content' : '확인한후' }], notes: [] };
       return Response.json(name === 'gemini'
         ? { providerSecret: 'not an explanation', candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(decoded) }] } }] }
         : { providerSecret: 'not an explanation', choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(decoded) } }] });
@@ -158,9 +159,81 @@ test('both adapters expose only bounded drafts and reject bad evidence without r
 });
 
 test('compact provider schema has no reference indices and local bounds reject excessive changes and notes', () => {
-  const shape = explanationResponseSchema(candidates).properties.explanations.items;
-  assert.deepEqual(shape.required, ['candidateId', 'changes', 'notes']);
+  const shape = explanationResponseSchema();
+  assert.deepEqual(shape.required, ['changes', 'notes']);
   assert.ok(!('maxItems' in shape.properties.changes));
   assert.throws(() => render({ ...draft(), changes: Array(13).fill(draft().changes[0]) }), stage('schema'));
   assert.throws(() => render({ ...draft(), notes: Array(3).fill({ text: '자료', reason: '확인' }) }), stage('schema'));
+});
+
+test('both adapters isolate each candidate, bind IDs on the server, and keep observations across calls', async () => {
+  for (const name of ['gemini', 'elice']) {
+    const inputs: unknown[] = [], observed: unknown[] = [], attempted: string[] = [];
+    let active = 0;
+    const fetcher: typeof fetch = async (_url, options) => {
+      assert.equal(++active, 1, 'requests must be sequential');
+      const body = JSON.parse(String(options?.body));
+      const input = JSON.parse(name === 'gemini' ? body.contents[0].parts[0].text : body.messages[1].content);
+      inputs.push(input);
+      assert.deepEqual(Object.keys(input).sort(), ['candidate', 'sourceText']);
+      assert.deepEqual(Object.keys(input.candidate).sort(), ['comparison', 'text']);
+      const decoded = { changes: [{ kind: 'wording', before: '원문', after: input.candidate.text, effect: '' }], notes: [] };
+      await Promise.resolve();
+      active--;
+      return Response.json(name === 'gemini'
+        ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(decoded) }] } }] }
+        : { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(decoded) } }] });
+    };
+    const observer = (rows: unknown[]) => { observed.push(...rows); };
+    const callObserver = (id: string) => { attempted.push(id); };
+    const provider = name === 'gemini'
+      ? createGeminiProvider({ apiKey: 'test', model: 'gemini-test' }, fetcher, observer, callObserver)
+      : createEliceProvider({ apiKey: 'test', model: 'test', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' }, fetcher, observer, callObserver);
+    const candidates = [{ id: 'alpha', text: '후보 하나' }, { id: 'same', text: '원문' }, { id: 'beta', text: '다른 후보' }];
+    const result = await provider.generateExplanations!('원문', candidates, new AbortController().signal) as { candidateId: string }[];
+    assert.deepEqual(result.map(r => r.candidateId), ['alpha', 'same', 'beta']);
+    assert.deepEqual(attempted, ['alpha', 'beta']);
+    assert.equal(observed.length, 2);
+    assert.ok(!JSON.stringify(inputs[0]).includes('다른 후보'));
+    assert.ok(!JSON.stringify(inputs[1]).includes('후보 하나'));
+  }
+});
+
+test('isolated explanation failure stops later candidates and never returns partial success', async () => {
+  const candidates = [{ id: 'a', text: '가' }, { id: 'b', text: '나' }, { id: 'c', text: '다' }];
+  for (const mode of ['schema', 'reference', 'unavailable'] as const) {
+    let calls = 0; const observed: unknown[] = [], attempts: string[] = [];
+    const pending = explainCandidates('원문', candidates, new AbortController().signal, async input => {
+      calls++;
+      if (calls === 2 && mode === 'unavailable') throw new ProviderError('unavailable');
+      if (calls === 2 && mode === 'schema') return { changes: [], notes: [], candidateId: 'injected' };
+      return { changes: [{ kind: 'wording', before: calls === 2 ? '없는 원문' : '원문', after: input.candidate.text, effect: '' }], notes: [] };
+    }, rows => { observed.push(...rows); }, id => { attempts.push(id); });
+    await assert.rejects(pending, e => e instanceof ProviderError && (mode === 'unavailable' ? e.kind === mode : e.validationFailure === mode));
+    assert.equal(calls, 2);
+    assert.deepEqual(attempts, ['a', 'b']);
+    assert.equal(observed.length, mode === 'reference' ? 2 : 1);
+  }
+});
+
+test('identical candidates need no model call and invalid batches are rejected before spending calls', async () => {
+  let calls = 0;
+  const generate = async () => { calls++; throw new Error('should not call'); };
+  const run = (candidates: { id: string; text: string }[]) => explainCandidates('원문', candidates, new AbortController().signal, generate);
+  assert.equal((await run([{ id: 'same', text: '원문' }]))[0].explanation, '원문과 동일하여 변경된 표현이나 의미가 없습니다.');
+  for (const candidates of [[], ['a', 'b', 'c', 'd'].map(id => ({ id, text: '후보' })), [{ id: 'a', text: '가' }, { id: 'a', text: '나' }]]) {
+    await assert.rejects(run(candidates), invalid);
+  }
+  assert.equal(calls, 0);
+});
+
+test('shared cancellation prevents later calls, including when an upstream ignores abort', async () => {
+  const controller = new AbortController(); let calls = 0;
+  const run = () => explainCandidates('원문', [{ id: 'a', text: '가' }, { id: 'b', text: '나' }], controller.signal, async () => {
+    calls++; controller.abort();
+    return { changes: [{ kind: 'wording', before: '원문', after: '가', effect: '' }], notes: [] };
+  });
+  await assert.rejects(run(), { name: 'AbortError' });
+  await assert.rejects(run(), { name: 'AbortError' });
+  assert.equal(calls, 1);
 });

@@ -2,8 +2,8 @@ import { z } from 'zod';
 import { modelOutputSchema } from '../../shared/contracts.js';
 import { ProviderError, type CorrectionProvider } from './provider.js';
 import { correctionInstruction, explanationInstruction } from './prompt.js';
-import { buildExplanationInput } from './explanation-input.js';
-import { renderExplanations, type ExplanationDraftObserver } from './explanation-output.js';
+import type { ExplanationDraftObserver } from './explanation-output.js';
+import { explainCandidates, type ExplanationCallObserver } from './explain-candidates.js';
 
 const envelopeSchema = z.object({
   choices: z.array(z.object({
@@ -25,7 +25,7 @@ function completionUrl(baseUrl: string): string {
   return `${url.origin}${path}/v1/chat/completions`;
 }
 
-export function createEliceProvider(config: { apiKey: string; model: string; baseUrl: string }, fetcher: typeof fetch = fetch, observe?: ExplanationDraftObserver): CorrectionProvider {
+export function createEliceProvider(config: { apiKey: string; model: string; baseUrl: string }, fetcher: typeof fetch = fetch, observe?: ExplanationDraftObserver, observeCall?: ExplanationCallObserver): CorrectionProvider {
   if (!config.apiKey.trim() || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,199}$/.test(config.model)) throw new ProviderError('configuration');
   const url = completionUrl(config.baseUrl);
   async function generate(instruction: string, input: unknown, signal: AbortSignal): Promise<unknown> {
@@ -74,8 +74,8 @@ export function createEliceProvider(config: { apiKey: string; model: string; bas
       return result.data.candidates;
     },
     async generateExplanations(sourceText, candidates, signal) {
-      const decoded = await generate(explanationInstruction, buildExplanationInput(sourceText, candidates), signal);
-      return renderExplanations(sourceText, candidates, decoded, observe);
+      return explainCandidates(sourceText, candidates, signal,
+        (input, abort) => generate(explanationInstruction, input, abort), observe, observeCall);
     },
   };
 }

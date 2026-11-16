@@ -61,3 +61,8 @@ export function buildExplanationInput(sourceText: string, candidates: Candidate[
     candidates: candidates.map(candidate => ({ ...candidate, comparison: comparison(sourceText, candidate.text) })),
   };
 }
+
+/** One model request never receives another candidate or a server-assigned ID. */
+export function buildSingleExplanationInput(sourceText: string, candidate: Candidate) {
+  return { sourceText, candidate: { text: candidate.text, comparison: comparison(sourceText, candidate.text) } };
+}

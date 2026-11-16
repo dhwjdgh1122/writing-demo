@@ -10,6 +10,7 @@ const changeSchema = z.object({
   kind: z.enum(kinds), before: z.string().max(2000), after: z.string().max(2000), effect: z.string().max(400),
 }).strict();
 const noteSchema = z.object({ text: z.string().min(1).max(2000), reason: z.string().min(1).max(400) }).strict();
+const singleDraftSchema = z.object({ changes: z.array(changeSchema).max(12), notes: z.array(noteSchema).max(2) }).strict();
 // Each change owns its evidence and effect. No separate reference table or summary template.
 const draftSchema = z.object({
   candidateId: requestIdSchema, changes: z.array(changeSchema).max(12), notes: z.array(noteSchema).max(2),
@@ -25,19 +26,24 @@ const meaningLabels: Record<typeof meaningKinds[number], string> = {
 };
 const isSurface = (kind: typeof kinds[number]): kind is typeof surfaceKinds[number] => (surfaceKinds as readonly string[]).includes(kind);
 
-export function explanationResponseSchema(candidates: Candidate[]) {
+export function explanationResponseSchema() {
   // Keep nested array bounds local to avoid the previous Gemini schema complexity rejection.
-  return { type: 'object', properties: { explanations: { type: 'array', minItems: 1, maxItems: 3,
-    items: { type: 'object', properties: {
-      candidateId: { type: 'string', enum: candidates.map(c => c.id) },
+  return { type: 'object', properties: {
       changes: { type: 'array', items: { type: 'object', properties: {
         kind: { type: 'string', enum: [...kinds] }, before: { type: 'string' }, after: { type: 'string' }, effect: { type: 'string' },
       }, required: ['kind', 'before', 'after', 'effect'], additionalProperties: false } },
       notes: { type: 'array', items: { type: 'object', properties: {
         text: { type: 'string' }, reason: { type: 'string' },
       }, required: ['text', 'reason'], additionalProperties: false } },
-    }, required: ['candidateId', 'changes', 'notes'], additionalProperties: false },
-  } }, required: ['explanations'], additionalProperties: false };
+    }, required: ['changes', 'notes'], additionalProperties: false };
+}
+
+export function renderSingleExplanation(source: string, candidate: Candidate, decoded: unknown, observe?: ExplanationDraftObserver): Explanation {
+  const parsed = singleDraftSchema.safeParse(decoded);
+  if (!parsed.success) return fail('schema');
+  return renderExplanations(source, [candidate], {
+    explanations: [{ ...parsed.data, candidateId: candidate.id }],
+  }, observe)[0];
 }
 
 // Only evidence fields can introduce quotes. Free prose is still a model claim, not verified meaning.

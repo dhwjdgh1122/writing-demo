@@ -2,10 +2,10 @@ import { z } from 'zod';
 import { modelOutputSchema } from '../../shared/contracts.js';
 import { ProviderError, type CorrectionProvider } from './provider.js';
 import { correctionInstruction, explanationInstruction } from './prompt.js';
-import { buildExplanationInput } from './explanation-input.js';
-import { explanationResponseSchema, renderExplanations, type ExplanationDraftObserver } from './explanation-output.js';
+import { explanationResponseSchema, type ExplanationDraftObserver } from './explanation-output.js';
+import { explainCandidates, type ExplanationCallObserver } from './explain-candidates.js';
 
-// One Gemini completion contains our 1–3 alternatives, not three API calls.
+// Correction generation is one call. Explanation generation isolates candidates.
 const envelopeSchema = z.object({
   promptFeedback: z.object({ blockReason: z.string().optional() }).optional(),
   candidates: z.array(z.object({
@@ -15,9 +15,10 @@ const envelopeSchema = z.object({
 });
 const resultSchema = z.object({ candidates: modelOutputSchema }).strict();
 
-export function createGeminiProvider(config: { apiKey: string; model: string }, fetcher: typeof fetch = fetch, observe?: ExplanationDraftObserver): CorrectionProvider {
+export function createGeminiProvider(config: { apiKey: string; model: string }, fetcher: typeof fetch = fetch, observe?: ExplanationDraftObserver, observeCall?: ExplanationCallObserver): CorrectionProvider {
   if (!config.apiKey.trim() || !/^gemini-[a-zA-Z0-9._-]+$/.test(config.model)) throw new ProviderError('configuration');
   async function generate(instruction: string, input: unknown, schema: unknown, signal: AbortSignal): Promise<unknown> {
+      signal.throwIfAborted();
       const response = await fetcher(`https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent`, {
         method: 'POST', redirect: 'error', signal,
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': config.apiKey },
@@ -70,8 +71,8 @@ export function createGeminiProvider(config: { apiKey: string; model: string }, 
       return result.data.candidates;
     },
     async generateExplanations(sourceText, candidates, signal) {
-      const decoded = await generate(explanationInstruction, buildExplanationInput(sourceText, candidates), explanationResponseSchema(candidates), signal);
-      return renderExplanations(sourceText, candidates, decoded, observe);
+      return explainCandidates(sourceText, candidates, signal,
+        (input, abort) => generate(explanationInstruction, input, explanationResponseSchema(), abort), observe, observeCall);
     },
   };
 }

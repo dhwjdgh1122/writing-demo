@@ -139,28 +139,22 @@ test('explanations use only source and candidates; IDs are preserved and identic
     const body = JSON.parse(String(options?.body));
     assert.deepEqual(JSON.parse(body.contents[0].parts[0].text), {
       sourceText: '목요일에 안내합니다.',
-      candidates: [
-        { ...candidates[0], comparison: { mode: 'edits', edits: [{ sourceStart: 0, candidateStart: 0,
+      candidate:
+        { text: candidates[0].text, comparison: { mode: 'edits', edits: [{ sourceStart: 0, candidateStart: 0,
           before: '목요일', after: '이후', sourceContext: '목요일에 안내합니다.', candidateContext: '이후에 안내합니다.', changeType: 'text-change' }] } },
-        { ...candidates[1], comparison: { mode: 'edits', edits: [] } },
-      ],
     });
     assert.match(body.systemInstruction.parts[0].text, /정당화하지 않는다/);
-    assert.deepEqual(body.generationConfig.responseJsonSchema.properties.explanations.items.required,
-      ['candidateId', 'changes', 'notes']);
-    return new Response(JSON.stringify(completion({ explanations: [
-      { candidateId: 'same', changes: [], notes: [] },
-      { candidateId: 'date', changes: [{ kind: 'date', before: '목요일', after: '이후', effect: '날짜가 불분명해졌습니다' }], notes: [] },
-    ] })));
+    assert.deepEqual(body.generationConfig.responseJsonSchema.required, ['changes', 'notes']);
+    return new Response(JSON.stringify(completion({ changes: [{ kind: 'date', before: '목요일', after: '이후', effect: '날짜가 불분명해졌습니다' }], notes: [] })));
   });
   const result = await provider.generateExplanations!('목요일에 안내합니다.', candidates, signal()) as { candidateId: string; explanation: string }[];
   assert.equal(calls, 1);
-  assert.match(result[0].explanation, /원문과 동일/);
-  assert.equal(result[1].candidateId, 'date');
-  assert.equal(result[1].explanation, '‘목요일’ → ‘이후’: 날짜가 불분명해졌습니다. 원래 뜻을 전달하려면 날짜·시간 정보를 유지하면 됩니다.');
+  assert.match(result[1].explanation, /원문과 동일/);
+  assert.equal(result[0].candidateId, 'date');
+  assert.equal(result[0].explanation, '‘목요일’ → ‘이후’: 날짜가 불분명해졌습니다. 원래 뜻을 전달하려면 날짜·시간 정보를 유지하면 됩니다.');
 });
 
-test('explanation output rejects unknown, duplicated, missing IDs and unsupported length', async () => {
+test('explanation output rejects legacy batch responses rather than trusting model-assigned IDs', async () => {
   for (const explanations of [
     [{ candidateId: 'wrong', explanation: '설명' }],
     [{ candidateId: 'one', explanation: '설명' }, { candidateId: 'one', explanation: '중복' }],
