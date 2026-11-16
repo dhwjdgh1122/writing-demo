@@ -125,7 +125,7 @@ test('Elice explanations bind source and candidate IDs and normalize unchanged c
   });
   const result = await provider.generateExplanations!(sourceText, candidates, signal()) as { candidateId: string; explanation: string }[];
   assert.equal(result[0].candidateId, 'changed');
-  assert.equal(result[0].explanation, '‘목요일’이 ‘이후’로 바뀌어 안내 날짜가 불분명해졌습니다. 원래 뜻을 전달하려면 ‘목요일’ 내용을 유지하는 편이 좋습니다.');
+  assert.equal(result[0].explanation, '‘목요일’이 ‘이후’로 바뀌어 안내 날짜가 불분명해졌습니다. 맞춤법·띄어쓰기는 다듬되, 날짜·시간 정보는 원문의 뜻에 맞게 유지하면 됩니다.');
   assert.equal(result[1].explanation, '원문과 동일하여 변경된 표현이나 의미가 없습니다.');
   for (const explanations of [
     [], [{ candidateId: 'wrong', explanation: '설명' }],

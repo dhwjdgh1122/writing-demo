@@ -21,6 +21,13 @@ const draftSchema = z.object({
   guidance: z.string().max(2000),
 }).strict();
 const outputSchema = z.object({ explanations: z.array(draftSchema).min(1).max(3) }).strict();
+// Explicitly enabled only by manual evaluation. No global observer or production logging.
+export type ExplanationDraftObserver = (drafts: z.infer<typeof draftSchema>[]) => void;
+const meaningLabels: Record<typeof meaningKinds[number], string> = {
+  date: '날짜·시간', quantity: '수치·인원', condition: '조건', negation: '행동의 부정 여부',
+  certainty: '확정·예정·가능성', roles: '누가 누구에게 하는지', action: '행동 내용',
+  request: '요청 강도', other: '전달 내용',
+};
 
 export function explanationResponseSchema(candidates: Candidate[]) {
   return {
@@ -44,12 +51,13 @@ export function explanationResponseSchema(candidates: Candidate[]) {
 }
 
 /** Verify literal references before inserting them; this does not verify meaning. */
-export function renderExplanations(source: string, candidates: Candidate[], decoded: unknown): Explanation[] {
+export function renderExplanations(source: string, candidates: Candidate[], decoded: unknown, observe?: ExplanationDraftObserver): Explanation[] {
   const parsed = outputSchema.safeParse(decoded);
   if (!parsed.success) return fail('schema');
   const drafts = parsed.data.explanations;
   if (drafts.length !== candidates.length || new Set(drafts.map(e => e.candidateId)).size !== candidates.length
     || drafts.some(e => !candidates.some(c => c.id === e.candidateId))) return fail('ids');
+  observe?.(structuredClone(drafts)); // A detached, schema-bounded snapshot before reference/link checks.
   const rendered = drafts.map(draft => {
     const candidate = candidates.find(c => c.id === draft.candidateId)!;
     if (candidate.text === source) return { candidateId: draft.candidateId, explanation: '원문과 동일하여 변경된 표현이나 의미가 없습니다.' };
@@ -75,7 +83,7 @@ export function renderExplanations(source: string, candidates: Candidate[], deco
     const summary = render(draft.changeSummary);
     if (!summary || used.size === 0) return fail('template');
     // Only declared changes are linked here; this is not a semantic detector.
-    const original = new Set<string>();
+    const originalKinds = new Set<typeof meaningKinds[number]>();
     const additions = new Set<string>();
     for (const change of draft.meaningChanges) {
       if (!change.sourceRefs.length && !change.candidateRefs.length) return fail('meaning-link');
@@ -86,7 +94,7 @@ export function renderExplanations(source: string, candidates: Candidate[], deco
           if (!ref || ref.side !== side || !used.has(index)) return fail('meaning-link');
         }
       }
-      for (const index of change.sourceRefs) original.add(draft.references[index].text);
+      if (change.sourceRefs.length) originalKinds.add(change.kind);
       if (!change.sourceRefs.length) for (const index of change.candidateRefs) {
         const text = draft.references[index].text;
         if (source.includes(text)) return fail('meaning-link');
@@ -98,7 +106,8 @@ export function renderExplanations(source: string, candidates: Candidate[], deco
       if (draft.guidance.trim()) return fail('meaning-link');
       const quoted = (values: Set<string>) => [...values].map(text => `‘${text}’`).join(', ');
       const parts = [];
-      if (original.size) parts.push(`원래 뜻을 전달하려면 ${quoted(original)} 내용을 유지하는 편이 좋습니다`);
+      // Source quotes may contain mistakes; evidence in the summary is not a spelling recommendation.
+      if (originalKinds.size) parts.push(`맞춤법·띄어쓰기는 다듬되, ${[...originalKinds].map(kind => meaningLabels[kind]).join(', ')} 정보는 원문의 뜻에 맞게 유지하면 됩니다`);
       if (additions.size) parts.push(`추가된 ${quoted(additions)} 내용은 원문에 없어 의도한 정보인지 확인하면 선택에 도움이 됩니다`);
       guidance = parts.join('; ') + '.';
     } else guidance = render(draft.guidance);

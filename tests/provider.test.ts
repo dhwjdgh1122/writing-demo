@@ -158,7 +158,7 @@ test('explanations use only source and candidates; IDs are preserved and identic
   assert.equal(calls, 1);
   assert.match(result[0].explanation, /원문과 동일/);
   assert.equal(result[1].candidateId, 'date');
-  assert.equal(result[1].explanation, '‘목요일’이 ‘이후’로 바뀌어 날짜가 불분명해졌습니다. 원래 뜻을 전달하려면 ‘목요일’ 내용을 유지하는 편이 좋습니다.');
+  assert.equal(result[1].explanation, '‘목요일’이 ‘이후’로 바뀌어 날짜가 불분명해졌습니다. 맞춤법·띄어쓰기는 다듬되, 날짜·시간 정보는 원문의 뜻에 맞게 유지하면 됩니다.');
 });
 
 test('explanation output rejects unknown, duplicated, missing IDs and unsupported length', async () => {

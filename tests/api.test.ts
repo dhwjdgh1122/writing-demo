@@ -70,7 +70,7 @@ test('meaning-linked guidance reaches the existing API while invalid links expos
     assert.equal(success.status, 200);
     const data = await success.json();
     assert.deepEqual(Object.keys(data.explanations[0]).sort(), ['candidateId', 'explanation']);
-    assert.equal(data.explanations[0].explanation, '‘8명’ 대신 ‘10명’ 인원으로 바뀌었습니다. 원래 뜻을 전달하려면 ‘8명’ 내용을 유지하는 편이 좋습니다.');
+    assert.equal(data.explanations[0].explanation, '‘8명’ 대신 ‘10명’ 인원으로 바뀌었습니다. 맞춤법·띄어쓰기는 다듬되, 수치·인원 정보는 원문의 뜻에 맞게 유지하면 됩니다.');
     broken = true;
     const failure = await request();
     assert.equal(failure.status, 502);

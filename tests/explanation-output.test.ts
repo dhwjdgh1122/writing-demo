@@ -104,11 +104,12 @@ const complexDraft = () => ({ candidateId: 'one', references: [
 const renderComplex = (value: unknown) => renderExplanations(complexSource, complexCandidate, { explanations: [value] })[0].explanation;
 const stage = (expected: string) => (error: unknown) => error instanceof ProviderError && error.kind === 'invalid' && error.validationFailure === expected;
 
-test('every declared meaningful change contributes original information, never conflicting candidate values, to preservation guidance', () => {
+test('every declared meaningful change contributes an information category; concrete facts remain in the summary', () => {
   const explanation = renderComplex(complexDraft());
-  const guidance = explanation.slice(explanation.indexOf('원래 뜻'));
-  for (const original of ['승인되면', '8명', '보낼 예정입니다.']) assert.ok(guidance.includes(original));
-  for (const replacement of ['10명', '보냅니다.']) assert.ok(!guidance.includes(replacement));
+  const guidance = explanation.slice(explanation.indexOf('맞춤법'));
+  for (const original of ['승인되면', '8명', '보낼 예정입니다.']) assert.ok(explanation.includes(original));
+  for (const kind of ['조건', '수치·인원', '확정·예정·가능성']) assert.ok(guidance.includes(kind));
+  for (const quoted of ['승인되면', '8명', '보낼 예정입니다.', '10명', '보냅니다.']) assert.ok(!guidance.includes(quoted));
   const repeated = complexDraft();
   repeated.meaningChanges.push(repeated.meaningChanges[0]);
   assert.equal(renderComplex(repeated), explanation); // Shared evidence is not repeated in the final guidance.
@@ -136,7 +137,7 @@ test('handles added-only information separately instead of recommending it as or
 });
 
 test('enforces final length after generated guidance and reports only bounded validation stages', () => {
-  const long = '가'.repeat(200);
+  const long = '가'.repeat(380);
   const value = { candidateId: 'one', references: [{ side: 'source', text: long }],
     meaningChanges: [{ kind: 'other', sourceRefs: [0], candidateRefs: [] }], changeSummary: '{{0}} 내용이 삭제되었습니다.', guidance: '' };
   assert.throws(() => renderExplanations(long, [{ id: 'one', text: '나' }], { explanations: [value] }), stage('length'));
@@ -148,7 +149,58 @@ test('enforces final length after generated guidance and reports only bounded va
 
 test('undeclared meaning changes remain a model-quality limitation, not a successful semantic check', () => {
   const incomplete = { ...complexDraft(), meaningChanges: [] };
-  assert.ok(!renderComplex(incomplete).includes('원래 뜻')); // Prompt compliance must still be assessed on real cases.
+  assert.ok(!renderComplex(incomplete).includes('맞춤법')); // Prompt compliance must still be assessed on real cases.
+});
+
+test('even a misclassified whole-source reference is not copied into the preservation recommendation', () => {
+  const source = '회의는 화요일에 시작됍니다.';
+  const candidate = { id: 'one', text: '회의는 화요일에 시작됩니다.' };
+  const badClassification = { candidateId: 'one', references: [{ side: 'source', text: source }, { side: 'candidate', text: candidate.text }],
+    meaningChanges: [{ kind: 'action', sourceRefs: [0], candidateRefs: [1] }],
+    changeSummary: '{{0}} 대신 {{1}} 표현을 사용했습니다.', guidance: '' };
+  const result = renderExplanations(source, [candidate], { explanations: [badClassification] })[0].explanation;
+  const recommendation = result.slice(result.indexOf('맞춤법'));
+  assert.ok(!recommendation.includes('됍니다'));
+  assert.ok(!recommendation.includes(source));
+  assert.ok(recommendation.includes('맞춤법·띄어쓰기는 다듬되'));
+  // The incorrect action classification still needs semantic evaluation; this only prevents literal copying.
+});
+
+test('evaluation observes bounded drafts before link rejection, with detached data and no observation on bad schema or IDs', () => {
+  const original = complexDraft();
+  let observations = 0;
+  assert.equal(renderExplanations(complexSource, complexCandidate, { explanations: [original] }, drafts => {
+    observations++;
+    drafts[0].references[0].text = 'changed by observer';
+  })[0].explanation, renderComplex(original));
+  assert.equal(original.references[0].text, '승인되면');
+  let captured: unknown;
+  assert.throws(() => renderExplanations(complexSource, complexCandidate,
+    { explanations: [{ ...original, meaningChanges: [{ kind: 'quantity', sourceRefs: [2], candidateRefs: [1] }] }] },
+    drafts => { captured = drafts; }), stage('meaning-link'));
+  assert.ok(captured);
+  for (const bad of [{ ...original, unknown: 'provider envelope' }, { ...original, candidateId: 'other' }]) {
+    assert.throws(() => renderExplanations(complexSource, complexCandidate, { explanations: [bad] }, () => { observations++; }), invalid);
+  }
+  assert.equal(observations, 1);
+});
+
+test('both adapters optionally expose only explanation drafts to the evaluator, never the provider envelope', async () => {
+  for (const name of ['gemini', 'elice']) {
+    let captured: unknown;
+    const decoded = { explanations: [draft()] };
+    const fetcher: typeof fetch = async () => Response.json(name === 'gemini'
+      ? { providerSecret: 'not an explanation', candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(decoded) }] } }] }
+      : { providerSecret: 'not an explanation', choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(decoded) } }] });
+    const observe = (value: unknown) => { captured = value; };
+    const provider = name === 'gemini'
+      ? createGeminiProvider({ apiKey: 'test', model: 'gemini-test' }, fetcher, observe)
+      : createEliceProvider({ apiKey: 'test', model: 'test', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' }, fetcher, observe);
+    const result = await provider.generateExplanations!(source, candidates, new AbortController().signal);
+    assert.deepEqual(captured, decoded.explanations);
+    assert.ok(!JSON.stringify(result).includes('meaningChanges'));
+    assert.ok(!JSON.stringify(captured).includes('providerSecret'));
+  }
 });
 
 test('compact provider schema still enforces full nested bounds locally', () => {

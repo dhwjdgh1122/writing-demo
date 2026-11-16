@@ -3,7 +3,7 @@ import { modelOutputSchema } from '../../shared/contracts.js';
 import { ProviderError, type CorrectionProvider } from './provider.js';
 import { correctionInstruction, explanationInstruction } from './prompt.js';
 import { buildExplanationInput } from './explanation-input.js';
-import { explanationResponseSchema, renderExplanations } from './explanation-output.js';
+import { explanationResponseSchema, renderExplanations, type ExplanationDraftObserver } from './explanation-output.js';
 
 // One Gemini completion contains our 1–3 alternatives, not three API calls.
 const envelopeSchema = z.object({
@@ -15,7 +15,7 @@ const envelopeSchema = z.object({
 });
 const resultSchema = z.object({ candidates: modelOutputSchema }).strict();
 
-export function createGeminiProvider(config: { apiKey: string; model: string }, fetcher: typeof fetch = fetch): CorrectionProvider {
+export function createGeminiProvider(config: { apiKey: string; model: string }, fetcher: typeof fetch = fetch, observe?: ExplanationDraftObserver): CorrectionProvider {
   if (!config.apiKey.trim() || !/^gemini-[a-zA-Z0-9._-]+$/.test(config.model)) throw new ProviderError('configuration');
   async function generate(instruction: string, input: unknown, schema: unknown, signal: AbortSignal): Promise<unknown> {
       const response = await fetcher(`https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent`, {
@@ -71,7 +71,7 @@ export function createGeminiProvider(config: { apiKey: string; model: string }, 
     },
     async generateExplanations(sourceText, candidates, signal) {
       const decoded = await generate(explanationInstruction, buildExplanationInput(sourceText, candidates), explanationResponseSchema(candidates), signal);
-      return renderExplanations(sourceText, candidates, decoded);
+      return renderExplanations(sourceText, candidates, decoded, observe);
     },
   };
 }

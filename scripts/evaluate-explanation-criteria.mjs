@@ -21,7 +21,8 @@ if (!args.includes('--live')) {
   console.log(JSON.stringify({ dryRun: true, fixturePath, cases: cases.map(c => c.id), candidates: cases.reduce((n,c) => n+c.candidates.length,0), maxCalls: cases.length }));
 } else {
   // .env values, raw provider envelopes, credentials and headers are never saved.
-  const provider = loadLocalProvider();
+  let modelDrafts = null;
+  const provider = loadLocalProvider(drafts => { modelDrafts = structuredClone(drafts); });
   if (!provider.configured || !provider.generateExplanations) throw new Error('Configured explanation provider required.');
   const hash = text => createHash('sha256').update(text).digest('hex');
   const startedAt = new Date().toISOString();
@@ -34,7 +35,7 @@ if (!args.includes('--live')) {
     outputContractSha256: hash(readFileSync('server/llm/explanation-output.ts', 'utf8')),
     derivedModelInputs: cases.map(c => ({ caseId: c.id, input: buildExplanationInput(c.sourceText, c.candidates) })),
     path: 'Loopback HTTP /api/explanations through createApp and configured provider; no browser.',
-    notes: 'Fixed candidates, one request per case; no correction generation, retries or model switching. Adapter output is after reference validation, rendering and identical-text normalization, before app quote check. Not raw model output; invalid structured drafts are not captured. E-06 excluded.',
+    notes: 'Fixed candidates, one request per case; no correction generation, retries or model switching. modelDrafts is a schema/ID-validated snapshot before reference/link checks; not a correctness verdict. Schema-invalid drafts, provider envelopes and headers are not captured. Adapter output is after validation/rendering/identical normalization, before app quote check. E-06 excluded.',
     runs: [],
   };
   mkdirSync('docs/evaluations', { recursive: true });
@@ -63,6 +64,7 @@ if (!args.includes('--live')) {
   try {
     for (const [index, c] of cases.entries()) {
       captured = null;
+      modelDrafts = null;
       validationFailure = null;
       const run = { id: `RUN-${String(index+1).padStart(2,'0')}`, caseId: c.id, startedAt: new Date().toISOString() };
       const start = Date.now();
@@ -79,6 +81,7 @@ if (!args.includes('--live')) {
         run.adapterExplanations = captured;
       }
       run.validationFailure = validationFailure;
+      run.modelDrafts = modelDrafts;
       run.elapsedMs = Date.now()-start;
       report.runs.push(run);
       save();
