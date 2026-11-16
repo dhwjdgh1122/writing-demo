@@ -14,7 +14,7 @@ test('referenced provider explanations preserve the browser API and safely rejec
       calls++;
       const output = { explanations: [{ candidateId: 'one', references: [
         { side: 'source', text: broken ? '주세오' : '주세여' }, { side: 'candidate', text: '주세요' },
-      ], changeSummary: '{{0}}를 {{1}}로 고쳤습니다.', guidance: '' }] };
+      ], meaningChanges: [], changeSummary: '{{0}}를 {{1}}로 고쳤습니다.', guidance: '' }] };
       return Response.json(name === 'gemini'
         ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(output) }] } }] }
         : { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(output) } }] });
@@ -47,6 +47,38 @@ async function setup(t: TestContext, provider?: CorrectionProvider, timeoutMs?: 
   const base = `http://127.0.0.1:${address.port}`;
   return { base, post: (body: unknown) => fetch(`${base}/api/corrections`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) };
 }
+
+test('meaning-linked guidance reaches the existing API while invalid links expose only the safe error contract', async t => {
+  for (const name of ['gemini', 'elice']) {
+    let broken = false;
+    const fetcher: typeof fetch = async () => {
+      const output = { explanations: [{ candidateId: 'one', references: [
+        { side: 'source', text: '8명' }, { side: 'candidate', text: '10명' },
+      ], meaningChanges: [{ kind: 'quantity', sourceRefs: [broken ? 1 : 0], candidateRefs: [1] }],
+      changeSummary: '{{0}} 대신 {{1}} 인원으로 바뀌었습니다.', guidance: '' }] };
+      return Response.json(name === 'gemini'
+        ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(output) }] } }] }
+        : { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(output) } }] });
+    };
+    const provider = name === 'gemini'
+      ? createGeminiProvider({ apiKey: 'test', model: 'gemini-test' }, fetcher)
+      : createEliceProvider({ apiKey: 'test', model: 'test', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' }, fetcher);
+    const { base } = await setup(t, provider);
+    const input = { requestId: 'meaning', sourceText: '8명에게 보냅니다.', candidates: [{ id: 'one', text: '10명에게 보냅니다.' }] };
+    const request = () => fetch(`${base}/api/explanations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+    const success = await request();
+    assert.equal(success.status, 200);
+    const data = await success.json();
+    assert.deepEqual(Object.keys(data.explanations[0]).sort(), ['candidateId', 'explanation']);
+    assert.equal(data.explanations[0].explanation, '‘8명’ 대신 ‘10명’ 인원으로 바뀌었습니다. 원래 뜻을 전달하려면 ‘8명’ 내용을 유지하는 편이 좋습니다.');
+    broken = true;
+    const failure = await request();
+    assert.equal(failure.status, 502);
+    const error = await failure.json();
+    assert.equal(error.error.code, 'MODEL_RESPONSE_INVALID');
+    assert.ok(!JSON.stringify(error).includes('meaning-link'));
+  }
+});
 test('without API, returns honest health state and 503 instead of fabricated candidates', async t => {
   const { base, post } = await setup(t);
   assert.deepEqual(await (await fetch(`${base}/api/health`)).json(), { status: 'ok', modelConfigured: false });

@@ -7,8 +7,9 @@ export interface CorrectionProvider {
 }
 
 export type ProviderFailure = 'configuration' | 'quota' | 'blocked' | 'invalid' | 'unavailable';
+export type ExplanationValidationFailure = 'schema' | 'ids' | 'reference' | 'template' | 'meaning-link' | 'length';
 export class ProviderError extends Error {
-  constructor(readonly kind: ProviderFailure) {
+  constructor(readonly kind: ProviderFailure, readonly validationFailure?: ExplanationValidationFailure) {
     super(`Model provider failure: ${kind}`);
     this.name = 'ProviderError';
   }

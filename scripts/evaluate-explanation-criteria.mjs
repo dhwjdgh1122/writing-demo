@@ -8,6 +8,7 @@ import { loadLocalProvider } from '../server/llm/config.ts';
 import { explanationInstruction } from '../server/llm/prompt.ts';
 import { explanationInputSchema } from '../shared/contracts.ts';
 import { buildExplanationInput } from '../server/llm/explanation-input.ts';
+import { ProviderError } from '../server/llm/provider.ts';
 
 const args = process.argv.slice(2);
 if (args.some(arg => arg !== '--live' && !arg.startsWith('--cases=')) || args.filter(arg => arg === '--live').length > 1 || args.filter(arg => arg.startsWith('--cases=')).length > 1) throw new Error('Usage: node --import tsx scripts/evaluate-explanation-criteria.mjs [--live] [--cases=path.json]');
@@ -40,13 +41,19 @@ if (!args.includes('--live')) {
   const output = `docs/evaluations/criteria-${startedAt.replace(/[:.]/g, '-')}.json`;
   const save = () => writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
   let captured = null;
+  let validationFailure = null;
   const observed = {
     configured: provider.configured,
     generateCandidates: (...args) => provider.generateCandidates(...args),
     async generateExplanations(...args) {
-      const result = await provider.generateExplanations(...args);
-      captured = structuredClone(result);
-      return result; // No bypass of app validation or quote checks.
+      try {
+        const result = await provider.generateExplanations(...args);
+        captured = structuredClone(result);
+        return result; // No bypass of app validation or quote checks.
+      } catch (error) {
+        if (error instanceof ProviderError) validationFailure = error.validationFailure ?? null;
+        throw error;
+      }
     },
   };
   const server = createApp(observed).listen(0, '127.0.0.1');
@@ -56,6 +63,7 @@ if (!args.includes('--live')) {
   try {
     for (const [index, c] of cases.entries()) {
       captured = null;
+      validationFailure = null;
       const run = { id: `RUN-${String(index+1).padStart(2,'0')}`, caseId: c.id, startedAt: new Date().toISOString() };
       const start = Date.now();
       try {
@@ -70,6 +78,7 @@ if (!args.includes('--live')) {
         run.transportError = 'local-request-failed'; // Do not persist unsafe error objects.
         run.adapterExplanations = captured;
       }
+      run.validationFailure = validationFailure;
       run.elapsedMs = Date.now()-start;
       report.runs.push(run);
       save();
