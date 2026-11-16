@@ -30,10 +30,12 @@ export function explanationResponseSchema(candidates: Candidate[]) {
         references: { type: 'array', maxItems: 12, items: { type: 'object', properties: {
           side: { type: 'string', enum: ['source', 'candidate'] }, text: { type: 'string' },
         }, required: ['side', 'text'], additionalProperties: false } },
-        meaningChanges: { type: 'array', maxItems: 12, items: { type: 'object', properties: {
+        // Nested array bounds make Gemini's constrained decoding schema too complex.
+        // Keep the full limits in draftSchema; every returned response is checked locally.
+        meaningChanges: { type: 'array', items: { type: 'object', properties: {
           kind: { type: 'string', enum: [...meaningKinds] },
-          sourceRefs: { type: 'array', maxItems: 12, items: { type: 'integer', minimum: 0, maximum: 11 } },
-          candidateRefs: { type: 'array', maxItems: 12, items: { type: 'integer', minimum: 0, maximum: 11 } },
+          sourceRefs: { type: 'array', items: { type: 'integer' } },
+          candidateRefs: { type: 'array', items: { type: 'integer' } },
         }, required: ['kind', 'sourceRefs', 'candidateRefs'], additionalProperties: false } },
         changeSummary: { type: 'string' }, guidance: { type: 'string' },
       }, required: ['candidateId', 'references', 'meaningChanges', 'changeSummary', 'guidance'], additionalProperties: false },

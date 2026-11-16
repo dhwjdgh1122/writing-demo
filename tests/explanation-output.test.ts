@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderExplanations } from '../server/llm/explanation-output.js';
+import { renderExplanations, explanationResponseSchema } from '../server/llm/explanation-output.js';
 import { ProviderError } from '../server/llm/provider.js';
 import { createGeminiProvider } from '../server/llm/gemini.js';
 import { createEliceProvider } from '../server/llm/elice.js';
@@ -149,4 +149,14 @@ test('enforces final length after generated guidance and reports only bounded va
 test('undeclared meaning changes remain a model-quality limitation, not a successful semantic check', () => {
   const incomplete = { ...complexDraft(), meaningChanges: [] };
   assert.ok(!renderComplex(incomplete).includes('원래 뜻')); // Prompt compliance must still be assessed on real cases.
+});
+
+test('compact provider schema still enforces full nested bounds locally', () => {
+  const shape = explanationResponseSchema(complexCandidate).properties.explanations.items.properties.meaningChanges;
+  assert.ok(!('maxItems' in shape));
+  const one = complexDraft();
+  assert.throws(() => renderComplex({ ...one, meaningChanges: Array(13).fill(one.meaningChanges[0]) }), stage('schema'));
+  for (const indices of [[-1], [12], [0.5], Array(13).fill(0)]) {
+    assert.throws(() => renderComplex({ ...one, meaningChanges: [{ kind: 'condition', sourceRefs: indices, candidateRefs: [] }] }), stage('schema'));
+  }
 });
