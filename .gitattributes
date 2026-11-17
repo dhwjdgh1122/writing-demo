@@ -1,3 +1,5 @@
 # Preserve the evaluated runner bytes referenced by diagnostic report SHA-256.
 docs/evaluations/condition-meaning-v1-runner.mjs.txt -text
 docs/evaluations/condition-meaning-v2-runner.mjs.txt -text
+docs/evaluations/condition-evidence-v1-runner.mjs.txt -text
+docs/evaluations/condition-evidence-v2-runner.mjs.txt -text
