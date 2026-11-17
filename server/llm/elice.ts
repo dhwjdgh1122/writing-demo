@@ -30,7 +30,10 @@ export function createEliceProvider(config: { apiKey: string; model: string; bas
   const url = completionUrl(config.baseUrl);
   async function generate(instruction: string, input: unknown, signal: AbortSignal): Promise<unknown> {
     signal.throwIfAborted();
-    let response: Response;
+    let response: Response, result;
+    console.log("==========input==========")
+    console.log("instruction : ", instruction)
+    console.log("JSON.stringify(input) : ", JSON.stringify(input))
     try {
       response = await fetcher(url, {
         method: 'POST', redirect: 'error', signal,
@@ -44,33 +47,65 @@ export function createEliceProvider(config: { apiKey: string; model: string; bas
         }),
       });
     } catch {
-      if (signal.aborted) throw signal.reason;
+      console.log("POST fail")
+      if (signal.aborted) {
+        console.log("signal.aborted")
+        throw signal.reason;
+      }
+      console.log("unavailable")
       throw new ProviderError('unavailable');
     }
     if (!response.ok) {
       await response.body?.cancel();
-      if ([400, 401, 403, 404, 422].includes(response.status)) throw new ProviderError('configuration');
+      console.log("response not ok")
+      console.log("response.status : ", response.status)
+      if ([400, 401, 403, 404, 422].includes(response.status))throw new ProviderError('configuration');
       if ([402, 429].includes(response.status)) throw new ProviderError('quota');
       throw new ProviderError('unavailable');
     }
     let raw: unknown;
     try { raw = await response.json(); }
-    catch { if (signal.aborted) throw signal.reason; throw new ProviderError('invalid'); }
+    catch {
+      console.log("catch - response.json()")
+      if (signal.aborted) {
+        console.log("signal.aborted : ", signal.reason)
+        throw signal.reason;
+      }
+      console.log("invalid")
+      throw new ProviderError('invalid');
+    }
     const parsed = envelopeSchema.safeParse(raw);
-    if (!parsed.success) throw new ProviderError('invalid');
+    if (!parsed.success){
+      console.log("envelopeSchema.safeParse(raw) fail")
+      console.log("raw", raw)
+      throw new ProviderError('invalid');
+    }
     const choice = parsed.data.choices[0];
-    if (choice.finish_reason === 'content_filter' || choice.message.refusal) throw new ProviderError('blocked');
+    if (choice.finish_reason === 'content_filter' || choice.message.refusal){
+      console.log("choice.finish_reason === 'content_filter' || choice.message.refusal")
+      throw new ProviderError('blocked');
+    }
     // Never display truncated JSON or tool calls as a complete correction.
-    if (choice.finish_reason !== 'stop' || !choice.message.content) throw new ProviderError('invalid');
-    try { return JSON.parse(choice.message.content); }
-    catch { throw new ProviderError('invalid'); }
+    if (choice.finish_reason !== 'stop' || !choice.message.content) {
+      console.log("choice.finish_reason !== 'stop' || !choice.message.content")
+      throw new ProviderError('invalid');
+    }
+    try { result = JSON.parse(choice.message.content); }
+    catch {
+      console.log("JSON.parse(choice.message.content); fail")
+      console.log("choice.message.content : ", choice.message.content)
+      throw new ProviderError('invalid');
+    }
+    console.log("success : ", result)
+    return result
   }
   return {
     configured: true,
     async generateCandidates(sourceText, signal) {
       const decoded = await generate(correctionInstruction, { sourceText }, signal);
       const result = z.object({ candidates: modelOutputSchema }).strict().safeParse(decoded);
-      if (!result.success) throw new ProviderError('invalid');
+      if (!result.success) throw new ProviderError('invalid')
+      console.log("result.data.candidates : ", result.data.candidates)
       return result.data.candidates;
     },
     async generateExplanations(sourceText, candidates, signal) {
