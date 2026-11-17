@@ -71,7 +71,7 @@ export const explanationInstruction = `
             "reason": "string"
         }
     ],
-    "surfaceChanges":[
+    "meaningChanges":[
         {
             "kind": "date | quantity | condition | negation | certainty | roles | action | request | other",
             "before": "string",
@@ -79,7 +79,7 @@ export const explanationInstruction = `
             "effect": "string"
         }
     ],
-    "meaningChanges":[
+    "surfaceChanges":[
         {
             "kind": "spelling | spacing | usage | wording",
             "before": "string",
