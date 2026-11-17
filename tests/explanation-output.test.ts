@@ -25,6 +25,46 @@ test('identical evidence cannot be both surface and meaning but distinct meaning
   ] }).explanation.includes('행동의 부정 여부'));
 });
 
+test('surface/meaning duplicates with different amounts of unchanged quote context are rejected', () => {
+  const source = '검수가 끝나면 담당자가 월말까지 보고서를 전달합니다.';
+  const text = '담당자가 월말까지 보고서를 전달합니다.';
+  for (const [before, after, surfaceBefore, surfaceAfter] of [
+    [source, text, '검수가 끝나면 ', ''],
+    [text, source, '', '검수가 끝나면 '],
+    ['안내: ' + source, '안내: ' + text, '검수가 끝나면 ', ''],
+    ['😀' + source, '😀' + text, '검수가 끝나면 ', ''],
+  ]) {
+    const observed: unknown[] = [];
+    const input = { notes: [], surfaceChanges: [{ kind: 'wording', before: surfaceBefore, after: surfaceAfter }],
+      meaningChanges: [{ kind: 'condition', before, after, effect: '문장에 표시된 조건이 달라집니다' }] };
+    const original = structuredClone(input);
+    assert.throws(() => renderSingleExplanation(before, { id: 'a', text: after }, input, d => observed.push(d)), stage('change'));
+    assert.deepEqual(input, original); // Reject rather than silently dropping or reclassifying a claim.
+    assert.equal(observed.length, 1); // Preserve the invalid draft for manual diagnosis.
+  }
+});
+
+test('distinct condition and surface edits still render together with broad evidence quotes', () => {
+  const explanation = renderSingleExplanation('검수가 끝나면 자료를 보냇습니다.', { id: 'a', text: '자료를 보냈습니다.' }, {
+    notes: [],
+    surfaceChanges: [{ kind: 'spelling', before: '자료를 보냇습니다.', after: '자료를 보냈습니다.' }],
+    meaningChanges: [{ kind: 'condition', before: '검수가 끝나면 ', after: '', effect: '검수 완료 전제가 문장에 명시되지 않습니다' }],
+  }).explanation;
+  assert.ok(explanation.includes('맞춤법·오탈자 수정'));
+  assert.ok(explanation.includes('조건 정보를 유지'));
+});
+
+test('equal edit characters at separate locations are not treated as duplicate evidence', () => {
+  // Synthetic labels isolate quote positions; this does not validate model semantics.
+  const output = renderSingleExplanation('조건A 안내문 오타A.', { id: 'a', text: '조건B 안내문 오타B.' }, {
+    notes: [],
+    surfaceChanges: [{ kind: 'spelling', before: '오타A', after: '오타B' }],
+    meaningChanges: [{ kind: 'condition', before: '조건A', after: '조건B', effect: '조건 표기가 바뀝니다' }],
+  }).explanation;
+  assert.ok(output.includes('맞춤법·오탈자 수정'));
+  assert.ok(output.includes('조건 정보를 유지'));
+});
+
 test('schema diagnostics locate invalid fields without retaining values, unknown keys or validator messages', () => {
   const decoded = { notes: [], surfaceChanges: [], meaningChanges: [
     { kind: 'private-model-value', before: 'secret-source', after: 'secret-candidate', unexpectedPrivateKey: 'secret-token' },

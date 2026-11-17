@@ -90,6 +90,24 @@ function evidence(text: string, input: string) {
   if (text && (!text.trim() || !input.includes(text))) return fail('reference');
 }
 
+// Compare the edit, not the amount of unchanged context quoted around it.
+// Preserve whitespace and code points; this is not a semantic classifier.
+function editCore(before: string, after: string) {
+  const left = Array.from(before), right = Array.from(after);
+  let start = 0, leftEnd = left.length, rightEnd = right.length;
+  while (start < leftEnd && start < rightEnd && left[start] === right[start]) start++;
+  while (leftEnd > start && rightEnd > start && left[leftEnd - 1] === right[rightEnd - 1]) { leftEnd--; rightEnd--; }
+  const coreBefore = left.slice(start, leftEnd).join(''), coreAfter = right.slice(start, rightEnd).join('');
+  return { key: JSON.stringify([coreBefore, coreAfter]), before: coreBefore, after: coreAfter,
+    prefixLength: left.slice(0, start).join('').length };
+}
+
+function uniqueQuotePosition(text: string, quote: string, offset: number): number | null {
+  if (!quote) return null;
+  const first = text.indexOf(quote);
+  return first < 0 || first !== text.lastIndexOf(quote) ? null : first + offset;
+}
+
 export function renderExplanations(source: string, candidates: Candidate[], decoded: unknown, observe?: ExplanationDraftObserver): Explanation[] {
   const parsed = outputSchema.safeParse(decoded);
   if (!parsed.success) return failSchema(parsed.error, decoded);
@@ -103,14 +121,28 @@ export function renderExplanations(source: string, candidates: Candidate[], deco
     if (!draft.changes.length) return fail('change');
     const originalKinds = new Set<typeof meaningKinds[number]>(), addedKinds = new Set<typeof meaningKinds[number]>();
     const seen = new Set<string>();
-    const parts = draft.changes.map(change => {
+    const cores = draft.changes.map(change => {
+      const core = editCore(change.before, change.after);
+      return { ...core, sourcePosition: uniqueQuotePosition(source, change.before, core.prefixLength),
+        candidatePosition: uniqueQuotePosition(candidate.text, change.after, core.prefixLength) };
+    });
+    const parts = draft.changes.map((change, index) => {
       const { kind, before, after, effect } = change;
       evidence(before, source); evidence(after, candidate.text);
       if (before === after) return fail('change'); // Includes two empty fields and unchanged-word claims.
-      // Identical evidence must not be both a surface correction and a meaning change.
+      // The same edit must not be both a surface correction and a meaning change,
+      // even when one quote contains extra unchanged prefix/suffix context.
       // Distinct meaning dimensions may still share the same evidence.
-      if (draft.changes.some(other => other !== change && isSurface(other.kind) !== isSurface(kind)
-        && other.before === before && other.after === after)) return fail('change');
+      if (draft.changes.some((other, otherIndex) => {
+        if (otherIndex === index || isSurface(other.kind) === isSurface(kind)) return false;
+        if (other.before === before && other.after === after) return true;
+        const a = cores[index], b = cores[otherIndex];
+        // Equal letters at different locations are not the same edit. If a quote
+        // occurs more than once, do not guess which occurrence the model meant.
+        return a.key === b.key
+          && (!a.before || (a.sourcePosition !== null && a.sourcePosition === b.sourcePosition))
+          && (!a.after || (a.candidatePosition !== null && a.candidatePosition === b.candidatePosition));
+      })) return fail('change');
       const key = JSON.stringify([kind, before, after]);
       if (seen.has(key)) return fail('change');
       seen.add(key);
