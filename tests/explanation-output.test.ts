@@ -47,6 +47,19 @@ test('diagnostics identify forbidden known fields and are bounded without changi
   });
 });
 
+test('diagnostics distinguish a known meaning kind in the surface array from arbitrary model text', () => {
+  for (const kind of ['condition', 'private-free-text']) {
+    assert.throws(() => renderSingleExplanation(source, candidates[0], {
+      notes: [], surfaceChanges: [{ kind, before: '확인한후', after: '확인한 후' }], meaningChanges: [],
+    }), error => {
+      assert.ok(error instanceof ProviderError);
+      assert.equal(error.schemaDiagnostics?.[0].recognizedKind, kind === 'condition' ? 'condition' : undefined);
+      assert.ok(!JSON.stringify(error).includes('private-free-text'));
+      return true;
+    });
+  }
+});
+
 test('split wire contract preserves meaningful effects, surface labels and remaining-usage notes', () => {
   const before = '등록비를 결재한 8명에게 보냇습니다.';
   const candidate = { id: 'one', text: '등록비를 결재한 10명에게 보냈습니다.' };

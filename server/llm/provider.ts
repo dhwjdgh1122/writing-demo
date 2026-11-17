@@ -12,6 +12,7 @@ export interface ExplanationSchemaDiagnostic {
   path: (string | number)[];
   code: string;
   extraFields?: string[];
+  recognizedKind?: string;
 }
 export class ProviderError extends Error {
   constructor(readonly kind: ProviderFailure, readonly validationFailure?: ExplanationValidationFailure,

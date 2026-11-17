@@ -9,12 +9,22 @@ const fail = (stage: ExplanationValidationFailure): never => { throw new Provide
 // Manual evaluation receives field locations/codes only, never values or Zod messages.
 const diagnosticFields = new Set(['notes', 'surfaceChanges', 'meaningChanges', 'changes', 'explanations',
   'candidateId', 'kind', 'before', 'after', 'effect', 'text', 'reason']);
-function failSchema(error: z.ZodError): never {
+function failSchema(error: z.ZodError, decoded: unknown): never {
   const field = (key: PropertyKey) => typeof key === 'string' && diagnosticFields.has(key) ? key : '[unknown]';
+  const recognizedKind = (path: PropertyKey[]) => {
+    if (path.length !== 3 || !['surfaceChanges', 'meaningChanges'].includes(String(path[0]))
+      || typeof path[1] !== 'number' || path[2] !== 'kind' || !decoded || typeof decoded !== 'object') return undefined;
+    const rows = (decoded as Record<string, unknown>)[String(path[0])];
+    const row = Array.isArray(rows) ? rows[path[1]] as unknown : undefined;
+    const value = row && typeof row === 'object' ? (row as Record<string, unknown>).kind : undefined;
+    // Return a constant from the closed vocabulary, never arbitrary model text.
+    return kinds.find(kind => kind === value);
+  };
   const diagnostics: ExplanationSchemaDiagnostic[] = error.issues.slice(0, 20).map(issue => ({
     path: issue.path.slice(0, 6).map(key => typeof key === 'number' ? key : field(key)),
     code: issue.code,
     ...(issue.code === 'unrecognized_keys' ? { extraFields: issue.keys.slice(0, 12).map(field) } : {}),
+    ...(issue.code === 'invalid_value' && recognizedKind(issue.path) ? { recognizedKind: recognizedKind(issue.path) } : {}),
   }));
   throw new ProviderError('invalid', 'schema', diagnostics);
 }
@@ -62,7 +72,7 @@ export function explanationResponseSchema() {
 
 export function renderSingleExplanation(source: string, candidate: Candidate, decoded: unknown, observe?: ExplanationDraftObserver): Explanation {
   const parsed = singleDraftSchema.safeParse(decoded);
-  if (!parsed.success) return failSchema(parsed.error);
+  if (!parsed.success) return failSchema(parsed.error, decoded);
   const { notes, surfaceChanges, meaningChanges } = parsed.data;
   return renderExplanations(source, [candidate], {
     explanations: [{ candidateId: candidate.id, notes,
@@ -82,7 +92,7 @@ function evidence(text: string, input: string) {
 
 export function renderExplanations(source: string, candidates: Candidate[], decoded: unknown, observe?: ExplanationDraftObserver): Explanation[] {
   const parsed = outputSchema.safeParse(decoded);
-  if (!parsed.success) return failSchema(parsed.error);
+  if (!parsed.success) return failSchema(parsed.error, decoded);
   const drafts = parsed.data.explanations;
   if (drafts.length !== candidates.length || new Set(drafts.map(e => e.candidateId)).size !== candidates.length
     || drafts.some(e => !candidates.some(c => c.id === e.candidateId))) return fail('ids');
