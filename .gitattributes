@@ -3,3 +3,5 @@ docs/evaluations/condition-meaning-v1-runner.mjs.txt -text
 docs/evaluations/condition-meaning-v2-runner.mjs.txt -text
 docs/evaluations/condition-evidence-v1-runner.mjs.txt -text
 docs/evaluations/condition-evidence-v2-runner.mjs.txt -text
+scripts/diagnose-explanation-equivalence.mjs text eol=lf
+tests/fixtures/explanation-equivalence-cases.json text eol=lf
