@@ -111,6 +111,7 @@ test('Elice explanations bind source and candidate IDs and normalize unchanged c
   const candidates = [{ id: 'changed', text: '이후에 안내합니다.' }, { id: 'same', text: sourceText }];
   const provider = createEliceProvider(config, async (_url, options) => {
     const body = JSON.parse(String(options?.body));
+    assert.match(body.messages[0].content, /json/i, 'json_object requests explicitly name JSON in both phases');
     if ('candidateText' in JSON.parse(body.messages[1].content)) {
       assert.deepEqual(JSON.parse(body.messages[1].content), { sourceText, candidateText: candidates[0].text });
       return Response.json(completion({ notes: [] }));
