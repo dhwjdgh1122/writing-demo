@@ -45,7 +45,7 @@ const draftSchema = z.object({
   candidateId: requestIdSchema, changes: z.array(changeSchema).max(12), notes: z.array(noteSchema).max(2),
 }).strict();
 const outputSchema = z.object({ explanations: z.array(draftSchema).min(1).max(3) }).strict();
-export type ExplanationDraftObserver = (drafts: z.infer<typeof draftSchema>[]) => void;
+export type ExplanationDraftObserver = (drafts: z.infer<typeof draftSchema>[], phase?: 'changes' | 'combined') => void;
 const surfaceLabels: Record<typeof surfaceKinds[number], string> = {
   spelling: '맞춤법·오탈자 수정', spacing: '띄어쓰기 수정', usage: '문맥에 맞는 단어 수정', wording: '표현 다듬기',
 };
@@ -58,16 +58,38 @@ const isSurface = (kind: typeof kinds[number]): kind is typeof surfaceKinds[numb
 export function explanationResponseSchema() {
   // Keep nested array bounds local to avoid the previous Gemini schema complexity rejection.
   return { type: 'object', properties: {
-      notes: { type: 'array', items: { type: 'object', properties: {
-        text: { type: 'string' }, reason: { type: 'string' },
-      }, required: ['text', 'reason'], additionalProperties: false } },
       surfaceChanges: { type: 'array', items: { type: 'object', properties: {
         kind: { type: 'string', enum: [...surfaceKinds] }, before: { type: 'string' }, after: { type: 'string' },
       }, required: ['kind', 'before', 'after'], additionalProperties: false } },
       meaningChanges: { type: 'array', items: { type: 'object', properties: {
         kind: { type: 'string', enum: [...meaningKinds] }, before: { type: 'string' }, after: { type: 'string' }, effect: { type: 'string' },
       }, required: ['kind', 'before', 'after', 'effect'], additionalProperties: false } },
-    }, required: ['notes', 'surfaceChanges', 'meaningChanges'], additionalProperties: false };
+    }, required: ['surfaceChanges', 'meaningChanges'], additionalProperties: false };
+}
+
+export function usageReviewResponseSchema() {
+  return { type: 'object', properties: {
+    notes: { type: 'array', items: { type: 'object', properties: {
+      text: { type: 'string' }, reason: { type: 'string' },
+    }, required: ['text', 'reason'], additionalProperties: false } },
+  }, required: ['notes'], additionalProperties: false };
+}
+
+export function parseChangeExplanation(decoded: unknown) {
+  const parsed = z.object({ surfaceChanges: z.array(surfaceChangeSchema).max(12),
+    meaningChanges: z.array(meaningChangeSchema).max(12),
+  }).strict().refine(d => d.surfaceChanges.length + d.meaningChanges.length <= 12).safeParse(decoded);
+  if (!parsed.success) return failSchema(parsed.error, decoded);
+  return parsed.data;
+}
+
+export function parseUsageReview(source: string, candidate: Candidate, decoded: unknown) {
+  const parsed = z.object({ notes: z.array(noteSchema).max(2) }).strict().safeParse(decoded);
+  if (!parsed.success) return failSchema(parsed.error, decoded);
+  for (const note of parsed.data.notes) {
+    evidence(note.text, source); evidence(note.text, candidate.text); prose(note.reason);
+  }
+  return parsed.data.notes;
 }
 
 export function renderSingleExplanation(source: string, candidate: Candidate, decoded: unknown, observe?: ExplanationDraftObserver): Explanation {
@@ -107,6 +129,10 @@ export function renderExplanations(source: string, candidates: Candidate[], deco
       const { kind, before, after, effect } = change;
       evidence(before, source); evidence(after, candidate.text);
       if (before === after) return fail('change'); // Includes two empty fields and unchanged-word claims.
+      // The same quote pair cannot be both a surface correction and a meaning change.
+      // Different meaning dimensions may legitimately share evidence (e.g. roles + negation).
+      if (draft.changes.some(other => other !== change && isSurface(other.kind) !== isSurface(kind)
+        && other.before === before && other.after === after)) return fail('change');
       const key = JSON.stringify([kind, before, after]);
       if (seen.has(key)) return fail('change');
       seen.add(key);

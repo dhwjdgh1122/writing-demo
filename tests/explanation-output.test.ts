@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { explainCandidates } from '../server/llm/explain-candidates.js';
-import { renderExplanations, renderSingleExplanation, explanationResponseSchema } from '../server/llm/explanation-output.js';
+import { renderExplanations, renderSingleExplanation, explanationResponseSchema, parseChangeExplanation, parseUsageReview } from '../server/llm/explanation-output.js';
 import { ProviderError } from '../server/llm/provider.js';
 import { createGeminiProvider } from '../server/llm/gemini.js';
 import { createEliceProvider } from '../server/llm/elice.js';
@@ -12,6 +12,69 @@ const draft = () => ({ candidateId: 'one', changes: [{ kind: 'spacing', before: 
 const render = (value: unknown) => renderExplanations(source, candidates, { explanations: [value] })[0].explanation;
 const invalid = (error: unknown) => error instanceof ProviderError && error.kind === 'invalid';
 const stage = (expected: string) => (error: unknown) => invalid(error) && (error as ProviderError).validationFailure === expected;
+
+test('change and usage wire responses cannot smuggle fields from the other phase', () => {
+  assert.throws(() => parseChangeExplanation({ surfaceChanges: [], meaningChanges: [], notes: [] }), stage('schema'));
+  assert.throws(() => parseUsageReview(source, candidates[0], { notes: [], surfaceChanges: [] }), stage('schema'));
+  assert.throws(() => parseUsageReview(source, candidates[0], { notes: Array(3).fill({ text: '자료', reason: '설명' }) }), stage('schema'));
+  assert.throws(() => parseUsageReview(source, candidates[0], { notes: [{ text: '원문에 없는 표현', reason: '설명' }] }), stage('reference'));
+  assert.throws(() => parseUsageReview(source, candidates[0], { notes: [{ text: '자료', reason: '"임의 인용"' }] }), stage('change'));
+});
+
+test('the same evidence cannot be classified as both a surface and meaning change', () => {
+  const before = '비가 오면', after = '';
+  assert.throws(() => renderSingleExplanation('비가 오면 쉽니다.', { id: 'a', text: '쉽니다.' }, {
+    notes: [], surfaceChanges: [{ kind: 'wording', before, after }],
+    meaningChanges: [{ kind: 'condition', before, after, effect: '쉬는 조건이 문장에 명시되지 않습니다' }],
+  }), stage('change'));
+  // Separate dimensions sharing a sentence must remain valid.
+  const sentence = '제가 보내지 않습니다.', candidate = { id: 'a', text: '당신이 보냅니다.' };
+  assert.ok(renderSingleExplanation(sentence, candidate, { notes: [], surfaceChanges: [], meaningChanges: [
+    { kind: 'roles', before: sentence, after: candidate.text, effect: '보내는 사람이 달라집니다' },
+    { kind: 'negation', before: sentence, after: candidate.text, effect: '보내지 않는다는 뜻이 보내는 것으로 바뀝니다' },
+  ] }).explanation.includes('행동의 부정 여부'));
+});
+
+test('usage review receives only its source/candidate and contributes validated notes', async () => {
+  const original = '요금을 결재하지 않앗습니다.';
+  const candidate = { id: 'a', text: '요금을 결재하지 않았습니다.' };
+  const phases: string[] = [];
+  const result = await explainCandidates(original, [candidate], new AbortController().signal,
+    async () => ({ surfaceChanges: [{ kind: 'spelling', before: '않앗습니다', after: '않았습니다' }], meaningChanges: [] }),
+    async input => {
+      assert.deepEqual(input, { sourceText: original, candidateText: candidate.text });
+      return { notes: [{ text: '결재', reason: '요금 납부를 뜻하는 단어가 필요합니다' }] };
+    }, undefined, (_id, phase) => { phases.push(phase); });
+  assert.deepEqual(phases, ['changes', 'usage']);
+  assert.ok(result[0].explanation.includes('남아 있는 ‘결재’ 표현'));
+});
+
+test('usage failures stop the batch without retry or partial explanations', async () => {
+  for (const mode of ['schema', 'reference', 'unavailable'] as const) {
+    const calls: string[] = [];
+    await assert.rejects(explainCandidates('원문', [{ id: 'a', text: '가' }, { id: 'b', text: '나' }], new AbortController().signal,
+      async () => ({ surfaceChanges: [{ kind: 'wording', before: '원문', after: '가' }], meaningChanges: [] }),
+      async () => {
+        if (mode === 'unavailable') throw new ProviderError('unavailable');
+        return mode === 'schema' ? { notes: null } : { notes: [{ text: '없는 단어', reason: '설명' }] };
+      }, undefined, (id, phase) => { calls.push(`${id}:${phase}`); }),
+    error => error instanceof ProviderError && (mode === 'unavailable' ? error.kind === mode : error.validationFailure === mode));
+    assert.deepEqual(calls, ['a:changes', 'a:usage']);
+  }
+});
+
+test('usage response must respect shared cancellation and final combined length', async () => {
+  const controller = new AbortController();
+  const change = async () => ({ surfaceChanges: [{ kind: 'wording', before: '원문', after: '후보' }], meaningChanges: [] });
+  const candidates = [{ id: 'a', text: '후보 단어' }, { id: 'b', text: '후보 단어' }];
+  let calls = 0;
+  await assert.rejects(explainCandidates('원문 단어', candidates, controller.signal, change, async () => {
+    calls++; controller.abort(); return { notes: [] };
+  }), { name: 'AbortError' });
+  assert.equal(calls, 1);
+  await assert.rejects(explainCandidates('원문 단어', candidates, new AbortController().signal, change,
+    async () => ({ notes: [{ text: '단어', reason: '설'.repeat(390) }] })), stage('length'));
+});
 
 test('schema diagnostics locate invalid fields without retaining values, unknown keys or validator messages', () => {
   const decoded = { notes: [], surfaceChanges: [], meaningChanges: [
@@ -230,9 +293,11 @@ test('manual observation is detached, before evidence checks, and absent on bad 
 test('both adapters expose only bounded drafts and reject bad evidence without retry or provider-envelope leakage', async () => {
   for (const name of ['gemini', 'elice']) {
     let calls = 0, bad = false, captured: unknown;
-    const fetcher: typeof fetch = async () => {
+    const fetcher: typeof fetch = async (_url, options) => {
       calls++;
-      const decoded = { surfaceChanges: [{ kind: 'spacing', before: bad ? 'sensitive invented content' : '확인한후', after: '확인한 후' }], meaningChanges: [], notes: [] };
+      const body = JSON.parse(String(options?.body));
+      const input = JSON.parse(name === 'gemini' ? body.contents[0].parts[0].text : body.messages[1].content);
+      const decoded = 'candidateText' in input ? { notes: [] } : { surfaceChanges: [{ kind: 'spacing', before: bad ? 'sensitive invented content' : '확인한후', after: '확인한 후' }], meaningChanges: [] };
       return Response.json(name === 'gemini'
         ? { providerSecret: 'not an explanation', candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(decoded) }] } }] }
         : { providerSecret: 'not an explanation', choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(decoded) } }] });
@@ -247,13 +312,13 @@ test('both adapters expose only bounded drafts and reject bad evidence without r
     assert.ok(!JSON.stringify(result).includes('changes'));
     bad = true;
     await assert.rejects(provider.generateExplanations!(source, candidates, new AbortController().signal), e => invalid(e) && !String(e).includes('sensitive'));
-    assert.equal(calls, 2);
+    assert.equal(calls, 3);
   }
 });
 
 test('compact provider schema has no reference indices and local bounds reject excessive changes and notes', () => {
   const shape = explanationResponseSchema();
-  assert.deepEqual(shape.required, ['notes', 'surfaceChanges', 'meaningChanges']);
+  assert.deepEqual(shape.required, ['surfaceChanges', 'meaningChanges']);
   assert.ok(!('maxItems' in shape.properties.surfaceChanges));
   assert.throws(() => render({ ...draft(), changes: Array(13).fill(draft().changes[0]) }), stage('schema'));
   assert.throws(() => render({ ...draft(), notes: Array(3).fill({ text: '자료', reason: '확인' }) }), stage('schema'));
@@ -268,9 +333,11 @@ test('both adapters isolate each candidate, bind IDs on the server, and keep obs
       const body = JSON.parse(String(options?.body));
       const input = JSON.parse(name === 'gemini' ? body.contents[0].parts[0].text : body.messages[1].content);
       inputs.push(input);
-      assert.deepEqual(Object.keys(input).sort(), ['candidate', 'sourceText']);
-      assert.deepEqual(Object.keys(input.candidate).sort(), ['comparison', 'text']);
-      const decoded = { surfaceChanges: [{ kind: 'wording', before: '원문', after: input.candidate.text }], meaningChanges: [], notes: [] };
+      if ('candidate' in input) {
+        assert.deepEqual(Object.keys(input).sort(), ['candidate', 'sourceText']);
+        assert.deepEqual(Object.keys(input.candidate).sort(), ['comparison', 'text']);
+      } else assert.deepEqual(Object.keys(input).sort(), ['candidateText', 'sourceText']);
+      const decoded = 'candidateText' in input ? { notes: [] } : { surfaceChanges: [{ kind: 'wording', before: '원문', after: input.candidate.text }], meaningChanges: [] };
       await Promise.resolve();
       active--;
       return Response.json(name === 'gemini'
@@ -285,10 +352,10 @@ test('both adapters isolate each candidate, bind IDs on the server, and keep obs
     const candidates = [{ id: 'alpha', text: '후보 하나' }, { id: 'same', text: '원문' }, { id: 'beta', text: '다른 후보' }];
     const result = await provider.generateExplanations!('원문', candidates, new AbortController().signal) as { candidateId: string }[];
     assert.deepEqual(result.map(r => r.candidateId), ['alpha', 'same', 'beta']);
-    assert.deepEqual(attempted, ['alpha', 'beta']);
-    assert.equal(observed.length, 2);
+    assert.deepEqual(attempted, ['alpha', 'alpha', 'beta', 'beta']);
+    assert.equal(observed.length, 4);
     assert.ok(!JSON.stringify(inputs[0]).includes('다른 후보'));
-    assert.ok(!JSON.stringify(inputs[1]).includes('후보 하나'));
+    assert.ok(!JSON.stringify(inputs[2]).includes('후보 하나'));
   }
 });
 
@@ -300,19 +367,19 @@ test('isolated explanation failure stops later candidates and never returns part
       calls++;
       if (calls === 2 && mode === 'unavailable') throw new ProviderError('unavailable');
       if (calls === 2 && mode === 'schema') return { changes: [], notes: [], candidateId: 'injected' };
-      return { surfaceChanges: [{ kind: 'wording', before: calls === 2 ? '없는 원문' : '원문', after: input.candidate.text }], meaningChanges: [], notes: [] };
-    }, rows => { observed.push(...rows); }, id => { attempts.push(id); });
+      return { surfaceChanges: [{ kind: 'wording', before: calls === 2 ? '없는 원문' : '원문', after: input.candidate.text }], meaningChanges: [] };
+    }, async () => ({ notes: [] }), rows => { observed.push(...rows); }, (id, phase) => { attempts.push(`${id}:${phase}`); });
     await assert.rejects(pending, e => e instanceof ProviderError && (mode === 'unavailable' ? e.kind === mode : e.validationFailure === mode));
     assert.equal(calls, 2);
-    assert.deepEqual(attempts, ['a', 'b']);
-    assert.equal(observed.length, mode === 'reference' ? 2 : 1);
+    assert.deepEqual(attempts, ['a:changes', 'a:usage', 'b:changes']);
+    assert.equal(observed.length, mode === 'reference' ? 3 : 2);
   }
 });
 
 test('identical candidates need no model call and invalid batches are rejected before spending calls', async () => {
   let calls = 0;
   const generate = async () => { calls++; throw new Error('should not call'); };
-  const run = (candidates: { id: string; text: string }[]) => explainCandidates('원문', candidates, new AbortController().signal, generate);
+  const run = (candidates: { id: string; text: string }[]) => explainCandidates('원문', candidates, new AbortController().signal, generate, generate);
   assert.equal((await run([{ id: 'same', text: '원문' }]))[0].explanation, '원문과 동일하여 변경된 표현이나 의미가 없습니다.');
   for (const candidates of [[], ['a', 'b', 'c', 'd'].map(id => ({ id, text: '후보' })), [{ id: 'a', text: '가' }, { id: 'a', text: '나' }]]) {
     await assert.rejects(run(candidates), invalid);
@@ -325,7 +392,7 @@ test('shared cancellation prevents later calls, including when an upstream ignor
   const run = () => explainCandidates('원문', [{ id: 'a', text: '가' }, { id: 'b', text: '나' }], controller.signal, async () => {
     calls++; controller.abort();
     return { surfaceChanges: [{ kind: 'wording', before: '원문', after: '가' }], meaningChanges: [], notes: [] };
-  });
+  }, async () => { throw new Error('must not review after abort'); });
   await assert.rejects(run(), { name: 'AbortError' });
   await assert.rejects(run(), { name: 'AbortError' });
   assert.equal(calls, 1);

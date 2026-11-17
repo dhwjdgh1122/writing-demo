@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { modelOutputSchema } from '../../shared/contracts.js';
 import { ProviderError, type CorrectionProvider } from './provider.js';
-import { correctionInstruction, explanationInstruction } from './prompt.js';
-import { explanationResponseSchema, type ExplanationDraftObserver } from './explanation-output.js';
+import { correctionInstruction, explanationInstruction, usageReviewInstruction } from './prompt.js';
+import { explanationResponseSchema, usageReviewResponseSchema, type ExplanationDraftObserver } from './explanation-output.js';
 import { explainCandidates, type ExplanationCallObserver } from './explain-candidates.js';
 
 // Correction generation is one call. Explanation generation isolates candidates.
@@ -72,7 +72,8 @@ export function createGeminiProvider(config: { apiKey: string; model: string }, 
     },
     async generateExplanations(sourceText, candidates, signal) {
       return explainCandidates(sourceText, candidates, signal,
-        (input, abort) => generate(explanationInstruction, input, explanationResponseSchema(), abort), observe, observeCall);
+        (input, abort) => generate(explanationInstruction, input, explanationResponseSchema(), abort),
+        (input, abort) => generate(usageReviewInstruction, input, usageReviewResponseSchema(), abort), observe, observeCall);
     },
   };
 }

@@ -111,12 +111,16 @@ test('Elice explanations bind source and candidate IDs and normalize unchanged c
   const candidates = [{ id: 'changed', text: '이후에 안내합니다.' }, { id: 'same', text: sourceText }];
   const provider = createEliceProvider(config, async (_url, options) => {
     const body = JSON.parse(String(options?.body));
+    if ('candidateText' in JSON.parse(body.messages[1].content)) {
+      assert.deepEqual(JSON.parse(body.messages[1].content), { sourceText, candidateText: candidates[0].text });
+      return Response.json(completion({ notes: [] }));
+    }
     assert.deepEqual(JSON.parse(body.messages[1].content), { sourceText, candidate:
       { text: candidates[0].text, comparison: { mode: 'edits', edits: [{ sourceStart: 0, candidateStart: 0,
         before: '목요일', after: '이후', sourceContext: sourceText, candidateContext: '이후에 안내합니다.', changeType: 'text-change' }] } },
     });
     assert.match(body.messages[0].content, /정당화하지 않는다/);
-    return Response.json(completion({ surfaceChanges: [], meaningChanges: [{ kind: 'date', before: '목요일', after: '이후', effect: '안내 날짜가 불분명해졌습니다' }], notes: [] }));
+    return Response.json(completion({ surfaceChanges: [], meaningChanges: [{ kind: 'date', before: '목요일', after: '이후', effect: '안내 날짜가 불분명해졌습니다' }] }));
   });
   const result = await provider.generateExplanations!(sourceText, candidates, signal()) as { candidateId: string; explanation: string }[];
   assert.equal(result[0].candidateId, 'changed');
