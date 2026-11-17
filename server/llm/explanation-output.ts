@@ -1,11 +1,23 @@
 import { z } from 'zod';
 import { explanationsSchema, explanationsMatch, requestIdSchema, type Candidate, type Explanation } from '../../shared/contracts.js';
-import { ProviderError, type ExplanationValidationFailure } from './provider.js';
+import { ProviderError, type ExplanationValidationFailure, type ExplanationSchemaDiagnostic } from './provider.js';
 
 const surfaceKinds = ['spelling', 'spacing', 'usage', 'wording'] as const;
 const meaningKinds = ['date', 'quantity', 'condition', 'negation', 'certainty', 'roles', 'action', 'request', 'other'] as const;
 const kinds = [...surfaceKinds, ...meaningKinds] as const;
 const fail = (stage: ExplanationValidationFailure): never => { throw new ProviderError('invalid', stage); };
+// Manual evaluation receives field locations/codes only, never values or Zod messages.
+const diagnosticFields = new Set(['notes', 'surfaceChanges', 'meaningChanges', 'changes', 'explanations',
+  'candidateId', 'kind', 'before', 'after', 'effect', 'text', 'reason']);
+function failSchema(error: z.ZodError): never {
+  const field = (key: PropertyKey) => typeof key === 'string' && diagnosticFields.has(key) ? key : '[unknown]';
+  const diagnostics: ExplanationSchemaDiagnostic[] = error.issues.slice(0, 20).map(issue => ({
+    path: issue.path.slice(0, 6).map(key => typeof key === 'number' ? key : field(key)),
+    code: issue.code,
+    ...(issue.code === 'unrecognized_keys' ? { extraFields: issue.keys.slice(0, 12).map(field) } : {}),
+  }));
+  throw new ProviderError('invalid', 'schema', diagnostics);
+}
 const changeSchema = z.object({
   kind: z.enum(kinds), before: z.string().max(2000), after: z.string().max(2000), effect: z.string().max(400),
 }).strict();
@@ -50,7 +62,7 @@ export function explanationResponseSchema() {
 
 export function renderSingleExplanation(source: string, candidate: Candidate, decoded: unknown, observe?: ExplanationDraftObserver): Explanation {
   const parsed = singleDraftSchema.safeParse(decoded);
-  if (!parsed.success) return fail('schema');
+  if (!parsed.success) return failSchema(parsed.error);
   const { notes, surfaceChanges, meaningChanges } = parsed.data;
   return renderExplanations(source, [candidate], {
     explanations: [{ candidateId: candidate.id, notes,
@@ -70,7 +82,7 @@ function evidence(text: string, input: string) {
 
 export function renderExplanations(source: string, candidates: Candidate[], decoded: unknown, observe?: ExplanationDraftObserver): Explanation[] {
   const parsed = outputSchema.safeParse(decoded);
-  if (!parsed.success) return fail('schema');
+  if (!parsed.success) return failSchema(parsed.error);
   const drafts = parsed.data.explanations;
   if (drafts.length !== candidates.length || new Set(drafts.map(e => e.candidateId)).size !== candidates.length
     || drafts.some(e => !candidates.some(c => c.id === e.candidateId))) return fail('ids');

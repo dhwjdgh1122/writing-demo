@@ -44,6 +44,7 @@ if (!args.includes('--live')) {
   const save = () => writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
   let captured = null;
   let validationFailure = null;
+  let schemaDiagnostics = null;
   const observed = {
     configured: provider.configured,
     generateCandidates: (...args) => provider.generateCandidates(...args),
@@ -53,7 +54,10 @@ if (!args.includes('--live')) {
         captured = structuredClone(result);
         return result; // No bypass of app validation or quote checks.
       } catch (error) {
-        if (error instanceof ProviderError) validationFailure = error.validationFailure ?? null;
+        if (error instanceof ProviderError) {
+          validationFailure = error.validationFailure ?? null;
+          schemaDiagnostics = error.schemaDiagnostics ? structuredClone(error.schemaDiagnostics) : null;
+        }
         throw error;
       }
     },
@@ -68,6 +72,7 @@ if (!args.includes('--live')) {
       modelDrafts = [];
       attemptedCandidateIds = [];
       validationFailure = null;
+      schemaDiagnostics = null;
       const run = { id: `RUN-${String(index+1).padStart(2,'0')}`, caseId: c.id, startedAt: new Date().toISOString() };
       const start = Date.now();
       try {
@@ -83,6 +88,7 @@ if (!args.includes('--live')) {
         run.adapterExplanations = captured;
       }
       run.validationFailure = validationFailure;
+      run.schemaDiagnostics = schemaDiagnostics;
       run.modelDrafts = modelDrafts;
       run.attemptedCandidateIds = [...attemptedCandidateIds];
       run.modelCalls = attemptedCandidateIds.length;

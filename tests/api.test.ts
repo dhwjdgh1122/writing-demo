@@ -48,6 +48,25 @@ async function setup(t: TestContext, provider?: CorrectionProvider, timeoutMs?: 
   return { base, post: (body: unknown) => fetch(`${base}/api/corrections`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) };
 }
 
+test('schema diagnostics remain internal and do not change the public explanation error response', async t => {
+  const provider: CorrectionProvider = {
+    configured: true,
+    async generateCandidates() { return ['후보']; },
+    async generateExplanations() {
+      throw new ProviderError('invalid', 'schema', [{ path: ['meaningChanges',0,'kind'], code: 'invalid_value' }]);
+    },
+  };
+  const { base } = await setup(t, provider);
+  const response = await fetch(`${base}/api/explanations`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requestId: 'diagnostic', sourceText: '원문', candidates: [{ id: 'one', text: '후보' }] }) });
+  assert.equal(response.status, 502);
+  const body = await response.json();
+  assert.deepEqual(Object.keys(body).sort(), ['error', 'requestId']);
+  assert.equal(body.error.code, 'MODEL_RESPONSE_INVALID');
+  assert.ok(!JSON.stringify(body).includes('meaningChanges'));
+  assert.ok(!JSON.stringify(body).includes('schemaDiagnostics'));
+});
+
 test('atomic changes reach the existing API while invalid evidence exposes only the safe error contract', async t => {
   for (const name of ['gemini', 'elice']) {
     let broken = false;

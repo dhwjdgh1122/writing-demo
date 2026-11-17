@@ -13,6 +13,40 @@ const render = (value: unknown) => renderExplanations(source, candidates, { expl
 const invalid = (error: unknown) => error instanceof ProviderError && error.kind === 'invalid';
 const stage = (expected: string) => (error: unknown) => invalid(error) && (error as ProviderError).validationFailure === expected;
 
+test('schema diagnostics locate invalid fields without retaining values, unknown keys or validator messages', () => {
+  const decoded = { notes: [], surfaceChanges: [], meaningChanges: [
+    { kind: 'private-model-value', before: 'secret-source', after: 'secret-candidate', unexpectedPrivateKey: 'secret-token' },
+  ] };
+  assert.throws(() => renderSingleExplanation(source, candidates[0], decoded), error => {
+    assert.ok(error instanceof ProviderError);
+    assert.equal(error.validationFailure, 'schema');
+    assert.deepEqual(error.schemaDiagnostics, [
+      { path: ['meaningChanges', 0, 'kind'], code: 'invalid_value' },
+      { path: ['meaningChanges', 0, 'effect'], code: 'invalid_type' },
+      { path: ['meaningChanges', 0], code: 'unrecognized_keys', extraFields: ['[unknown]'] },
+    ]);
+    const saved = JSON.stringify(error);
+    for (const value of ['private-model-value','secret-source','secret-candidate','unexpectedPrivateKey','secret-token']) assert.ok(!saved.includes(value));
+    return true;
+  });
+});
+
+test('diagnostics identify forbidden known fields and are bounded without changing rejection', () => {
+  const change = { kind: 'spacing', before: '확인한후', after: '확인한 후', effect: 'not permitted' };
+  assert.throws(() => renderSingleExplanation(source, candidates[0], { notes: [], surfaceChanges: [change], meaningChanges: [] }), error => {
+    assert.ok(error instanceof ProviderError);
+    assert.deepEqual(error.schemaDiagnostics, [{ path: ['surfaceChanges', 0], code: 'unrecognized_keys', extraFields: ['effect'] }]);
+    return true;
+  });
+  assert.throws(() => renderSingleExplanation(source, candidates[0], {
+    notes: [], surfaceChanges: Array(12).fill({ kind: 'invalid', before: null, after: null }), meaningChanges: [],
+  }), error => {
+    assert.ok(error instanceof ProviderError);
+    assert.equal(error.schemaDiagnostics?.length,20);
+    return true;
+  });
+});
+
 test('split wire contract preserves meaningful effects, surface labels and remaining-usage notes', () => {
   const before = '등록비를 결재한 8명에게 보냇습니다.';
   const candidate = { id: 'one', text: '등록비를 결재한 10명에게 보냈습니다.' };
