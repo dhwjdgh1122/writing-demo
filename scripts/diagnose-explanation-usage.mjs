@@ -13,17 +13,20 @@ import { ProviderError } from '../server/llm/provider.ts';
 
 const args = process.argv.slice(2);
 const mode = args.find(a => a.startsWith('--mode='))?.slice(7);
-if (!['without-diff', 'usage-only', 'without-empty-example'].includes(mode) || args.some(a => a !== '--live' && a !== `--mode=${mode}`)
-  || new Set(args).size !== args.length) throw Error('Use --mode=without-diff|usage-only|without-empty-example [--live]');
-const fixturePath = 'tests/fixtures/explanation-usage-boundary-cases.json';
+if (!['baseline', 'without-diff', 'usage-only', 'without-empty-example'].includes(mode)
+  || args.some(a => a !== '--live' && !a.startsWith('--mode=') && !a.startsWith('--cases='))
+  || args.filter(a => a.startsWith('--mode=')).length !== 1
+  || args.filter(a => a.startsWith('--cases=')).length > 1
+  || new Set(args).size !== args.length) throw Error('Use --mode=baseline|without-diff|usage-only|without-empty-example [--cases=path.json] [--live]');
+const fixturePath = args.find(a => a.startsWith('--cases='))?.slice(8) ?? 'tests/fixtures/explanation-usage-boundary-cases.json';
 const cases = JSON.parse(readFileSync(fixturePath, 'utf8'));
-if (!Array.isArray(cases) || cases.length < 1 || cases.length > 6) throw Error('Expected 1–6 cases');
+if (!Array.isArray(cases) || cases.length < 1 || cases.length > 6 || new Set(cases.map(c => c.id)).size !== cases.length) throw Error('Expected 1–6 distinct cases');
 for (const c of cases) {
   explanationInputSchema.parse({ requestId: c.id, sourceText: c.sourceText, candidates: c.candidates });
   if (c.candidates.length !== 1 || c.candidates[0].text === c.sourceText) throw Error('One changed candidate required');
 }
 if (!args.includes('--live')) {
-  console.log(JSON.stringify({ dryRun: true, mode, cases: cases.map(c => c.id), maxModelCalls: cases.length }));
+  console.log(JSON.stringify({ dryRun: true, mode, fixturePath, cases: cases.map(c => c.id), maxModelCalls: cases.length }));
   process.exit(0);
 }
 loadEnvFile('.env');
@@ -44,8 +47,9 @@ const report = {
   codeCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
   runnerSha256: hash(readFileSync('scripts/diagnose-explanation-usage.mjs', 'utf8')),
   fixturePath, fixtureSha256: hash(readFileSync(fixturePath)), cases,
-  instruction,
-  diagnosticOnly: true, notes: 'No HTTP app/UI path. usage-only changes task, input and output schema together; not a single-variable causal test. without-diff removes comparison only. without-empty-example replaces the empty JSON example only. Shape-valid usage notes are model claims, not semantic verdicts. No credentials, headers, provider envelopes or unsafe errors saved.',
+  instruction, instructionSha256: hash(instruction), worktreeEvaluation: true,
+  outputContractSha256: hash(readFileSync('server/llm/explanation-output.ts')),
+  diagnosticOnly: true, notes: 'No HTTP app/UI path. baseline preserves input and prompt. usage-only changes task, input and output schema together; not a single-variable causal test. without-diff removes comparison only. without-empty-example replaces the empty JSON example only. Shape-valid usage notes are model claims, not semantic verdicts. No credentials, headers, provider envelopes or unsafe errors saved.',
   runs: [],
 };
 let active;
