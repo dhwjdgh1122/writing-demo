@@ -1,11 +1,11 @@
-// Manual live evaluation only. At most 6 API requests / 36 isolated model calls.
+// Manual live evaluation only. At most 6 API requests / 18 isolated model calls.
 // Run from the repository root with node --import tsx.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { createApp } from '../server/app.ts';
 import { loadLocalProvider } from '../server/llm/config.ts';
-import { explanationInstruction, usageReviewInstruction } from '../server/llm/prompt.ts';
+import { explanationInstruction } from '../server/llm/prompt.ts';
 import { explanationInputSchema } from '../shared/contracts.ts';
 import { buildSingleExplanationInput } from '../server/llm/explanation-input.ts';
 import { ProviderError } from '../server/llm/provider.ts';
@@ -18,15 +18,11 @@ const cases = JSON.parse(fixture);
 if (!Array.isArray(cases) || cases.length < 1 || cases.length > 6 || new Set(cases.map(c => c.id)).size !== cases.length) throw new Error('Expected one to six distinct cases.');
 for (const c of cases) explanationInputSchema.parse({ requestId: c.id, sourceText: c.sourceText, candidates: c.candidates });
 if (!args.includes('--live')) {
-  console.log(JSON.stringify({ dryRun: true, fixturePath, cases: cases.map(c => c.id), candidates: cases.reduce((n,c) => n+c.candidates.length,0), maxRequests: cases.length, maxModelCalls: 2 * cases.reduce((n,c) => n+c.candidates.filter(p => p.text !== c.sourceText).length,0) }));
+  console.log(JSON.stringify({ dryRun: true, fixturePath, cases: cases.map(c => c.id), candidates: cases.reduce((n,c) => n+c.candidates.length,0), maxRequests: cases.length, maxModelCalls: cases.reduce((n,c) => n+c.candidates.filter(p => p.text !== c.sourceText).length,0) }));
 } else {
   // .env values, raw provider envelopes, credentials and headers are never saved.
-  let modelDrafts = [], draftPhases = [], attemptedCandidateIds = [], attemptedCalls = [];
-  const provider = loadLocalProvider((drafts, phase) => {
-    modelDrafts.push(...structuredClone(drafts)); draftPhases.push(...drafts.map(() => phase));
-  }, (id, phase) => {
-    attemptedCandidateIds.push(id); attemptedCalls.push({ candidateId: id, phase, startedAt: new Date().toISOString() });
-  });
+  let modelDrafts = [], attemptedCandidateIds = [];
+  const provider = loadLocalProvider(drafts => { modelDrafts.push(...structuredClone(drafts)); }, id => { attemptedCandidateIds.push(id); });
   if (!provider.configured || !provider.generateExplanations) throw new Error('Configured explanation provider required.');
   const hash = text => createHash('sha256').update(text).digest('hex');
   const startedAt = new Date().toISOString();
@@ -36,12 +32,11 @@ if (!args.includes('--live')) {
     fixturePath, fixtureSha256: hash(fixture), provider: process.env.LLM_PROVIDER?.trim(),
     model: (process.env.LLM_PROVIDER?.trim() === 'elice' ? process.env.ELICE_MODEL : process.env.GEMINI_MODEL)?.trim(),
     promptSha256: hash(explanationInstruction), prompt: explanationInstruction, cases,
-    usagePromptSha256: hash(usageReviewInstruction), usagePrompt: usageReviewInstruction,
     outputContractSha256: hash(readFileSync('server/llm/explanation-output.ts', 'utf8')),
     orchestrationSha256: hash(readFileSync('server/llm/explain-candidates.ts', 'utf8')),
-    derivedModelInputs: cases.map(c => ({ caseId: c.id, candidates: c.candidates.map(p => ({ candidateId: p.id, localOnly: p.text === c.sourceText, input: p.text === c.sourceText ? null : buildSingleExplanationInput(c.sourceText, p), usageInput: p.text === c.sourceText ? null : { candidateText: p.text } })) })),
+    derivedModelInputs: cases.map(c => ({ caseId: c.id, candidates: c.candidates.map(p => ({ candidateId: p.id, localOnly: p.text === c.sourceText, input: p.text === c.sourceText ? null : buildSingleExplanationInput(c.sourceText, p) })) })),
     path: 'Loopback HTTP /api/explanations through createApp and configured provider; no browser.',
-    notes: 'Fixed candidates; one API request per case. Each changed candidate has a change call followed by a candidate-only usage review (max 6 calls/request). Identical candidates are local and not usage-reviewed. Shared 45s timeout; first failure stops all later calls; no retries or model switching. modelCalls counts attempts. attemptedCalls records phase/start. modelDrafts/draftPhases records shape-valid changes and combined drafts before evidence/prose/length checks; these are two observations of one candidate, not independent successes. Combined notes are model claims, not validated usage. Empty effects on surface changes are server-inserted. Schema-invalid drafts/envelopes/headers are not captured. Adapter output exists only if all candidates succeed. E-06 excluded.',
+    notes: 'Fixed candidates; one API request per case, sequential isolated model calls per changed candidate (max 3), identical candidates handled locally. Shared timeout; first failure stops later candidates; no retries or model switching. modelCalls counts attempts, not successful responses. modelDrafts appends shape-valid drafts with server-assigned IDs before evidence/change checks; meaningChanges precede surfaceChanges, with a server-inserted empty effect on each surface change. This normalized draft is not raw wire JSON or a correctness verdict. Schema-invalid drafts, provider envelopes and headers are not captured. Adapter output exists only if every candidate succeeds, before app quote check. E-06 excluded.',
     runs: [],
   };
   mkdirSync('docs/evaluations', { recursive: true });
@@ -75,9 +70,7 @@ if (!args.includes('--live')) {
     for (const [index, c] of cases.entries()) {
       captured = null;
       modelDrafts = [];
-      draftPhases = [];
       attemptedCandidateIds = [];
-      attemptedCalls = [];
       validationFailure = null;
       schemaDiagnostics = null;
       const run = { id: `RUN-${String(index+1).padStart(2,'0')}`, caseId: c.id, startedAt: new Date().toISOString() };
@@ -97,8 +90,6 @@ if (!args.includes('--live')) {
       run.validationFailure = validationFailure;
       run.schemaDiagnostics = schemaDiagnostics;
       run.modelDrafts = modelDrafts;
-      run.draftPhases = draftPhases;
-      run.attemptedCalls = attemptedCalls;
       run.attemptedCandidateIds = [...attemptedCandidateIds];
       run.modelCalls = attemptedCandidateIds.length;
       run.identicalCandidateIds = c.candidates.filter(p => p.text === c.sourceText).map(p => p.id);

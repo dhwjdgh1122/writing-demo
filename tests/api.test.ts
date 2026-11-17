@@ -10,13 +10,11 @@ test('referenced provider explanations preserve the browser API and safely rejec
   const input = { requestId: 'refs-1', sourceText: '금요일까지 보내 주세여.', candidates: [{ id: 'one', text: '금요일까지 보내 주세요.' }] };
   for (const name of ['gemini', 'elice']) {
     let broken = false, calls = 0;
-    const fetcher: typeof fetch = async (_url, options) => {
+    const fetcher: typeof fetch = async () => {
       calls++;
-      const body = JSON.parse(String(options?.body));
-      const input = JSON.parse(name === 'gemini' ? body.contents[0].parts[0].text : body.messages[1].content);
-      const output = 'candidateText' in input ? { notes: [] } : { meaningChanges: [], surfaceChanges: [
+      const output = { meaningChanges: [], surfaceChanges: [
         { kind: 'spelling', before: broken ? '주세오' : '주세여', after: '주세요' },
-      ] };
+      ], notes: [] };
       return Response.json(name === 'gemini'
         ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(output) }] } }] }
         : { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(output) } }] });
@@ -36,7 +34,7 @@ test('referenced provider explanations preserve the browser API and safely rejec
     assert.equal(body.error.code, 'MODEL_RESPONSE_INVALID');
     assert.equal(body.explanations, undefined);
     assert.ok(!JSON.stringify(body).includes('주세오'));
-    assert.equal(calls, 3);
+    assert.equal(calls, 2);
   }
 });
 
@@ -72,12 +70,10 @@ test('schema diagnostics remain internal and do not change the public explanatio
 test('atomic changes reach the existing API while invalid evidence exposes only the safe error contract', async t => {
   for (const name of ['gemini', 'elice']) {
     let broken = false;
-    const fetcher: typeof fetch = async (_url, options) => {
-      const body = JSON.parse(String(options?.body));
-      const input = JSON.parse(name === 'gemini' ? body.contents[0].parts[0].text : body.messages[1].content);
-      const output = 'candidateText' in input ? { notes: [] } : { surfaceChanges: [], meaningChanges: [
+    const fetcher: typeof fetch = async () => {
+      const output = { surfaceChanges: [], meaningChanges: [
         { kind: 'quantity', before: broken ? '10명' : '8명', after: '10명', effect: '인원이 늘어납니다' },
-      ] };
+      ], notes: [] };
       return Response.json(name === 'gemini'
         ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(output) }] } }] }
         : { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(output) } }] });
@@ -114,7 +110,7 @@ test('isolated explanation calls share the API deadline and timeout exposes no p
   const provider = createEliceProvider({ apiKey: 'test', model: 'test', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' }, async (_url, options) => {
     calls++;
     if (calls === 1) return Response.json({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({
-      surfaceChanges: [{ kind: 'wording', before: '원문', after: '가' }], meaningChanges: [],
+      surfaceChanges: [{ kind: 'wording', before: '원문', after: '가' }], meaningChanges: [], notes: [],
     }) } }] });
     return new Promise<Response>((_resolve, reject) => options?.signal?.addEventListener('abort', () => {
       aborted = true; reject(options.signal?.reason);

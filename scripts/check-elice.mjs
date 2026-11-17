@@ -1,4 +1,4 @@
-// Explicit live smoke test: 2 API requests, up to SEVEN Elice generations (1 correction + 0–6 explanation/review calls).
+// Explicit live smoke test: 2 API requests, up to FOUR Elice generations (1 correction + 0–3 explanations).
 // Uses Elice settings without changing LLM_PROVIDER in .env or a running server.
 import { loadEnvFile } from 'node:process';
 import { once } from 'node:events';

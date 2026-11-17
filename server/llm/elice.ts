@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { modelOutputSchema } from '../../shared/contracts.js';
 import { ProviderError, type CorrectionProvider } from './provider.js';
-import { correctionInstruction, explanationInstruction, usageReviewInstruction } from './prompt.js';
+import { correctionInstruction, explanationInstruction } from './prompt.js';
 import type { ExplanationDraftObserver } from './explanation-output.js';
 import { explainCandidates, type ExplanationCallObserver } from './explain-candidates.js';
 
@@ -75,8 +75,7 @@ export function createEliceProvider(config: { apiKey: string; model: string; bas
     },
     async generateExplanations(sourceText, candidates, signal) {
       return explainCandidates(sourceText, candidates, signal,
-        (input, abort) => generate(explanationInstruction, input, abort),
-        (input, abort) => generate(usageReviewInstruction, input, abort), observe, observeCall);
+        (input, abort) => generate(explanationInstruction, input, abort), observe, observeCall);
     },
   };
 }
