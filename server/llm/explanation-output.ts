@@ -1,0 +1,174 @@
+import { z } from 'zod';
+import { explanationsSchema, explanationsMatch, requestIdSchema, type Candidate, type Explanation } from '../../shared/contracts.js';
+import { ProviderError, type ExplanationValidationFailure, type ExplanationSchemaDiagnostic } from './provider.js';
+
+const surfaceKinds = ['spelling', 'spacing', 'usage', 'wording'] as const;
+const meaningKinds = ['date', 'quantity', 'condition', 'negation', 'certainty', 'roles', 'action', 'request', 'other'] as const;
+const kinds = [...surfaceKinds, ...meaningKinds] as const;
+const fail = (stage: ExplanationValidationFailure): never => { throw new ProviderError('invalid', stage); };
+// Manual evaluation receives field locations/codes only, never values or Zod messages.
+const diagnosticFields = new Set(['notes', 'surfaceChanges', 'meaningChanges', 'changes', 'explanations',
+  'candidateId', 'kind', 'before', 'after', 'effect', 'text', 'reason']);
+function failSchema(error: z.ZodError, decoded: unknown): never {
+  const field = (key: PropertyKey) => typeof key === 'string' && diagnosticFields.has(key) ? key : '[unknown]';
+  const recognizedKind = (path: PropertyKey[]) => {
+    if (path.length !== 3 || !['surfaceChanges', 'meaningChanges'].includes(String(path[0]))
+      || typeof path[1] !== 'number' || path[2] !== 'kind' || !decoded || typeof decoded !== 'object') return undefined;
+    const rows = (decoded as Record<string, unknown>)[String(path[0])];
+    const row = Array.isArray(rows) ? rows[path[1]] as unknown : undefined;
+    const value = row && typeof row === 'object' ? (row as Record<string, unknown>).kind : undefined;
+    // Return a constant from the closed vocabulary, never arbitrary model text.
+    return kinds.find(kind => kind === value);
+  };
+  const diagnostics: ExplanationSchemaDiagnostic[] = error.issues.slice(0, 20).map(issue => ({
+    path: issue.path.slice(0, 6).map(key => typeof key === 'number' ? key : field(key)),
+    code: issue.code,
+    ...(issue.code === 'unrecognized_keys' ? { extraFields: issue.keys.slice(0, 12).map(field) } : {}),
+    ...(issue.code === 'invalid_value' && recognizedKind(issue.path) ? { recognizedKind: recognizedKind(issue.path) } : {}),
+  }));
+  throw new ProviderError('invalid', 'schema', diagnostics);
+}
+const changeSchema = z.object({
+  kind: z.enum(kinds), before: z.string().max(2000), after: z.string().max(2000), effect: z.string().max(400),
+}).strict();
+const noteSchema = z.object({ text: z.string().min(1).max(2000), reason: z.string().min(1).max(400) }).strict();
+// The model never needs to supply an empty effect for a surface correction.
+const surfaceChangeSchema = changeSchema.pick({ before: true, after: true }).extend({ kind: z.enum(surfaceKinds) }).strict();
+const meaningChangeSchema = changeSchema.extend({ kind: z.enum(meaningKinds) }).strict();
+const singleDraftSchema = z.object({
+  notes: z.array(noteSchema).max(2),
+  surfaceChanges: z.array(surfaceChangeSchema).max(12),
+  meaningChanges: z.array(meaningChangeSchema).max(12),
+}).strict().refine(d => d.surfaceChanges.length + d.meaningChanges.length <= 12);
+// Each change owns its evidence and effect. No separate reference table or summary template.
+const draftSchema = z.object({
+  candidateId: requestIdSchema, changes: z.array(changeSchema).max(12), notes: z.array(noteSchema).max(2),
+}).strict();
+const outputSchema = z.object({ explanations: z.array(draftSchema).min(1).max(3) }).strict();
+export type ExplanationDraftObserver = (drafts: z.infer<typeof draftSchema>[]) => void;
+const surfaceLabels: Record<typeof surfaceKinds[number], string> = {
+  spelling: '맞춤법·오탈자 수정', spacing: '띄어쓰기 수정', usage: '문맥에 맞는 단어 수정', wording: '표현 다듬기',
+};
+const meaningLabels: Record<typeof meaningKinds[number], string> = {
+  date: '날짜·시간', quantity: '수치·인원', condition: '조건', negation: '행동의 부정 여부',
+  certainty: '확정·예정·가능성', roles: '누가 누구에게 하는지', action: '행동 내용', request: '요청 강도', other: '전달 내용',
+};
+const isSurface = (kind: typeof kinds[number]): kind is typeof surfaceKinds[number] => (surfaceKinds as readonly string[]).includes(kind);
+
+export function explanationResponseSchema() {
+  // Keep nested array bounds local to avoid the previous Gemini schema complexity rejection.
+  return { type: 'object', properties: {
+      notes: { type: 'array', items: { type: 'object', properties: {
+        text: { type: 'string' }, reason: { type: 'string' },
+      }, required: ['text', 'reason'], additionalProperties: false } },
+      surfaceChanges: { type: 'array', items: { type: 'object', properties: {
+        kind: { type: 'string', enum: [...surfaceKinds] }, before: { type: 'string' }, after: { type: 'string' },
+      }, required: ['kind', 'before', 'after'], additionalProperties: false } },
+      meaningChanges: { type: 'array', items: { type: 'object', properties: {
+        kind: { type: 'string', enum: [...meaningKinds] }, before: { type: 'string' }, after: { type: 'string' }, effect: { type: 'string' },
+      }, required: ['kind', 'before', 'after', 'effect'], additionalProperties: false } },
+    }, required: ['notes', 'surfaceChanges', 'meaningChanges'], additionalProperties: false };
+}
+
+export function renderSingleExplanation(source: string, candidate: Candidate, decoded: unknown, observe?: ExplanationDraftObserver): Explanation {
+  const parsed = singleDraftSchema.safeParse(decoded);
+  if (!parsed.success) return failSchema(parsed.error, decoded);
+  const { notes, surfaceChanges, meaningChanges } = parsed.data;
+  return renderExplanations(source, [candidate], {
+    explanations: [{ candidateId: candidate.id, notes,
+      changes: [...meaningChanges, ...surfaceChanges.map(c => ({ ...c, effect: '' }))] }],
+  }, observe)[0];
+}
+
+// Only evidence fields can introduce quotes. Free prose is still a model claim, not verified meaning.
+function prose(value: string): string {
+  const text = value.trim().replace(/[.。]+$/u, '').trim();
+  if (!text || /["'‘’“”「」『』`{}\r\n]/u.test(text)) return fail('change');
+  return text;
+}
+function evidence(text: string, input: string) {
+  if (text && (!text.trim() || !input.includes(text))) return fail('reference');
+}
+
+// Compare the edit, not the amount of unchanged context quoted around it.
+// Preserve whitespace and code points; this is not a semantic classifier.
+function editCore(before: string, after: string) {
+  const left = Array.from(before), right = Array.from(after);
+  let start = 0, leftEnd = left.length, rightEnd = right.length;
+  while (start < leftEnd && start < rightEnd && left[start] === right[start]) start++;
+  while (leftEnd > start && rightEnd > start && left[leftEnd - 1] === right[rightEnd - 1]) { leftEnd--; rightEnd--; }
+  const coreBefore = left.slice(start, leftEnd).join(''), coreAfter = right.slice(start, rightEnd).join('');
+  return { key: JSON.stringify([coreBefore, coreAfter]), before: coreBefore, after: coreAfter,
+    prefixLength: left.slice(0, start).join('').length };
+}
+
+function uniqueQuotePosition(text: string, quote: string, offset: number): number | null {
+  if (!quote) return null;
+  const first = text.indexOf(quote);
+  return first < 0 || first !== text.lastIndexOf(quote) ? null : first + offset;
+}
+
+export function renderExplanations(source: string, candidates: Candidate[], decoded: unknown, observe?: ExplanationDraftObserver): Explanation[] {
+  const parsed = outputSchema.safeParse(decoded);
+  if (!parsed.success) return failSchema(parsed.error, decoded);
+  const drafts = parsed.data.explanations;
+  if (drafts.length !== candidates.length || new Set(drafts.map(e => e.candidateId)).size !== candidates.length
+    || drafts.some(e => !candidates.some(c => c.id === e.candidateId))) return fail('ids');
+  observe?.(structuredClone(drafts));
+  const rendered = drafts.map(draft => {
+    const candidate = candidates.find(c => c.id === draft.candidateId)!;
+    if (candidate.text === source) return { candidateId: draft.candidateId, explanation: '원문과 동일하여 변경된 표현이나 의미가 없습니다.' };
+    if (!draft.changes.length) return fail('change');
+    const originalKinds = new Set<typeof meaningKinds[number]>(), addedKinds = new Set<typeof meaningKinds[number]>();
+    const seen = new Set<string>();
+    const cores = draft.changes.map(change => {
+      const core = editCore(change.before, change.after);
+      return { ...core, sourcePosition: uniqueQuotePosition(source, change.before, core.prefixLength),
+        candidatePosition: uniqueQuotePosition(candidate.text, change.after, core.prefixLength) };
+    });
+    const parts = draft.changes.map((change, index) => {
+      const { kind, before, after, effect } = change;
+      evidence(before, source); evidence(after, candidate.text);
+      if (before === after) return fail('change'); // Includes two empty fields and unchanged-word claims.
+      // The same edit must not be both a surface correction and a meaning change,
+      // even when one quote contains extra unchanged prefix/suffix context.
+      // Distinct meaning dimensions may still share the same evidence.
+      if (draft.changes.some((other, otherIndex) => {
+        if (otherIndex === index || isSurface(other.kind) === isSurface(kind)) return false;
+        if (other.before === before && other.after === after) return true;
+        const a = cores[index], b = cores[otherIndex];
+        // Equal letters at different locations are not the same edit. If a quote
+        // occurs more than once, do not guess which occurrence the model meant.
+        return a.key === b.key
+          && (!a.before || (a.sourcePosition !== null && a.sourcePosition === b.sourcePosition))
+          && (!a.after || (a.candidatePosition !== null && a.candidatePosition === b.candidatePosition));
+      })) return fail('change');
+      const key = JSON.stringify([kind, before, after]);
+      if (seen.has(key)) return fail('change');
+      seen.add(key);
+      let description: string;
+      if (isSurface(kind)) {
+        if (effect.trim()) return fail('change');
+        if (kind === 'spacing' && before.replace(/\s/gu, '') !== after.replace(/\s/gu, '')) return fail('change');
+        description = surfaceLabels[kind];
+      } else {
+        description = prose(effect);
+        (before ? originalKinds : addedKinds).add(kind);
+      }
+      const transition = before && after ? `‘${before}’ → ‘${after}’` : before ? `‘${before}’ 삭제` : `‘${after}’ 추가`;
+      return `${transition}: ${description}`;
+    });
+    for (const note of draft.notes) {
+      // Notes describe remaining usage problems, not additional corrections or invented suggestions.
+      evidence(note.text, source); evidence(note.text, candidate.text);
+      parts.push(`남아 있는 ‘${note.text}’ 표현: ${prose(note.reason)}`);
+    }
+    const guidance = [];
+    if (originalKinds.size) guidance.push(`원래 뜻을 전달하려면 ${[...originalKinds].map(kind => meaningLabels[kind]).join(', ')} 정보를 유지하면 됩니다`);
+    if (addedKinds.size) guidance.push(`추가된 ${[...addedKinds].map(kind => meaningLabels[kind]).join(', ')} 정보가 의도한 내용인지 확인하면 선택에 도움이 됩니다`);
+    return { candidateId: draft.candidateId, explanation: parts.join('; ') + '.' + (guidance.length ? ` ${guidance.join('; ')}.` : '') };
+  });
+  const result = explanationsSchema.safeParse(rendered);
+  if (!result.success || !explanationsMatch(candidates, result.data)) return fail('length');
+  return result.data;
+}

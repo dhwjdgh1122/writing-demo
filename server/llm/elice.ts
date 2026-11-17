@@ -1,7 +1,9 @@
 import { z } from 'zod';
-import { modelOutputSchema, explanationsSchema, explanationsMatch } from '../../shared/contracts.js';
+import { modelOutputSchema } from '../../shared/contracts.js';
 import { ProviderError, type CorrectionProvider } from './provider.js';
 import { correctionInstruction, explanationInstruction } from './prompt.js';
+import type { ExplanationDraftObserver } from './explanation-output.js';
+import { explainCandidates, type ExplanationCallObserver } from './explain-candidates.js';
 
 const envelopeSchema = z.object({
   choices: z.array(z.object({
@@ -23,7 +25,7 @@ function completionUrl(baseUrl: string): string {
   return `${url.origin}${path}/v1/chat/completions`;
 }
 
-export function createEliceProvider(config: { apiKey: string; model: string; baseUrl: string }, fetcher: typeof fetch = fetch): CorrectionProvider {
+export function createEliceProvider(config: { apiKey: string; model: string; baseUrl: string }, fetcher: typeof fetch = fetch, observe?: ExplanationDraftObserver, observeCall?: ExplanationCallObserver): CorrectionProvider {
   if (!config.apiKey.trim() || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,199}$/.test(config.model)) throw new ProviderError('configuration');
   const url = completionUrl(config.baseUrl);
   async function generate(instruction: string, input: unknown, signal: AbortSignal): Promise<unknown> {
@@ -72,11 +74,8 @@ export function createEliceProvider(config: { apiKey: string; model: string; bas
       return result.data.candidates;
     },
     async generateExplanations(sourceText, candidates, signal) {
-      const decoded = await generate(explanationInstruction, { sourceText, candidates }, signal);
-      const result = z.object({ explanations: explanationsSchema }).strict().safeParse(decoded);
-      if (!result.success || !explanationsMatch(candidates, result.data.explanations)) throw new ProviderError('invalid');
-      return result.data.explanations.map(e => candidates.find(c => c.id === e.candidateId)?.text === sourceText
-        ? { ...e, explanation: '원문과 동일하여 변경된 표현이나 의미가 없습니다.' } : e);
+      return explainCandidates(sourceText, candidates, signal,
+        (input, abort) => generate(explanationInstruction, input, abort), observe, observeCall);
     },
   };
 }

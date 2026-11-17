@@ -4,6 +4,39 @@ import { once } from 'node:events';
 import { createApp } from '../server/app.js';
 import { ProviderError, type CorrectionProvider } from '../server/llm/provider.js';
 import { createGeminiProvider } from '../server/llm/gemini.js';
+import { createEliceProvider } from '../server/llm/elice.js';
+
+test('referenced provider explanations preserve the browser API and safely reject invalid source references', async t => {
+  const input = { requestId: 'refs-1', sourceText: '금요일까지 보내 주세여.', candidates: [{ id: 'one', text: '금요일까지 보내 주세요.' }] };
+  for (const name of ['gemini', 'elice']) {
+    let broken = false, calls = 0;
+    const fetcher: typeof fetch = async () => {
+      calls++;
+      const output = { meaningChanges: [], surfaceChanges: [
+        { kind: 'spelling', before: broken ? '주세오' : '주세여', after: '주세요' },
+      ], notes: [] };
+      return Response.json(name === 'gemini'
+        ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(output) }] } }] }
+        : { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(output) } }] });
+    };
+    const provider = name === 'gemini'
+      ? createGeminiProvider({ apiKey: 'test', model: 'gemini-test' }, fetcher)
+      : createEliceProvider({ apiKey: 'test', model: 'test', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' }, fetcher);
+    const { base } = await setup(t, provider);
+    const request = () => fetch(`${base}/api/explanations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+    const success = await request();
+    assert.equal(success.status, 200);
+    assert.deepEqual(await success.json(), { ...input, explanations: [{ candidateId: 'one', explanation: '‘주세여’ → ‘주세요’: 맞춤법·오탈자 수정.' }] });
+    broken = true;
+    const failure = await request();
+    assert.equal(failure.status, 502);
+    const body = await failure.json();
+    assert.equal(body.error.code, 'MODEL_RESPONSE_INVALID');
+    assert.equal(body.explanations, undefined);
+    assert.ok(!JSON.stringify(body).includes('주세오'));
+    assert.equal(calls, 2);
+  }
+});
 
 async function setup(t: TestContext, provider?: CorrectionProvider, timeoutMs?: number) {
   const server = createApp(provider, timeoutMs).listen(0, '127.0.0.1');
@@ -14,12 +47,85 @@ async function setup(t: TestContext, provider?: CorrectionProvider, timeoutMs?: 
   const base = `http://127.0.0.1:${address.port}`;
   return { base, post: (body: unknown) => fetch(`${base}/api/corrections`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) };
 }
+
+test('schema diagnostics remain internal and do not change the public explanation error response', async t => {
+  const provider: CorrectionProvider = {
+    configured: true,
+    async generateCandidates() { return ['후보']; },
+    async generateExplanations() {
+      throw new ProviderError('invalid', 'schema', [{ path: ['meaningChanges',0,'kind'], code: 'invalid_value' }]);
+    },
+  };
+  const { base } = await setup(t, provider);
+  const response = await fetch(`${base}/api/explanations`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requestId: 'diagnostic', sourceText: '원문', candidates: [{ id: 'one', text: '후보' }] }) });
+  assert.equal(response.status, 502);
+  const body = await response.json();
+  assert.deepEqual(Object.keys(body).sort(), ['error', 'requestId']);
+  assert.equal(body.error.code, 'MODEL_RESPONSE_INVALID');
+  assert.ok(!JSON.stringify(body).includes('meaningChanges'));
+  assert.ok(!JSON.stringify(body).includes('schemaDiagnostics'));
+});
+
+test('atomic changes reach the existing API while invalid evidence exposes only the safe error contract', async t => {
+  for (const name of ['gemini', 'elice']) {
+    let broken = false;
+    const fetcher: typeof fetch = async () => {
+      const output = { surfaceChanges: [], meaningChanges: [
+        { kind: 'quantity', before: broken ? '10명' : '8명', after: '10명', effect: '인원이 늘어납니다' },
+      ], notes: [] };
+      return Response.json(name === 'gemini'
+        ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(output) }] } }] }
+        : { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(output) } }] });
+    };
+    const provider = name === 'gemini'
+      ? createGeminiProvider({ apiKey: 'test', model: 'gemini-test' }, fetcher)
+      : createEliceProvider({ apiKey: 'test', model: 'test', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' }, fetcher);
+    const { base } = await setup(t, provider);
+    const input = { requestId: 'meaning', sourceText: '8명에게 보냅니다.', candidates: [{ id: 'one', text: '10명에게 보냅니다.' }] };
+    const request = () => fetch(`${base}/api/explanations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+    const success = await request();
+    assert.equal(success.status, 200);
+    const data = await success.json();
+    assert.deepEqual(Object.keys(data.explanations[0]).sort(), ['candidateId', 'explanation']);
+    assert.equal(data.explanations[0].explanation, '‘8명’ → ‘10명’: 인원이 늘어납니다. 원래 뜻을 전달하려면 수치·인원 정보를 유지하면 됩니다.');
+    broken = true;
+    const failure = await request();
+    assert.equal(failure.status, 502);
+    const error = await failure.json();
+    assert.equal(error.error.code, 'MODEL_RESPONSE_INVALID');
+    assert.ok(!JSON.stringify(error).includes('validationFailure'));
+  }
+});
 test('without API, returns honest health state and 503 instead of fabricated candidates', async t => {
   const { base, post } = await setup(t);
   assert.deepEqual(await (await fetch(`${base}/api/health`)).json(), { status: 'ok', modelConfigured: false });
   const response = await post({ requestId: 'r1', sourceText: '원문' });
   assert.equal(response.status, 503);
   assert.equal((await response.json()).error.code, 'MODEL_NOT_CONFIGURED');
+});
+
+test('isolated explanation calls share the API deadline and timeout exposes no partial explanations', async t => {
+  let calls = 0, aborted = false;
+  const provider = createEliceProvider({ apiKey: 'test', model: 'test', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' }, async (_url, options) => {
+    calls++;
+    if (calls === 1) return Response.json({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({
+      surfaceChanges: [{ kind: 'wording', before: '원문', after: '가' }], meaningChanges: [], notes: [],
+    }) } }] });
+    return new Promise<Response>((_resolve, reject) => options?.signal?.addEventListener('abort', () => {
+      aborted = true; reject(options.signal?.reason);
+    }, { once: true }));
+  });
+  const { base } = await setup(t, provider, 100);
+  const response = await fetch(`${base}/api/explanations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+    requestId: 'deadline', sourceText: '원문', candidates: ['가', '나', '다'].map((text, i) => ({ id: String(i), text })),
+  }) });
+  const body = await response.json();
+  assert.equal(response.status, 504);
+  assert.equal(body.error.code, 'MODEL_TIMEOUT');
+  assert.equal(body.explanations, undefined);
+  assert.equal(calls, 2);
+  assert.equal(aborted, true);
 });
 test('rejects unselected context, blank inputs, and length violations before model calls', async t => {
   let calls = 0;

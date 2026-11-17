@@ -1,0 +1,12 @@
+{
+  "purpose": "Single usage-phase HTTP-format diagnosis; not a quality evaluation",
+  "modelCalls": 1,
+  "status": 400,
+  "promptContainsJsonWord": false,
+  "errorMentionsJson": true,
+  "errorMentionsMessages": true,
+  "errorMentionsContain": true,
+  "errorMentionsResponseFormat": true,
+  "recordedAt": "2026-11-17T04:20:24.277Z",
+  "codeCommit": "c7965d3"
+}

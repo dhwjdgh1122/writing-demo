@@ -1,0 +1,13 @@
+{
+  "purpose": "One separate diagnostic request after H configuration failure; not a quality retry.",
+  "startedAt": "2026-11-16T14:00:18.103Z",
+  "codeCommit": "3931a75c3d4896be71c8623b7b6dbeaa0aadc725",
+  "caseId": "E-01",
+  "calls": 1,
+  "upstreamStatus": 400,
+  "schemaComplexity": true,
+  "unsupportedSchema": false,
+  "authentication": false,
+  "errorStatus": "INVALID_ARGUMENT",
+  "providerKind": "configuration"
+}

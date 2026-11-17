@@ -1,0 +1,8 @@
+[
+  {"id":"EQ-01","group":"membership","sourceText":"회원인 경우에만 자료를 받을 수 있습니다.","candidateText":"회원만 자료를 받을 수 있습니다.","expected":"equivalent","required":"회원 대상 제한 유지. 표현 차이를 사실 차이로 지적하지 않음"},
+  {"id":"EQ-02","group":"membership-reverse","sourceText":"회원만 자료를 받을 수 있습니다.","candidateText":"회원인 경우에만 자료를 받을 수 있습니다.","expected":"equivalent","required":"EQ-01의 역방향에서도 같은 판단"},
+  {"id":"EQ-03","group":"restriction","sourceText":"승인을 받은 경우에만 자료를 공개합니다.","candidateText":"승인을 받으면 자료를 공개합니다.","expected":"different","required":"명시적인 만 제한의 소실. 실제 무승인 공개 허용으로 단정하지 않음"},
+  {"id":"EQ-04","group":"restriction-reverse","sourceText":"승인을 받으면 자료를 공개합니다.","candidateText":"승인을 받은 경우에만 자료를 공개합니다.","expected":"different","required":"EQ-03 역방향. 명시적인 만 제한 추가. 실제 정책 변경 단정 아님"},
+  {"id":"EQ-05","group":"identity-control","sourceText":"상품을 사용한 경우에는 환불하지 않습니다.","candidateText":"상품을 사용한 경우에는 환불하지 않습니다.","expected":"equivalent","required":"동일 문장 대조. 없는 변화를 만들어내지 않음"},
+  {"id":"EQ-06","group":"negation-control","sourceText":"자료를 공개하지 않습니다.","candidateText":"자료를 공개합니다.","expected":"different","required":"부정 소실 대조. 공개 여부의 변화"}
+]

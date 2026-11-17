@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch server/dev.ts",
     "check": "tsc --noEmit",
-    "test": "tsx --test tests/editor.test.ts tests/api.test.ts tests/provider.test.ts tests/elice.test.ts",
+    "test": "tsx --test tests/editor.test.ts tests/api.test.ts tests/provider.test.ts tests/elice.test.ts tests/explanation-input.test.ts tests/explanation-output.test.ts tests/equivalence-report.test.mjs",
     "test:browser": "playwright test",
     "build": "npm run check && node scripts/build.mjs",
     "start": "node dist/server/index.js"

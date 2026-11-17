@@ -111,19 +111,24 @@ test('Elice explanations bind source and candidate IDs and normalize unchanged c
   const candidates = [{ id: 'changed', text: '이후에 안내합니다.' }, { id: 'same', text: sourceText }];
   const provider = createEliceProvider(config, async (_url, options) => {
     const body = JSON.parse(String(options?.body));
-    assert.deepEqual(JSON.parse(body.messages[1].content), { sourceText, candidates });
+    assert.deepEqual(JSON.parse(body.messages[1].content), { sourceText, candidate:
+      { text: candidates[0].text, comparison: { mode: 'edits', edits: [{ sourceStart: 0, candidateStart: 0,
+        before: '목요일', after: '이후', sourceContext: sourceText, candidateContext: '이후에 안내합니다.', changeType: 'text-change' }] } },
+    });
     assert.match(body.messages[0].content, /정당화하지 않는다/);
-    return Response.json(completion({ explanations: [
-      { candidateId: 'changed', explanation: '안내 날짜가 불분명해졌습니다.' },
-      { candidateId: 'same', explanation: '더 좋아졌습니다.' },
-    ] }));
+    return Response.json(completion({ surfaceChanges: [], meaningChanges: [{ kind: 'date', before: '목요일', after: '이후', effect: '안내 날짜가 불분명해졌습니다' }], notes: [] }));
   });
   const result = await provider.generateExplanations!(sourceText, candidates, signal()) as { candidateId: string; explanation: string }[];
   assert.equal(result[0].candidateId, 'changed');
+  assert.equal(result[0].explanation, '‘목요일’ → ‘이후’: 안내 날짜가 불분명해졌습니다. 원래 뜻을 전달하려면 날짜·시간 정보를 유지하면 됩니다.');
   assert.equal(result[1].explanation, '원문과 동일하여 변경된 표현이나 의미가 없습니다.');
   for (const explanations of [
     [], [{ candidateId: 'wrong', explanation: '설명' }],
     [{ candidateId: 'one', explanation: '설명' }, { candidateId: 'one', explanation: '중복' }],
     [{ candidateId: 'one', explanation: ' ' }], [{ candidateId: 'one', explanation: '가'.repeat(401) }],
-  ]) await assert.rejects(createEliceProvider(config, fakeFetch(completion({ explanations }))).generateExplanations!('원문', [{ id: 'one', text: '후보' }], signal()), failure('invalid'));
+  ]) {
+    const drafts = explanations.map(e => ({ candidateId: e.candidateId,
+      changes: [{ kind: 'other', before: '원문', after: '후보', effect: e.explanation }], notes: [] }));
+    await assert.rejects(createEliceProvider(config, fakeFetch(completion({ explanations: drafts }))).generateExplanations!('원문', [{ id: 'one', text: '후보' }], signal()), failure('invalid'));
+  }
 });
