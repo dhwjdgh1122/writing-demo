@@ -138,7 +138,7 @@ test('explanations use only source and candidates; IDs are preserved and identic
     calls++;
     const body = JSON.parse(String(options?.body));
     if (calls === 2) {
-      assert.deepEqual(JSON.parse(body.contents[0].parts[0].text), { sourceText: '목요일에 안내합니다.', candidateText: candidates[0].text });
+      assert.deepEqual(JSON.parse(body.contents[0].parts[0].text), { candidateText: candidates[0].text });
       assert.deepEqual(body.generationConfig.responseJsonSchema.required, ['notes']);
       return Response.json(completion({ notes: [] }));
     }

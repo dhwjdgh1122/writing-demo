@@ -6,7 +6,7 @@ import { ProviderError } from './provider.js';
 // Manual evaluation only: observes attempted model calls, never credentials or envelopes.
 export type ExplanationCallObserver = (candidateId: string, phase: 'changes' | 'usage') => void;
 type Generate = (input: ReturnType<typeof buildSingleExplanationInput>, signal: AbortSignal) => Promise<unknown>;
-type Review = (input: { sourceText: string; candidateText: string }, signal: AbortSignal) => Promise<unknown>;
+type Review = (input: { candidateText: string }, signal: AbortSignal) => Promise<unknown>;
 
 export async function explainCandidates(source: string, candidates: Candidate[], signal: AbortSignal,
   generate: Generate, review: Review, observe?: ExplanationDraftObserver, observeCall?: ExplanationCallObserver): Promise<Explanation[]> {
@@ -29,9 +29,9 @@ export async function explainCandidates(source: string, candidates: Candidate[],
     renderSingleExplanation(source, candidate, { ...changes, notes: [] }, rows => observe?.(rows, 'changes'));
     signal.throwIfAborted();
     observeCall?.(candidate.id, 'usage');
-    const reviewed = await review({ sourceText: source, candidateText: candidate.text }, signal);
+    const reviewed = await review({ candidateText: candidate.text }, signal);
     signal.throwIfAborted();
-    const notes = parseUsageReview(source, candidate, reviewed);
+    const notes = parseUsageReview(reviewed);
     results.push(renderSingleExplanation(source, candidate, { ...changes, notes }, rows => observe?.(rows, 'combined')));
   }
   return results;

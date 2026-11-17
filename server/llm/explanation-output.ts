@@ -83,12 +83,11 @@ export function parseChangeExplanation(decoded: unknown) {
   return parsed.data;
 }
 
-export function parseUsageReview(source: string, candidate: Candidate, decoded: unknown) {
+export function parseUsageReview(decoded: unknown) {
   const parsed = z.object({ notes: z.array(noteSchema).max(2) }).strict().safeParse(decoded);
   if (!parsed.success) return failSchema(parsed.error, decoded);
-  for (const note of parsed.data.notes) {
-    evidence(note.text, source); evidence(note.text, candidate.text); prose(note.reason);
-  }
+  // Evidence/prose checks run in the final renderer, after the manual observer.
+  // This retains shape-valid failed review evidence without saving raw envelopes.
   return parsed.data.notes;
 }
 

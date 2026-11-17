@@ -15,10 +15,8 @@ const stage = (expected: string) => (error: unknown) => invalid(error) && (error
 
 test('change and usage wire responses cannot smuggle fields from the other phase', () => {
   assert.throws(() => parseChangeExplanation({ surfaceChanges: [], meaningChanges: [], notes: [] }), stage('schema'));
-  assert.throws(() => parseUsageReview(source, candidates[0], { notes: [], surfaceChanges: [] }), stage('schema'));
-  assert.throws(() => parseUsageReview(source, candidates[0], { notes: Array(3).fill({ text: '자료', reason: '설명' }) }), stage('schema'));
-  assert.throws(() => parseUsageReview(source, candidates[0], { notes: [{ text: '원문에 없는 표현', reason: '설명' }] }), stage('reference'));
-  assert.throws(() => parseUsageReview(source, candidates[0], { notes: [{ text: '자료', reason: '"임의 인용"' }] }), stage('change'));
+  assert.throws(() => parseUsageReview({ notes: [], surfaceChanges: [] }), stage('schema'));
+  assert.throws(() => parseUsageReview({ notes: Array(3).fill({ text: '자료', reason: '설명' }) }), stage('schema'));
 });
 
 test('the same evidence cannot be classified as both a surface and meaning change', () => {
@@ -35,14 +33,14 @@ test('the same evidence cannot be classified as both a surface and meaning chang
   ] }).explanation.includes('행동의 부정 여부'));
 });
 
-test('usage review receives only its source/candidate and contributes validated notes', async () => {
+test('usage review receives only its candidate and contributes validated notes', async () => {
   const original = '요금을 결재하지 않앗습니다.';
   const candidate = { id: 'a', text: '요금을 결재하지 않았습니다.' };
   const phases: string[] = [];
   const result = await explainCandidates(original, [candidate], new AbortController().signal,
     async () => ({ surfaceChanges: [{ kind: 'spelling', before: '않앗습니다', after: '않았습니다' }], meaningChanges: [] }),
     async input => {
-      assert.deepEqual(input, { sourceText: original, candidateText: candidate.text });
+      assert.deepEqual(input, { candidateText: candidate.text });
       return { notes: [{ text: '결재', reason: '요금 납부를 뜻하는 단어가 필요합니다' }] };
     }, undefined, (_id, phase) => { phases.push(phase); });
   assert.deepEqual(phases, ['changes', 'usage']);
@@ -74,6 +72,16 @@ test('usage response must respect shared cancellation and final combined length'
   assert.equal(calls, 1);
   await assert.rejects(explainCandidates('원문 단어', candidates, new AbortController().signal, change,
     async () => ({ notes: [{ text: '단어', reason: '설'.repeat(390) }] })), stage('length'));
+});
+
+test('shape-valid failed usage evidence remains observable without exposing it as a successful explanation', async () => {
+  const seen: { phase: string | undefined; notes: unknown }[] = [];
+  await assert.rejects(explainCandidates('원문', [{ id: 'a', text: '후보' }], new AbortController().signal,
+    async () => ({ surfaceChanges: [{ kind: 'wording', before: '원문', after: '후보' }], meaningChanges: [] }),
+    async () => ({ notes: [{ text: '후보', reason: '원문에는 없던 표현' }] }),
+    (rows, phase) => { seen.push({ phase, notes: rows[0].notes }); }), stage('reference'));
+  assert.deepEqual(seen.map(x => x.phase), ['changes', 'combined']);
+  assert.deepEqual(seen[1].notes, [{ text: '후보', reason: '원문에는 없던 표현' }]);
 });
 
 test('schema diagnostics locate invalid fields without retaining values, unknown keys or validator messages', () => {
@@ -336,7 +344,7 @@ test('both adapters isolate each candidate, bind IDs on the server, and keep obs
       if ('candidate' in input) {
         assert.deepEqual(Object.keys(input).sort(), ['candidate', 'sourceText']);
         assert.deepEqual(Object.keys(input.candidate).sort(), ['comparison', 'text']);
-      } else assert.deepEqual(Object.keys(input).sort(), ['candidateText', 'sourceText']);
+      } else assert.deepEqual(Object.keys(input).sort(), ['candidateText']);
       const decoded = 'candidateText' in input ? { notes: [] } : { surfaceChanges: [{ kind: 'wording', before: '원문', after: input.candidate.text }], meaningChanges: [] };
       await Promise.resolve();
       active--;
