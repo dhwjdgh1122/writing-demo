@@ -144,7 +144,7 @@ TASKS는 작업 안내·출처·링크를, Issue는 상세 작업 내용·완료
 | 후보 적용 후 실행 취소·다시 실행 오류 재현 | [#3](https://github.com/dhwjdgh1122/writing-demo/issues/3) |
 | 원문 비교 범례의 가독성 개선안 검토 | [#4](https://github.com/dhwjdgh1122/writing-demo/issues/4) |
 | 교정 설명의 사용자 기대와 평가 기준 정리 | [#5](https://github.com/dhwjdgh1122/writing-demo/issues/5) |
-| 선택 유지·교정 대상·화면 안내의 역할 확인 | [#6](https://github.com/dhwjdgh1122/writing-demo/issues/6) |
+| 선택 유지·교정 대상·화면 안내의 역할 확인 | [#6](https://github.com/dhwjdgh1122/writing-demo/issues/6) — 기존 선택·표시 역할 점검에 [FEEDBACK-04](사용자%20피드백.md#feedback-04)의 적용 완료 후 안내 개선을 추가했다. 이번 구현은 적용 후 안내에 한정하며 기존 점검 전체의 완료를 뜻하지 않는다. |
 | 같은 내용 붙여넣기의 선택 유지 동작 확인 | [#7](https://github.com/dhwjdgh1122/writing-demo/issues/7) |
 | 교정 히스토리의 필요성과 저장 범위 논의 | [#8](https://github.com/dhwjdgh1122/writing-demo/issues/8) |
 | Gemini·엘리스 후보와 설명 품질 비교 계획 | [#9](https://github.com/dhwjdgh1122/writing-demo/issues/9) |

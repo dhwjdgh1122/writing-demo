@@ -47,6 +47,10 @@ export default function App() {
   const selectedLength = countCharacters(state.selection?.text ?? '');
   const problem = documentLength > LIMITS.document ? '원문은 20,000자 이내로 줄여주세요.' : selectionProblem(state.selection?.text);
   const disabled = Boolean(problem || state.pending || composing);
+  const emptyHeading = state.notice ? '적용한 내용을 확인해주세요' : state.selection ? '교정할 준비가 되었습니다' : '문장을 선택하면 시작됩니다';
+  const emptyDescription = state.notice
+    ? '원문 작업 공간에서 바뀐 내용을 확인하세요.\n다른 문장을 다듬으려면 해당 부분을 선택해주세요.'
+    : state.selection ? '위에서 교정을 실행하면\n후보를 비교하고 원문에 적용할 수 있습니다.' : '왼쪽 원문에서 고치고 싶은 부분을 선택한 뒤\n교정 실행 버튼을 눌러주세요.';
   const connectionText = { checking: '연결 확인 중', ready: 'AI 설정 확인됨', missing: 'AI 연결 대기', offline: '서버 연결 확인 필요' }[connection];
   const apply = (candidateId: string) => {
     dispatch({type: 'apply', candidateId});
@@ -77,11 +81,11 @@ export default function App() {
           <div className="selection-section"><div className="section-heading"><h2>선택한 문장</h2><span className={`selected-count ${selectedLength > LIMITS.selection ? 'over-limit' : ''}`}><strong>{selectedLength.toLocaleString()}</strong> / 1,000자</span></div>
             <div className={`selected-text ${state.selection ? 'has-selection' : ''}`} data-testid="selected-text">{state.selection ? state.selection.text : <span>아직 선택한 문장이 없습니다.</span>}</div>
             <div className="selection-actions"><button className="text-button" disabled={!state.selection} onClick={() => dispatch({ type: 'clear' })}><Icon name="close" size={14} />선택 해제</button><button ref={runRef} className="primary-button" disabled={disabled} aria-describedby="selection-help" onClick={() => dispatch({ type: 'start', requestId: crypto.randomUUID() })}>{state.pending ? <><span className="spinner" />교정 중</> : <>교정 실행<Icon name="arrow" size={17} /></>}</button></div>
-            <p id="selection-help" className={problem && state.selection ? 'selection-help over-limit' : 'selection-help'}>{composing ? '문장 입력을 마치면 실행할 수 있습니다.' : problem ?? '선택한 내용을 확인한 후 실행해주세요.'}</p>
+            <p id="selection-help" className={problem && state.selection ? 'selection-help over-limit' : 'selection-help'}>{composing ? '문장 입력을 마치면 실행할 수 있습니다.' : problem ?? (state.notice ? '원문에 반영된 내용을 확인해주세요.' : '선택한 내용을 확인한 후 실행해주세요.')}</p>
           </div>
           <div className="results-section" aria-busy={Boolean(state.pending)}><div className="section-heading"><h2>교정 문장</h2>{state.result && <span className="result-count">후보 {state.result.value.candidates.length}개</span>}</div>
             <div role="status" aria-live="polite" className="status-region">{state.pending && <p className="loading-message"><span className="spinner" />교정안을 만들고 있습니다.</p>}{state.error && <div className="error-message"><Icon name="info" size={18} /><p>{state.error}</p></div>}{state.notice && <p className="success-message"><Icon name="check" size={18} />{state.notice}</p>}</div>
-            {state.result ? <CorrectionResults key={state.result.value.requestId} result={state.result.value} onApply={apply} /> : !state.pending && <div className="empty-result"><div className="empty-icon"><Icon name="document" size={31} /></div><h3>{state.selection ? '교정할 준비가 되었습니다' : '문장을 선택하면 시작됩니다'}</h3><p>{state.selection ? '위에서 교정을 실행하면\n후보를 비교하고 원문에 적용할 수 있습니다.' : '왼쪽 원문에서 고치고 싶은 부분을 선택한 뒤\n교정 실행 버튼을 눌러주세요.'}</p></div>}
+            {state.result ? <CorrectionResults key={state.result.value.requestId} result={state.result.value} onApply={apply} /> : !state.pending && <div className="empty-result"><div className="empty-icon"><Icon name="document" size={31} /></div><h3>{emptyHeading}</h3><p>{emptyDescription}</p></div>}
           </div>
           {connection === 'missing' && <div className="setup-note"><Icon name="info" size={16} /><p>현재는 화면·선택 기능을 확인할 수 있습니다.<br /><strong>실제 교정은 AI 연결 후 사용할 수 있습니다.</strong></p></div>}
         </section>

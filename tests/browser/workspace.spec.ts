@@ -38,6 +38,15 @@ test('test-only API response: compares and applies only the selected repeated oc
   await expect(page.getByLabel('원문 입력')).toHaveValue(source.slice(0, start) + '목요일에 안내하겠습니다.' + source.slice(start + target.length));
   await expect(page.getByRole('status')).toContainText('적용했습니다');
   await expect(page.locator('.candidate-card')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '적용한 내용을 확인해주세요' })).toBeVisible();
+  await expect(page.locator('#selection-help')).toHaveText('원문에 반영된 내용을 확인해주세요.');
+  await expect(page.getByRole('heading', { name: '교정할 준비가 되었습니다' })).toHaveCount(0);
+  await page.screenshot({ path: 'test-results/applied-guidance.png', fullPage: true });
+  await select(page, 0, 3);
+  await expect(page.getByRole('heading', { name: '교정할 준비가 되었습니다' })).toBeVisible();
+  await expect(page.getByRole('status')).toHaveCount(0);
+  await page.getByRole('button', { name: '선택 해제' }).click();
+  await expect(page.getByRole('heading', { name: '문장을 선택하면 시작됩니다' })).toBeVisible();
 });
 test('selection change removes old results and ignores delayed results', async ({ page }) => {
   let release: () => void = () => {};
