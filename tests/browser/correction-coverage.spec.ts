@@ -7,12 +7,17 @@ const cases: { sourceText: string; reportedCandidates?: string[] }[] = JSON.pars
   readFileSync(new URL('../fixtures/correction-coverage-cases.json', import.meta.url), 'utf8'));
 const recorded: { runs: { id: string; response: { sourceText: string; candidates: { text: string }[] } }[] } = JSON.parse(
   readFileSync(new URL('../../docs/evaluations/coverage-2026-11-18T10-10-00-778Z.json', import.meta.url), 'utf8'));
+const linebreaks: typeof recorded = JSON.parse(
+  readFileSync(new URL('../../docs/evaluations/linebreaks-revised-2026-11-18T10-43-21-455Z.json', import.meta.url), 'utf8'));
 const replays = [
   ...cases[0].reportedCandidates!.map((text, i) => ({
     id: `TEAM-01-reported-${i + 1}`, sourceText: cases[0].sourceText, text,
   })),
   ...recorded.runs.flatMap(run => run.response.candidates.map(candidate => ({
     id: run.id, sourceText: run.response.sourceText, text: candidate.text,
+  }))),
+  ...linebreaks.runs.flatMap(run => run.response.candidates.map((candidate, index) => ({
+    id: `linebreaks-${run.id}-${index + 1}`, sourceText: run.response.sourceText, text: candidate.text,
   }))),
 ];
 

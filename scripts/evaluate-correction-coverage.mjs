@@ -1,4 +1,4 @@
-// Manual issue #1 diagnosis. Dry-run by default; --live is capped at four calls.
+// Manual #1/#2 diagnosis. Dry-run by default; bounded calls, no automatic retries.
 // Reuses the loopback/observation/report approach of evaluate-explanation-criteria.mjs.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -10,22 +10,26 @@ import { correctionInstruction } from '../server/llm/prompt.ts';
 import { correctionInputSchema } from '../shared/contracts.ts';
 
 const args = process.argv.slice(2);
-if (args.length > 1 || args.some(a => a !== '--live')) throw new Error('Usage: node --import tsx scripts/evaluate-correction-coverage.mjs [--live]');
-const fixturePath = 'tests/fixtures/correction-coverage-cases.json';
+if (new Set(args).size !== args.length || args.some(a => !['--live', '--linebreaks', '--baseline', '--revised'].includes(a)) || (args.includes('--baseline') && args.includes('--revised'))) throw new Error('Use [--linebreaks --baseline|--revised] [--live]');
+const linebreaks = args.includes('--linebreaks');
+const phase = args.includes('--baseline') ? 'baseline' : args.includes('--revised') ? 'revised' : null;
+if ((!linebreaks && phase) || (linebreaks && args.includes('--live') && !phase)) throw new Error('Linebreak live runs require --baseline or --revised.');
+const fixturePath = linebreaks ? 'tests/fixtures/linebreak-cases.json' : 'tests/fixtures/correction-coverage-cases.json';
 const fixture = readFileSync(fixturePath, 'utf8');
 const cases = JSON.parse(fixture);
-if (cases.length !== 3 || new Set(cases.map(c => c.id)).size !== 3) throw new Error('Expected three distinct cases.');
+const expectedCount = linebreaks ? 6 : 3;
+if (cases.length !== expectedCount || new Set(cases.map(c => c.id)).size !== expectedCount) throw new Error('Unexpected case count.');
 for (const c of cases) correctionInputSchema.parse({ requestId: c.id, sourceText: c.sourceText });
-const plan = [cases[0], cases[0], cases[1], cases[2]];
+const plan = linebreaks ? cases : [cases[0], cases[0], cases[1], cases[2]];
 if (!args.includes('--live')) {
-  console.log(JSON.stringify({ dryRun: true, caseIds: plan.map(c => c.id), maxCalls: 4, explanationCalls: 0 }));
+  console.log(JSON.stringify({ dryRun: true, phase, caseIds: plan.map(c => c.id), maxCalls: plan.length, explanationCalls: 0 }));
 } else {
   const provider = loadLocalProvider();
   if (!provider.configured) throw new Error('Configured correction provider required.');
   const hash = value => createHash('sha256').update(value).digest('hex');
   const startedAt = new Date().toISOString();
   const report = {
-    startedAt, codeCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+    startedAt, phase, codeCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     runnerSha256: hash(readFileSync('scripts/evaluate-correction-coverage.mjs', 'utf8')),
     fixtureSha256: hash(fixture), promptSha256: hash(correctionInstruction), prompt: correctionInstruction,
     provider: process.env.LLM_PROVIDER?.trim(),
@@ -35,7 +39,7 @@ if (!args.includes('--live')) {
     cases, plannedCaseIds: plan.map(c => c.id), runs: [],
   };
   mkdirSync('docs/evaluations', { recursive: true });
-  const output = `docs/evaluations/coverage-${startedAt.replace(/[:.]/g, '-')}.json`;
+  const output = `docs/evaluations/${linebreaks ? `linebreaks-${phase}` : 'coverage'}-${startedAt.replace(/[:.]/g, '-')}.json`;
   const save = () => writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
   let captured = null;
   const observed = { configured: true, async generateCandidates(sourceText, signal) {
