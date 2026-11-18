@@ -55,6 +55,7 @@ for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, {
     await page.screenshot({ path: `test-results/selection-confirm-${size.width}.png` });
     await confirm.click();
     await expect(dialog).toHaveCount(0);
+    await expect(page.locator('.selection-highlight')).toHaveCount(0);
     await expect(editor).toBeFocused();
     await expect(page.locator('.candidate-card')).toHaveCount(1);
     await expect(editor).toHaveValue(text);
@@ -118,5 +119,6 @@ test('preview snapshot cannot submit after source changes', async ({ page }) => 
   await page.getByRole('button', { name: '교정 시작', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(editor).toHaveValue('바뀐 원문');
+  await expect(page.locator('.selection-highlight')).toHaveCount(0);
   expect(calls).toBe(0);
 });

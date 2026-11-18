@@ -218,6 +218,8 @@ writing-demo/
 
 `components/SelectionConfirm.tsx`는 읽기 전용 확인창·내부 스크롤·키보드 포커스를, `lib/selectionAnchor.ts`는 textarea 선택 끝점 근처 버튼의 표시 위치를 담당한다. `App.tsx`가 확인 시점과 실행 시점의 버전을 대조한다.
 
+`components/SelectionHighlight.tsx`는 확인창 뒤 textarea의 선택 범위를 표시하는 시각 전용 레이어다. 글꼴·패딩·너비·내부 스크롤을 맞추고 실제 입력·선택 상태는 수정하지 않는다. 변경 근거는 [#27](https://github.com/dhwjdgh1122/writing-demo/issues/27)을 따른다.
+
 하나의 패키지와 잠금 파일을 사용한다. `server/dev.ts`에서 Vite를 Express 미들웨어로 연결해 API와 화면을 5173번 포트 하나로 제공한다. 빌드 후에는 `server/index.ts`가 정적 화면과 API를 제공한다. 명령어는 README에 기록한다.
 
 현재 API 두 개 규모에서는 라우트·서비스 폴더를 먼저 나누지 않고 `app.ts`에 배치했다. 테스트 제공자는 테스트에서만 주입한다. 실제 실행은 환경변수에 따라 Gemini·엘리스 또는 미설정 제공자를 사용하며, 시작·health 조회만으로 외부 모델을 호출하지 않는다.

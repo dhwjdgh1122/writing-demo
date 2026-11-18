@@ -5,6 +5,7 @@ import { requestCorrection } from './lib/api';
 import { Icon } from './components/Icon';
 import { CorrectionResults } from './components/CorrectionResults';
 import { SelectionConfirm } from './components/SelectionConfirm';
+import { SelectionHighlight } from './components/SelectionHighlight';
 import { selectionAnchor } from './lib/selectionAnchor';
 
 export default function App() {
@@ -116,11 +117,12 @@ export default function App() {
             <div className="panel-heading"><div className="heading-with-icon"><Icon name="document" /><h2 id="editor-heading">원문 작업 공간</h2></div><span className="subtle-tag">한국어 · 일반 문장</span></div>
             <div className="compact-selection" aria-label="선택 및 교정 실행">
               <span className={selectedLength > LIMITS.selection ? 'over-limit' : ''}>선택한 글 {selectedLength.toLocaleString()}자 · 최대 1,000자까지 교정할 수 있어요</span>
-              <div className="compact-actions"><button className="text-button" disabled={!state.selection} onClick={() => { setAnchor(null); dispatch({ type: 'clear' }); }}><Icon name="close" size={14} />선택 해제</button><button ref={runRef} className="primary-button" disabled={disabled} aria-haspopup="dialog" aria-describedby="selection-help" onClick={openConfirmation}>{state.pending ? <><span className="spinner" />교정 중</> : <>교정 실행<Icon name="arrow" size={17} /></>}</button></div>
+              <div className="compact-actions"><button className="text-button" disabled={!state.selection} onClick={() => { setAnchor(null); dispatch({ type: 'clear' }); }}><Icon name="close" size={14} />선택 해제</button><button ref={runRef} className="secondary-button correction-fallback" disabled={disabled} aria-haspopup="dialog" aria-describedby="selection-help" onClick={openConfirmation}>{state.pending ? <><span className="spinner" />교정 중</> : <>교정 실행<Icon name="arrow" size={17} /></>}</button></div>
               <p id="selection-help" className={problem && state.selection ? 'selection-help over-limit' : 'selection-help'}>{composing ? '문장 입력을 마치면 실행할 수 있습니다.' : problem ?? (state.notice ? '원문에 반영된 내용을 확인해주세요.' : '선택한 내용을 확인한 후 실행해주세요.')}</p>
             </div>
           </div>
           <div className="editor-body"><label htmlFor="source-editor" className="sr-only">원문 입력</label><textarea id="source-editor" ref={editorRef} value={state.text} onChange={e => { setAnchor(null); dispatch({ type: 'edit', text: e.target.value }); }} onSelect={captureSelection} onPointerDown={() => { draggingRef.current = true; setAnchor(null); }} onPointerUp={() => { draggingRef.current = false; captureSelection(); }} onPointerCancel={() => { draggingRef.current = false; setAnchor(null); }} onBlur={() => { draggingRef.current = false; }} onKeyUp={captureSelection} onCompositionStart={() => { compositionRef.current = true; setComposing(true); setAnchor(null); }} onCompositionEnd={() => { compositionRef.current = false; setComposing(false); }} placeholder={'이곳에 원문을 입력하거나 붙여넣으세요.\n\n교정하고 싶은 문장을 드래그하면\n교정하기 버튼으로 선택한 내용을 확인하세요.'} aria-describedby="editor-hint document-count" spellCheck={false} />
+            {confirmation && state.selection && confirmation.revision === state.revision && confirmation.selectionRevision === state.selectionRevision && <SelectionHighlight editor={editorRef.current} text={state.text} start={state.selection.start} end={state.selection.end} />}
             <div className="editor-meta"><span id="editor-hint"><Icon name="select" size={16} />드래그한 부분만 교정합니다</span><span id="document-count" className={documentLength > LIMITS.document ? 'over-limit' : ''}>전체 글 {documentLength.toLocaleString()}자<span className="count-limit"> · 최대 20,000자 입력 가능</span></span></div>
           </div>
           <div className="editor-footnote"><Icon name="info" size={16} /><span>작업 내용은 자동 저장되지 않습니다.</span></div>
