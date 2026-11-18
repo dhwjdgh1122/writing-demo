@@ -39,7 +39,7 @@ export function CorrectionResults({ result, onApply }: { result: CorrectionResul
       {error && <div className="explanation-error"><p>{error}</p><button className="text-button" onClick={request} disabled={loading}>설명 다시 시도</button></div>}
       {explanations && <p>원문과 후보를 비교한 AI 설명입니다. 실제 차이와 함께 확인해주세요.</p>}
     </div>
-    <p className="diff-legend"><span />밑줄은 원문에서 달라진 표현입니다.</p>
+    <p className="diff-legend">밑줄은 추가된 표현입니다. 삭제·교체된 내용은 ‘원문 비교’에서 확인하세요.</p>
     <div className="candidate-list">{result.candidates.map((candidate, index) => <CandidateCard key={candidate.id} candidate={candidate} index={index} source={result.sourceText}
       explanation={open ? explanations?.find(e => e.candidateId === candidate.id)?.explanation : undefined} onApply={() => onApply(candidate.id)} />)}</div>
     <p className="result-disclaimer">데모 생성 결과입니다. 적용 전에 내용을 확인해주세요.</p>

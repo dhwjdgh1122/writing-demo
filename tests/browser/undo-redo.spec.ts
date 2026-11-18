@@ -1,3 +1,4 @@
+import { startCorrection, expectSelected } from './selection-helpers';
 import { test, expect, type Page } from '@playwright/test';
 
 // Issue #3: exercise native browser history, not just reducer state.
@@ -21,7 +22,7 @@ async function prepare(page: Page, source: string, typing = false) {
 }
 async function apply(page: Page, start: number, end: number) {
   await choose(page, start, end);
-  await page.locator('.primary-button').click();
+  await startCorrection(page);
   await expect(page.locator('.candidate-card')).toHaveCount(1);
   await page.getByRole('button', { name: '이 문장 적용', exact: true }).click();
 }
@@ -35,7 +36,7 @@ for (const typing of [false, true]) {
     const editor = page.locator('#source-editor');
     const corrected = source.slice(0, start) + 'target. FIXED' + source.slice(start + 7);
     await expect(editor).toHaveValue(corrected);
-    await expect(page.getByTestId('selected-text')).toHaveText('target. FIXED');
+    await expectSelected(page, 'target. FIXED');
     for (let i = 0; i < 3; i++) {
       await editor.focus();
       await page.keyboard.press('Control+z');

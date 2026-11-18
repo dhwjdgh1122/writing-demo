@@ -1,3 +1,4 @@
+import { startCorrection, expectSelected } from './selection-helpers';
 import { test, expect, type Page } from '@playwright/test';
 
 async function select(page: Page, start: number, end: number) {
@@ -10,9 +11,9 @@ test('real unconfigured server: selection persists on panel click and reports mi
   await expect(page.getByRole('button', { name: '교정 실행' })).toBeDisabled();
   await page.getByLabel('원문 입력').fill('앞 문장. 교정할 문장입니다. 뒤 문장.');
   await select(page, 6, 6 + '교정할 문장입니다.'.length);
-  await page.getByRole('heading', { name: '선택한 문장' }).click();
-  await expect(page.getByTestId('selected-text')).toHaveText('교정할 문장입니다.');
-  await page.getByRole('button', { name: '교정 실행' }).click();
+  await page.getByRole('heading', { name: '원문 작업 공간' }).click();
+  await expectSelected(page, '교정할 문장입니다.');
+  await startCorrection(page);
   await expect(page.getByRole('status')).toContainText('AI 연결 설정이 필요합니다');
   await expect(page.getByLabel('원문 입력')).toHaveValue('앞 문장. 교정할 문장입니다. 뒤 문장.');
 });
@@ -28,7 +29,7 @@ test('test-only API response: compares and applies only the selected repeated oc
   const start = source.lastIndexOf(target);
   await page.getByLabel('원문 입력').fill(source);
   await select(page, start, start + target.length);
-  await page.getByRole('button', { name: '교정 실행' }).click();
+  await startCorrection(page);
   await expect(page.locator('.candidate-card')).toHaveCount(2);
   await expect(page.getByRole('button', { name: '변경 없음' })).toBeDisabled();
   await page.locator('summary').first().click();
@@ -57,11 +58,11 @@ test('selection change removes old results and ignores delayed results', async (
   await page.goto('/');
   await page.getByLabel('원문 입력').fill('첫째 둘째');
   await select(page, 0, 2);
-  await page.getByRole('button', { name: '교정 실행' }).click();
+  await startCorrection(page);
   await requested;
   await select(page, 3, 5);
   release();
-  await expect(page.getByTestId('selected-text')).toHaveText('둘째');
+  await expectSelected(page, '둘째');
   await expect(page.getByRole('button', { name: '교정 실행' })).toBeEnabled();
   await expect(page.locator('.candidate-card')).toHaveCount(0);
 });
@@ -91,10 +92,10 @@ test('real mouse drag and keyboard selection update the correction panel', async
   await page.mouse.up();
   const selection = await editor.evaluate((el: HTMLTextAreaElement) => el.value.slice(el.selectionStart, el.selectionEnd));
   expect(selection.trim().length).toBeGreaterThan(0);
-  await expect(page.getByTestId('selected-text')).toHaveText(selection);
+  await expectSelected(page, selection);
   await editor.press('Control+Home');
   await editor.press('Shift+End');
-  await expect(page.getByTestId('selected-text')).toHaveText('마우스로 선택하는 문장입니다.');
+  await expectSelected(page, '마우스로 선택하는 문장입니다.');
 });
 test('selection scope survives focus and caret moves; requests follow the latest selection only', async ({ page, browser }) => {
   console.info(`Selection scope check: Edge ${browser.version()}`);
@@ -124,23 +125,23 @@ test('selection scope survives focus and caret moves; requests follow the latest
   await editor.press('ArrowDown');
   await editor.press('Home');
   await editor.press('Shift+End');
-  await expect(selected).toHaveText('금요일까지 자료를 보내 주세여.');
-  await page.getByRole('heading', { name: '선택한 문장' }).click();
+  await expectSelected(page, '금요일까지 자료를 보내 주세여.');
+  await page.getByRole('heading', { name: '원문 작업 공간' }).click();
   await run.focus();
-  await expect(selected).toHaveText('금요일까지 자료를 보내 주세여.');
+  await expectSelected(page, '금요일까지 자료를 보내 주세여.');
   await editor.focus();
   await editor.press('Control+Home');
   expect(await editor.evaluate((el: HTMLTextAreaElement) => el.selectionStart === el.selectionEnd)).toBe(true);
-  await expect(selected).toHaveText('금요일까지 자료를 보내 주세여.');
-  await run.click();
+  await expectSelected(page, '금요일까지 자료를 보내 주세여.');
+  await startCorrection(page);
   await expect(page.locator('.candidate-card')).toHaveCount(1);
   expect(requests.map(input => input.sourceText)).toEqual(['금요일까지 자료를 보내 주세여.']);
   await editor.focus();
   await editor.press('Control+Home');
   await editor.press('Shift+End');
-  await expect(selected).toHaveText('첫 문장은 주변 정보입니다.');
+  await expectSelected(page, '첫 문장은 주변 정보입니다.');
   await expect(page.locator('.candidate-card')).toHaveCount(0);
-  await run.click();
+  await startCorrection(page);
   await expect(page.locator('.candidate-card')).toHaveCount(1);
   expect(requests.map(input => input.sourceText)).toEqual(['금요일까지 자료를 보내 주세여.', '첫 문장은 주변 정보입니다.']);
   expect(requests[1].requestId).not.toBe(requests[0].requestId);
@@ -149,7 +150,7 @@ test('selection scope survives focus and caret moves; requests follow the latest
   expect(explanationSource).toBe('첫 문장은 주변 정보입니다.');
   await page.screenshot({ path: 'test-results/selection-scope.png', fullPage: true });
   await page.getByRole('button', { name: '선택 해제' }).click();
-  await expect(selected).toHaveText('아직 선택한 문장이 없습니다.');
+  await expectSelected(page, '아직 선택한 문장이 없습니다.');
   await expect(run).toBeDisabled();
   await expect(page.locator('.candidate-card')).toHaveCount(0);
   await editor.focus();
@@ -158,7 +159,7 @@ test('selection scope survives focus and caret moves; requests follow the latest
   await expect(run).toBeEnabled();
   await editor.press('End');
   await editor.press('!');
-  await expect(selected).toHaveText('아직 선택한 문장이 없습니다.');
+  await expectSelected(page, '아직 선택한 문장이 없습니다.');
   await expect(run).toBeDisabled();
   expect(requests).toHaveLength(2);
 });
@@ -180,7 +181,7 @@ async function prepareExplanation(page: Page) {
   await page.goto('/');
   await page.getByLabel('원문 입력').fill('앞 문장. 목요일에 안내하겠습니다. 뒤 문장.');
   await select(page, 6, 6 + '목요일에 안내하겠습니다.'.length);
-  await page.getByRole('button', { name: '교정 실행' }).click();
+  await startCorrection(page);
   await expect(page.locator('.candidate-card')).toHaveCount(2);
 }
 
@@ -250,7 +251,7 @@ for (const action of ['apply', 'edit', 'select', 'rerun'] as const) {
     if (action === 'apply') await page.getByRole('button', { name: '이 문장 적용', exact: true }).click();
     if (action === 'edit') await page.getByLabel('원문 입력').fill('새 원문');
     if (action === 'select') await select(page, 0, 5);
-    if (action === 'rerun') await page.getByRole('button', { name: '교정 실행' }).click();
+    if (action === 'rerun') await startCorrection(page);
     release();
     await expect(page.getByText('오래된 설명', { exact: true })).toHaveCount(0);
     if (action === 'rerun') {
