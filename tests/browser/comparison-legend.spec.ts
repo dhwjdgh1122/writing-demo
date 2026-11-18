@@ -1,3 +1,4 @@
+import { startCorrection, expectSelected } from './selection-helpers';
 import { test, expect } from '@playwright/test';
 
 for (const width of [1440, 390]) {
@@ -21,7 +22,7 @@ for (const width of [1440, 390]) {
       el.focus(); el.setSelectionRange(range[0], range[1]);
     }, [prefix.length, prefix.length + source.length]);
     await page.keyboard.press('Shift');
-    await page.getByRole('button', { name: '교정 실행' }).click();
+    await startCorrection(page);
     const card = page.locator('.candidate-card');
     await expect(card).toBeVisible();
     await expect(card.locator('.candidate-text')).toHaveText(candidate);

@@ -31,6 +31,6 @@ export type ApiErrorBody = { requestId: string | null; error: { code: ErrorCode;
 
 export function selectionProblem(text: string | undefined): string | null {
   if (!text || !text.trim()) return '교정할 문장을 선택해주세요.';
-  if (countCharacters(text) > LIMITS.selection) return '선택한 문장은 최대 1,000자까지 교정할 수 있습니다.';
+  if (countCharacters(text) > LIMITS.selection) return '선택한 내용이 1,000자를 넘었어요. 범위를 줄여서 나누어 교정해주세요.';
   return null;
 }
