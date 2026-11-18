@@ -84,5 +84,5 @@ test('Korean multiline and emoji preserve surrounding text during undo/redo', as
 test('applying a candidate restores focus to the correction button', async ({ page }) => {
   await prepare(page, 'First. Second.');
   await apply(page, 0, 6);
-  await expect(page.locator('.primary-button')).toBeFocused();
+  await expect(page.getByRole('button', { name: '교정 실행', exact: true })).toBeFocused();
 });
