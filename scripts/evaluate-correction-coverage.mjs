@@ -10,26 +10,33 @@ import { correctionInstruction } from '../server/llm/prompt.ts';
 import { correctionInputSchema } from '../shared/contracts.ts';
 
 const args = process.argv.slice(2);
-if (new Set(args).size !== args.length || args.some(a => !['--live', '--linebreaks', '--baseline', '--revised'].includes(a)) || (args.includes('--baseline') && args.includes('--revised'))) throw new Error('Use [--linebreaks --baseline|--revised] [--live]');
+if (new Set(args).size !== args.length || args.some(a => !['--live', '--linebreaks', '--baseline', '--revised', '--stability'].includes(a)) || (args.includes('--baseline') && args.includes('--revised'))) throw new Error('Use [--linebreaks --baseline|--revised | --stability] [--live]');
 const linebreaks = args.includes('--linebreaks');
+const stability = args.includes('--stability');
 const phase = args.includes('--baseline') ? 'baseline' : args.includes('--revised') ? 'revised' : null;
+if (stability && (linebreaks || phase)) throw new Error('Stability runs use the current prompt without phase flags.');
 if ((!linebreaks && phase) || (linebreaks && args.includes('--live') && !phase)) throw new Error('Linebreak live runs require --baseline or --revised.');
 const fixturePath = linebreaks ? 'tests/fixtures/linebreak-cases.json' : 'tests/fixtures/correction-coverage-cases.json';
-const fixture = readFileSync(fixturePath, 'utf8');
-const cases = JSON.parse(fixture);
+let fixture = readFileSync(fixturePath, 'utf8');
+let cases = JSON.parse(fixture);
+if (stability) {
+  const linebreakFixture = readFileSync('tests/fixtures/linebreak-cases.json', 'utf8');
+  cases = [cases.find(c => c.id === 'COV-02'), cases.find(c => c.id === 'COV-03'), JSON.parse(linebreakFixture).find(c => c.id === 'LB-02')];
+  fixture = JSON.stringify(cases);
+}
 const expectedCount = linebreaks ? 6 : 3;
 if (cases.length !== expectedCount || new Set(cases.map(c => c.id)).size !== expectedCount) throw new Error('Unexpected case count.');
 for (const c of cases) correctionInputSchema.parse({ requestId: c.id, sourceText: c.sourceText });
-const plan = linebreaks ? cases : [cases[0], cases[0], cases[1], cases[2]];
+const plan = stability ? Array.from({ length: 3 }, () => cases).flat() : linebreaks ? cases : [cases[0], cases[0], cases[1], cases[2]];
 if (!args.includes('--live')) {
-  console.log(JSON.stringify({ dryRun: true, phase, caseIds: plan.map(c => c.id), maxCalls: plan.length, explanationCalls: 0 }));
+  console.log(JSON.stringify({ dryRun: true, phase, stability, caseIds: plan.map(c => c.id), maxCalls: plan.length, explanationCalls: 0 }));
 } else {
   const provider = loadLocalProvider();
   if (!provider.configured) throw new Error('Configured correction provider required.');
   const hash = value => createHash('sha256').update(value).digest('hex');
   const startedAt = new Date().toISOString();
   const report = {
-    startedAt, phase, codeCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+    startedAt, phase, stability, codeCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     runnerSha256: hash(readFileSync('scripts/evaluate-correction-coverage.mjs', 'utf8')),
     fixtureSha256: hash(fixture), promptSha256: hash(correctionInstruction), prompt: correctionInstruction,
     provider: process.env.LLM_PROVIDER?.trim(),
@@ -39,7 +46,7 @@ if (!args.includes('--live')) {
     cases, plannedCaseIds: plan.map(c => c.id), runs: [],
   };
   mkdirSync('docs/evaluations', { recursive: true });
-  const output = `docs/evaluations/${linebreaks ? `linebreaks-${phase}` : 'coverage'}-${startedAt.replace(/[:.]/g, '-')}.json`;
+  const output = `docs/evaluations/${stability ? 'coverage-stability' : linebreaks ? `linebreaks-${phase}` : 'coverage'}-${startedAt.replace(/[:.]/g, '-')}.json`;
   const save = () => writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
   let captured = null;
   const observed = { configured: true, async generateCandidates(sourceText, signal) {
