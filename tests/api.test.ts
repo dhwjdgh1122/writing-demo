@@ -4,6 +4,7 @@ import { once } from 'node:events';
 import { createApp } from '../server/app.js';
 import { ProviderError, type CorrectionProvider } from '../server/llm/provider.js';
 import { createGeminiProvider } from '../server/llm/gemini.js';
+import coverageCases from './fixtures/correction-coverage-cases.json';
 
 async function setup(t: TestContext, provider?: CorrectionProvider, timeoutMs?: number) {
   const server = createApp(provider, timeoutMs).listen(0, '127.0.0.1');
@@ -90,6 +91,29 @@ test('Gemini adapter and application contract work together with an explicitly s
   assert.ok(body.candidates[0].id);
   assert.equal(body.sourceText, '금요일까지 자료를 보내 주세여.');
 });
+test('multiline correction crosses Gemini adapter and API without silently shortening source or candidates', async t => {
+  const sourceText = coverageCases[1].sourceText; // Explicit trailing LF.
+  // The first two are historical reports, not acceptable quality examples.
+  const candidates = [...coverageCases[0].reportedCandidates!, sourceText.replaceAll(' 입니다', '입니다')];
+  let calls = 0;
+  const provider = createGeminiProvider({ apiKey: 'test-only-key', model: 'gemini-test' }, async (_url, init) => {
+    calls++;
+    const request = JSON.parse(String(init?.body));
+    assert.deepEqual(JSON.parse(request.contents[0].parts[0].text), { sourceText });
+    return new Response(JSON.stringify({ candidates: [{ finishReason: 'STOP', content: {
+      parts: [{ text: JSON.stringify({ candidates }) }],
+    } }] }));
+  });
+  const { post } = await setup(t, provider);
+  const response = await post({ requestId: 'coverage-transport', sourceText });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.sourceText, sourceText);
+  assert.deepEqual(body.candidates.map((c: { text: string }) => c.text), candidates);
+  assert.equal(calls, 1);
+  // Documents the current limit: schema checks do not reject semantic omissions.
+});
+
 test('explanation API validates input, output correspondence, timeout and safe failure', async t => {
   const input = { requestId: 'explain', sourceText: '목요일', candidates: [{ id: 'one', text: '이후' }] };
   let calls = 0;
