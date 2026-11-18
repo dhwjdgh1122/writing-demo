@@ -1,0 +1,8 @@
+[
+  { "id": "LB-01", "origin": "Synthetic FEATURE_SPEC example; full selection.", "sourceText": "회의는 목요일 입니다.\n자료는 수요일까지 입니다.", "expectedFacts": ["회의 목요일", "자료 수요일까지"], "expectedStructure": "Two separate nonempty lines in original order." },
+  { "id": "LB-02", "origin": "Synthetic FEATURE_SPEC example; full selection.", "sourceText": "준비물 입니다.\n\n- 노트북 입니다.\n- 필기구 입니다.", "expectedFacts": ["준비물", "노트북", "필기구"], "expectedStructure": "Heading, one blank line, two separate list items." },
+  { "id": "LB-03", "origin": "Synthetic FEATURE_SPEC example; leading and trailing LF included.", "sourceText": "\n회의는 목요일 입니다.\n", "expectedFacts": ["회의 목요일"], "expectedStructure": "Preserve both leading and trailing LF." },
+  { "id": "LB-04", "origin": "Selected middle sentence from FEATURE_SPEC partial-selection example. Surrounding lines are not sent; browser scope behavior is tested separately.", "sourceText": "회의는 목요일 입니다.", "expectedFacts": ["회의 목요일"], "expectedStructure": "Single line without added LF." },
+  { "id": "LB-05", "origin": "Synthetic FEATURE_SPEC example; no hard newline, regardless of viewport.", "sourceText": "회의는 목요일 오후 3시에 시작 합니다.", "expectedFacts": ["회의 목요일 오후 3시 시작"], "expectedStructure": "Single line without added LF." },
+  { "id": "LB-07", "origin": "Reuse COV-02 from issue #1. LB-06 is a manual negative judging example, not a generation input.", "sourceText": "이 문장은 테스트 입니다.\n이 문장은 테스트 입니다2.\n이 문장은 테스트 입니다3.\n", "expectedFacts": ["첫 테스트 문장", "숫자 2 문장", "숫자 3 문장"], "expectedStructure": "Three separate content lines and trailing LF." }
+]
