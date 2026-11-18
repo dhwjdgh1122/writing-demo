@@ -141,7 +141,7 @@ TASKS는 작업 안내·출처·링크를, Issue는 상세 작업 내용·완료
 
 | 작업 | Issue |
 |---|---|
-| 여러 문장 교정에서 문장 누락 재현 | [#1](https://github.com/dhwjdgh1122/writing-demo/issues/1) |
+| 여러 문장 교정에서 문장 누락 재현 — 내용 누락·줄바꿈·전달 경로 구분 ([검증 근거](검증%20기록.md#correction-coverage-01)) | [#1](https://github.com/dhwjdgh1122/writing-demo/issues/1) |
 | 여러 줄 교정의 줄바꿈 보존 기준 검토 | [#2](https://github.com/dhwjdgh1122/writing-demo/issues/2) |
 | 후보 적용 후 실행 취소·다시 실행 오류 재현 | [#3](https://github.com/dhwjdgh1122/writing-demo/issues/3) |
 | 원문 비교 범례와 선택 확인·교정 시작 흐름 개선 | [#4](https://github.com/dhwjdgh1122/writing-demo/issues/4) — 범례 개선에 이어 선택 위치 근처/고정 버튼 → 읽기 전용 확인창 → 교정 시작으로 정리한다. 하단의 큰 선택 패널은 제거하고 긴 선택 원문은 팝업 본문에서 스크롤한다. 다중 구간 선택은 후속 검토다. 오른쪽 비교·설명·적용은 유지한다. 기존 배치 시험은 [SELECTION-LAYOUT-01](검증%20기록.md#selection-layout-01), 후속 검증은 [SELECTION-CONFIRM-01](검증%20기록.md#selection-confirm-01), main 반영 여부는 [PR #26](https://github.com/dhwjdgh1122/writing-demo/pull/26)을 따른다. |

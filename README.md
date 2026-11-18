@@ -146,6 +146,8 @@ npm.cmd start
 
 #5의 기준 사례로 **현재 설정 제공자·현재 프롬프트**를 평가하려면 `node --import tsx scripts/evaluate-explanation-criteria.mjs`로 입력만 먼저 점검합니다. 실제 호출은 끝에 `--live`를 붙이며 최대 6회 요청합니다. API 사용량이 발생하고 재시도·자동 모델 전환은 하지 않습니다. 앱 API의 형식·인용 검사를 거친 응답과 차단 전 어댑터 결과를 분리 저장합니다. 브라우저 표시나 사용자 효과 시험은 아닙니다. [1차 평가 결과와 한계](docs/검증%20기록.md#explanation-eval-01)를 참고하세요.
 
+#1의 여러 문장 누락을 재현하려면 `node --import tsx scripts/evaluate-correction-coverage.mjs`로 입력을 점검합니다. `--live`를 붙이면 **현재 설정 제공자에 교정만 최대 4회 요청**하며 사용량이 발생합니다. 설명 요청·자동 재시도·모델 전환은 없고, 선택 원문·어댑터 반환값·API 결과를 `docs/evaluations/`에 저장합니다. 줄 수와 내용 누락은 별도로 검토해야 합니다. [재현 결과와 한계](docs/검증%20기록.md#correction-coverage-01)를 참고하세요.
+
 ## 현재 한계
 
 - 설명에 실제 후보와 다른 표현을 인용하거나 의미 변화를 잘못 설명하는 사례가 있습니다.

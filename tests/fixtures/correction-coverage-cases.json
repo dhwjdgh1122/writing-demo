@@ -1,0 +1,21 @@
+[
+  {
+    "id": "COV-01",
+    "origin": "TEAM-01 reported text; select all three lines, no trailing LF. Historical selection and final LF unknown.",
+    "sourceText": "이 문장은 테스트 입니다.\n이 문장은 테스트 입니다2.\n이 문장은 테스트 입니다3.",
+    "reportedCandidates": ["이 문장은 테스트입니다.", "이 문장은 테스트입니다. 이 문장은 테스트입니다2. 이 문장은 테스트입니다3."],
+    "expectedFacts": ["첫 번째 테스트 문장", "숫자 2로 구분된 두 번째 문장", "숫자 3으로 구분된 세 번째 문장"]
+  },
+  {
+    "id": "COV-02",
+    "origin": "Controlled variant of TEAM-01; trailing LF explicitly included in selection.",
+    "sourceText": "이 문장은 테스트 입니다.\n이 문장은 테스트 입니다2.\n이 문장은 테스트 입니다3.\n",
+    "expectedFacts": ["첫 번째 테스트 문장", "숫자 2로 구분된 두 번째 문장", "숫자 3으로 구분된 세 번째 문장"]
+  },
+  {
+    "id": "COV-03",
+    "origin": "Synthetic control written for issue #1; not company data or a historical reproduction.",
+    "sourceText": "회의는 목요일 오후 3시에 시작 합니다.\n참석 인원은 8명 입니다.\n자료는 수요일까지 보내 주세요.",
+    "expectedFacts": ["회의 시작: 목요일 오후 3시", "참석 인원: 8명", "자료 제출: 수요일까지"]
+  }
+]
