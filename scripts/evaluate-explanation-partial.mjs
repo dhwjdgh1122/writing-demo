@@ -8,6 +8,7 @@ import { createGeminiProvider } from '../server/llm/gemini.ts';
 import { createEliceProvider } from '../server/llm/elice.ts';
 import { explanationInstruction } from '../server/llm/prompt.ts';
 import { explanationInputSchema } from '../shared/contracts.ts';
+import { buildEvidenceInput, evidenceInstruction, evidenceResponseSchema, resolveEvidence } from './lib/explanation-evidence-experiment.mjs';
 
 const reportedPath = 'tests/fixtures/explanation-reported-quote.json';
 const reported = JSON.parse(readFileSync(reportedPath, 'utf8'));
@@ -27,11 +28,14 @@ const cases = [
 for (const c of cases) explanationInputSchema.parse({ requestId: c.id, sourceText: c.sourceText, candidates: c.candidates });
 const args = process.argv.slice(2);
 const providerName = args.find(a => a.startsWith('--provider='))?.slice(11);
-if (args.some(a => a !== '--live' && !['--provider=gemini', '--provider=elice'].includes(a))
+const experiment = args.includes('--evidence-ids');
+const instruction = experiment ? evidenceInstruction(explanationInstruction) : explanationInstruction;
+if (args.some(a => !['--live', '--evidence-ids', '--provider=gemini', '--provider=elice'].includes(a))
   || new Set(args).size !== args.length || args.filter(a => a.startsWith('--provider=')).length > 1
-  || (args.includes('--live') && !providerName)) throw new Error('Usage: node --import tsx scripts/evaluate-explanation-partial.mjs [--provider=gemini|elice --live]');
+  || (args.includes('--live') && !providerName)) throw new Error('Usage: node --import tsx scripts/evaluate-explanation-partial.mjs [--evidence-ids] [--provider=gemini|elice --live]');
 if (!args.includes('--live')) {
-  console.log(JSON.stringify({ dryRun: true, cases, maxCallsPerProvider: cases.length, candidatesPerProvider: 6 }));
+  console.log(JSON.stringify({ dryRun: true, experiment, cases, maxCallsPerProvider: cases.length, candidatesPerProvider: 6,
+    ...(experiment ? { derivedInputs: cases.map(c => buildEvidenceInput(c.sourceText, c.candidates)) } : {}) }));
 } else {
   try { loadEnvFile('.env'); } catch (e) { if (e.code !== 'ENOENT') throw new Error('Cannot read local .env.'); }
   const model = process.env[providerName === 'gemini' ? 'GEMINI_MODEL' : 'ELICE_MODEL']?.trim();
@@ -40,9 +44,25 @@ if (!args.includes('--live')) {
   if (!model || !apiKey || (providerName === 'elice' && !baseUrl)) throw new Error('Required provider settings missing.');
   let calls = 0;
   let rawCompletion = null;
+  let derivedInput = null;
+  let mappedCompletion = null;
   // Capture only successful completion text and finish reason; never URLs, headers or error bodies.
   const observedFetch = async (...fetchArgs) => {
     if (++calls > cases.length) throw new Error('Evaluation call limit exceeded.');
+    if (experiment) {
+      const body = JSON.parse(fetchArgs[1].body);
+      const original = JSON.parse(providerName === 'gemini' ? body.contents[0].parts[0].text : body.messages[1].content);
+      derivedInput = buildEvidenceInput(original.sourceText, original.candidates);
+      if (providerName === 'gemini') {
+        body.systemInstruction = { parts: [{ text: instruction }] };
+        body.contents[0].parts[0].text = JSON.stringify(derivedInput);
+        body.generationConfig.responseJsonSchema = evidenceResponseSchema(derivedInput);
+      } else {
+        body.messages[0].content = instruction;
+        body.messages[1].content = JSON.stringify(derivedInput);
+      }
+      fetchArgs[1] = { ...fetchArgs[1], body: JSON.stringify(body) };
+    }
     const response = await fetch(...fetchArgs);
     if (response.ok) {
       try {
@@ -51,7 +71,15 @@ if (!args.includes('--live')) {
           ? { finishReason: envelope.candidates?.[0]?.finishReason,
               text: envelope.candidates?.[0]?.content?.parts?.filter(p => !p.thought && typeof p.text === 'string').map(p => p.text).join('') ?? null }
           : { finishReason: envelope.choices?.[0]?.finish_reason, text: envelope.choices?.[0]?.message?.content ?? null };
-      } catch { rawCompletion = { captureError: 'completion-not-json' }; }
+        if (experiment && rawCompletion.text && rawCompletion.finishReason === (providerName === 'gemini' ? 'STOP' : 'stop')) {
+          // Manual bridge only: keep provider refusal/finish checks and production output validation.
+          // Raw completion remains untouched in the report; only known IDs resolve to exact pairs.
+          mappedCompletion = resolveEvidence(derivedInput, JSON.parse(rawCompletion.text));
+          if (providerName === 'gemini') envelope.candidates[0].content.parts = [{ text: JSON.stringify(mappedCompletion) }];
+          else envelope.choices[0].message.content = JSON.stringify(mappedCompletion);
+          return Response.json(envelope, { status: response.status });
+        }
+      } catch { rawCompletion = { ...rawCompletion, captureError: 'completion-not-json-or-unmappable' }; }
     }
     return response;
   };
@@ -65,12 +93,14 @@ if (!args.includes('--live')) {
     workingTreeStatus: execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim(),
     runnerSha256: hash(readFileSync('scripts/evaluate-explanation-partial.mjs', 'utf8')),
     reportedFixtureSha256: hash(readFileSync(reportedPath, 'utf8')), casesSha256: hash(JSON.stringify(cases)),
-    provider: providerName, model, promptSha256: hash(explanationInstruction), prompt: explanationInstruction, cases,
-    path: 'Fixed candidates → loopback /api/explanations → real provider → adapter validation → HTTP result; no browser.',
+    provider: providerName, model, experiment: experiment ? 'server-owned-line-evidence-ids' : null,
+    experimentModuleSha256: experiment ? hash(readFileSync('scripts/lib/explanation-evidence-experiment.mjs', 'utf8')) : null,
+    promptSha256: hash(instruction), prompt: instruction, cases,
+    path: experiment ? 'Manual request/response bridge: server-owned line pairs → real provider IDs → exact pair resolution → unchanged adapter/app validation; NOT deployed service behavior.' : 'Fixed candidates → loopback /api/explanations → real provider → adapter validation → HTTP result; no browser.',
     notes: 'One call per case, no retries or automatic provider switching. Raw completion text is separate from validated output. HTTP 200 is not semantic correctness. Single AI review is not user validation or a frequency estimate.', runs: [],
   };
   mkdirSync('docs/evaluations', { recursive: true });
-  const output = `docs/evaluations/partial-${providerName}-${startedAt.replace(/[:.]/g, '-')}.json`;
+  const output = `docs/evaluations/${experiment ? 'evidence-ids' : 'partial'}-${providerName}-${startedAt.replace(/[:.]/g, '-')}.json`;
   const save = () => writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
   const server = createApp(provider).listen(0, '127.0.0.1');
   await new Promise((resolve, reject) => { server.once('listening', resolve); server.once('error', reject); });
@@ -78,6 +108,8 @@ if (!args.includes('--live')) {
   try {
     for (const c of cases) {
       rawCompletion = null;
+      derivedInput = null;
+      mappedCompletion = null;
       const start = Date.now();
       const run = { caseId: c.id, startedAt: new Date().toISOString() };
       try {
@@ -93,6 +125,7 @@ if (!args.includes('--live')) {
         }
       } catch { run.transportError = 'local-request-failed'; }
       run.rawCompletion = rawCompletion;
+      if (experiment) { run.derivedInput = derivedInput; run.mappedCompletion = mappedCompletion; }
       run.elapsedMs = Date.now() - start;
       report.runs.push(run);
       save();

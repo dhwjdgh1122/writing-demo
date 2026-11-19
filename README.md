@@ -152,6 +152,8 @@ npm.cmd start
 
 #22의 제보·줄바꿈·중요 정보·간단 오타 4사례는 `node --import tsx scripts/evaluate-explanation-partial.mjs`로 사전 점검합니다. 명시적으로 `--provider=gemini --live` 또는 `--provider=elice --live`를 붙이면 해당 제공자에 최대 4회 호출합니다. 고정 후보의 설명 시험이며 각 제공자의 기존 환경변수가 필요합니다. 성공 응답의 completion 텍스트와 실제 HTTP 결과를 구분해 저장하고 인증정보는 저장하지 않습니다. 자동 테스트·서버 시작에는 포함하지 않습니다.
 
+같은 도구의 `--evidence-ids`는 **근거 번호 반환 실험 전용**입니다. 서버가 보관한 행 쌍과 모델 설명을 조합하는 시험이며 제품 경로에는 연결되지 않았습니다. [진단 결과·미채택 이유](docs/검증%20기록.md#explanation-partial-03)를 먼저 확인하세요. 옵션 없이 실행하면 기존 제품 형식의 평가를 유지합니다.
+
 #1의 여러 문장 누락을 재현하려면 `node --import tsx scripts/evaluate-correction-coverage.mjs`로 입력을 점검합니다. `--live`를 붙이면 **현재 설정 제공자에 교정만 최대 4회 요청**하며 사용량이 발생합니다. 설명 요청·자동 재시도·모델 전환은 없고, 선택 원문·어댑터 반환값·API 결과를 `docs/evaluations/`에 저장합니다. 줄 수와 내용 누락은 별도로 검토해야 합니다. [재현 결과와 한계](docs/검증%20기록.md#correction-coverage-01)를 참고하세요.
 
 #2의 줄바꿈 예문 전후 비교에는 같은 도구에 `--linebreaks --baseline` 또는 `--linebreaks --revised`를 붙입니다. 기본은 입력 점검이며 `--live`를 추가하면 **실행당 교정 최대 6회** 요청합니다. 두 옵션은 기록 이름을 구분할 뿐 프롬프트 버전을 바꾸지 않습니다. 비교하려는 코드 버전에서 각각 실행하고 저장된 프롬프트·해시를 확인해야 합니다. [전후 결과와 한계](docs/검증%20기록.md#linebreak-prompt-01)를 참고하세요.
