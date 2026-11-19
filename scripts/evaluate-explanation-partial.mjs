@@ -11,6 +11,7 @@ import { explanationInputSchema } from '../shared/contracts.ts';
 import { buildEvidenceInput, evidenceInstruction, evidenceResponseSchema, resolveEvidence } from './lib/explanation-evidence-experiment.mjs';
 import { contrastExamples, qualityHoldouts } from './lib/explanation-contrast-experiment.mjs';
 import { withThinkingLevel, numericTokenUsage } from './lib/explanation-thinking-experiment.mjs';
+import { impactInstruction, impactResponseSchema, resolveImpact } from './lib/explanation-impact-experiment.mjs';
 
 const reportedPath = 'tests/fixtures/explanation-reported-quote.json';
 const reported = JSON.parse(readFileSync(reportedPath, 'utf8'));
@@ -33,17 +34,19 @@ const experiment = args.includes('--evidence-ids');
 const contrast = args.includes('--contrast-examples');
 const quality = args.includes('--quality-cases');
 const thinking = args.find(a => a.startsWith('--thinking='))?.slice(11).toUpperCase();
+const impact = args.includes('--impact-fields');
 if (quality) cases = [...cases.filter(c => ['P-03', 'P-04'].includes(c.id)), ...qualityHoldouts];
 for (const c of cases) explanationInputSchema.parse({ requestId: c.id, sourceText: c.sourceText, candidates: c.candidates });
-const instruction = experiment ? evidenceInstruction(explanationInstruction) : explanationInstruction + (contrast ? contrastExamples : '');
-if (args.some(a => !['--live', '--evidence-ids', '--contrast-examples', '--quality-cases', '--provider=gemini', '--provider=elice', '--thinking=low', '--thinking=high'].includes(a))
+const instruction = impact ? impactInstruction(explanationInstruction) : experiment ? evidenceInstruction(explanationInstruction) : explanationInstruction + (contrast ? contrastExamples : '');
+if (args.some(a => !['--live', '--evidence-ids', '--contrast-examples', '--quality-cases', '--provider=gemini', '--provider=elice', '--thinking=low', '--thinking=high', '--impact-fields'].includes(a))
   || new Set(args).size !== args.length || args.filter(a => a.startsWith('--provider=')).length > 1
   || args.filter(a => a.startsWith('--thinking=')).length > 1
   || (thinking && (providerName !== 'gemini' || experiment || contrast || !quality))
+  || (impact && (thinking || experiment || contrast || !quality))
   || (experiment && (contrast || quality))
-  || (args.includes('--live') && !providerName)) throw new Error('Usage: node --import tsx scripts/evaluate-explanation-partial.mjs [--evidence-ids | --quality-cases [--contrast-examples]] [--provider=gemini|elice --live]; thinking comparison: --quality-cases --provider=gemini --thinking=low|high [--live]');
+  || (args.includes('--live') && !providerName)) throw new Error('Usage: node --import tsx scripts/evaluate-explanation-partial.mjs [--evidence-ids | --quality-cases [--contrast-examples | --impact-fields]] [--provider=gemini|elice --live]; thinking comparison: --quality-cases --provider=gemini --thinking=low|high [--live]');
 if (!args.includes('--live')) {
-  console.log(JSON.stringify({ dryRun: true, experiment, contrast, quality, thinking, cases, maxCallsPerProvider: cases.length, candidatesPerProvider: cases.reduce((sum, c) => sum + c.candidates.length, 0),
+  console.log(JSON.stringify({ dryRun: true, experiment, contrast, quality, thinking, impact, cases, maxCallsPerProvider: cases.length, candidatesPerProvider: cases.reduce((sum, c) => sum + c.candidates.length, 0),
     ...(experiment ? { derivedInputs: cases.map(c => buildEvidenceInput(c.sourceText, c.candidates)) } : {}) }));
 } else {
   try { loadEnvFile('.env'); } catch (e) { if (e.code !== 'ENOENT') throw new Error('Cannot read local .env.'); }
@@ -81,6 +84,15 @@ if (!args.includes('--live')) {
       else body.messages[0].content = instruction;
       fetchArgs[1] = { ...fetchArgs[1], body: JSON.stringify(body) };
     }
+    if (impact) {
+      const body = JSON.parse(fetchArgs[1].body);
+      if (providerName === 'gemini') {
+        const input = JSON.parse(body.contents[0].parts[0].text);
+        body.systemInstruction = { parts: [{ text: instruction }] };
+        body.generationConfig.responseJsonSchema = impactResponseSchema(input.candidates.map(c => c.id));
+      } else body.messages[0].content = instruction;
+      fetchArgs[1] = { ...fetchArgs[1], body: JSON.stringify(body) };
+    }
     if (thinking) {
       const body = withThinkingLevel(JSON.parse(fetchArgs[1].body), thinking);
       requestSettings = { thinkingLevel: body.generationConfig.thinkingConfig.thinkingLevel,
@@ -96,10 +108,10 @@ if (!args.includes('--live')) {
           ? { finishReason: envelope.candidates?.[0]?.finishReason,
               text: envelope.candidates?.[0]?.content?.parts?.filter(p => !p.thought && typeof p.text === 'string').map(p => p.text).join('') ?? null }
           : { finishReason: envelope.choices?.[0]?.finish_reason, text: envelope.choices?.[0]?.message?.content ?? null };
-        if (experiment && rawCompletion.text && rawCompletion.finishReason === (providerName === 'gemini' ? 'STOP' : 'stop')) {
+        if ((experiment || impact) && rawCompletion.text && rawCompletion.finishReason === (providerName === 'gemini' ? 'STOP' : 'stop')) {
           // Manual bridge only: keep provider refusal/finish checks and production output validation.
-          // Raw completion remains untouched in the report; only known IDs resolve to exact pairs.
-          mappedCompletion = resolveEvidence(derivedInput, JSON.parse(rawCompletion.text));
+          // Preserve raw completion separately; never repair quotes, ownership or missing prose.
+          mappedCompletion = impact ? resolveImpact(JSON.parse(rawCompletion.text)) : resolveEvidence(derivedInput, JSON.parse(rawCompletion.text));
           if (providerName === 'gemini') envelope.candidates[0].content.parts = [{ text: JSON.stringify(mappedCompletion) }];
           else envelope.choices[0].message.content = JSON.stringify(mappedCompletion);
           return Response.json(envelope, { status: response.status });
@@ -121,17 +133,18 @@ if (!args.includes('--live')) {
       'server/llm/gemini.ts', 'server/llm/elice.ts', 'server/app.ts', 'shared/contracts.ts']
       .map(path => [path, hash(readFileSync(path, 'utf8'))])),
     reportedFixtureSha256: hash(readFileSync(reportedPath, 'utf8')), casesSha256: hash(JSON.stringify(cases)),
-    provider: providerName, model, experiment: experiment ? 'server-owned-line-evidence-ids' : contrast ? 'contrast-examples' : thinking ? `thinking-${thinking.toLowerCase()}` : null,
+    provider: providerName, model, experiment: impact ? 'impact-fields' : experiment ? 'server-owned-line-evidence-ids' : contrast ? 'contrast-examples' : thinking ? `thinking-${thinking.toLowerCase()}` : null,
+    impactModuleSha256: impact ? hash(readFileSync('scripts/lib/explanation-impact-experiment.mjs', 'utf8')) : null,
     thinkingModuleSha256: thinking ? hash(readFileSync('scripts/lib/explanation-thinking-experiment.mjs', 'utf8')) : null,
     caseSet: quality ? 'quality-with-holdouts' : 'original-four',
     contrastModuleSha256: quality || contrast ? hash(readFileSync('scripts/lib/explanation-contrast-experiment.mjs', 'utf8')) : null,
     experimentModuleSha256: experiment ? hash(readFileSync('scripts/lib/explanation-evidence-experiment.mjs', 'utf8')) : null,
     promptSha256: hash(instruction), prompt: instruction, cases,
-    path: thinking ? 'Manual Gemini thinking-level override only → real provider → unchanged adapter/app validation; NOT deployed service settings; no browser.' : experiment ? 'Manual request/response bridge: server-owned line pairs → real provider IDs → exact pair resolution → unchanged adapter/app validation; NOT deployed service behavior.' : contrast ? 'Manual prompt append only → real provider → unchanged adapter/app validation; NOT deployed service behavior; no browser.' : 'Fixed candidates → loopback /api/explanations → real provider → adapter validation → HTTP result; no browser.',
+    path: impact ? 'Manual visible prose fields → real provider → strict field bridge → unchanged adapter/app validation; NOT deployed service contract; no browser.' : thinking ? 'Manual Gemini thinking-level override only → real provider → unchanged adapter/app validation; NOT deployed service settings; no browser.' : experiment ? 'Manual request/response bridge: server-owned line pairs → real provider IDs → exact pair resolution → unchanged adapter/app validation; NOT deployed service behavior.' : contrast ? 'Manual prompt append only → real provider → unchanged adapter/app validation; NOT deployed service behavior; no browser.' : 'Fixed candidates → loopback /api/explanations → real provider → adapter validation → HTTP result; no browser.',
     notes: 'One call per case, no retries or automatic provider switching. Raw completion text is separate from validated output. HTTP 200 is not semantic correctness. Single AI review is not user validation or a frequency estimate.', runs: [],
   };
   mkdirSync('docs/evaluations', { recursive: true });
-  const output = `docs/evaluations/${thinking ? `thinking-${thinking.toLowerCase()}` : experiment ? 'evidence-ids' : contrast ? 'contrast-examples' : quality ? 'quality-baseline' : 'partial'}-${providerName}-${startedAt.replace(/[:.]/g, '-')}.json`;
+  const output = `docs/evaluations/${impact ? 'impact-fields' : thinking ? `thinking-${thinking.toLowerCase()}` : experiment ? 'evidence-ids' : contrast ? 'contrast-examples' : quality ? 'quality-baseline' : 'partial'}-${providerName}-${startedAt.replace(/[:.]/g, '-')}.json`;
   const save = () => writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
   const server = createApp(provider).listen(0, '127.0.0.1');
   await new Promise((resolve, reject) => { server.once('listening', resolve); server.once('error', reject); });
@@ -160,6 +173,7 @@ if (!args.includes('--live')) {
       run.rawCompletion = rawCompletion;
       if (thinking) { run.requestSettings = requestSettings; run.tokenUsage = tokenUsage; }
       if (experiment) { run.derivedInput = derivedInput; run.mappedCompletion = mappedCompletion; }
+      if (impact) run.mappedCompletion = mappedCompletion;
       run.elapsedMs = Date.now() - start;
       report.runs.push(run);
       save();
