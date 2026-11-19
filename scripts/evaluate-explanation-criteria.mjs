@@ -70,7 +70,8 @@ if (!args.includes('--live')) {
       run.elapsedMs = Date.now()-start;
       report.runs.push(run);
       save();
-      console.log(JSON.stringify({ run: run.id, caseId: c.id, status: run.status, error: run.response?.error?.code ?? run.transportError, elapsedMs: run.elapsedMs }));
+      console.log(JSON.stringify({ run: run.id, caseId: c.id, status: run.status, error: run.response?.error?.code ?? run.transportError,
+        candidateErrors: run.response?.explanations?.filter(item => 'error' in item), elapsedMs: run.elapsedMs }));
       // Continue on case-specific invalid output/quote mismatch; stop on availability/quota/configuration failures.
       if (run.transportError || ['MODEL_NOT_CONFIGURED','MODEL_CONFIGURATION_ERROR','MODEL_QUOTA_EXCEEDED','MODEL_UNAVAILABLE','MODEL_TIMEOUT','MODEL_REQUEST_FAILED'].includes(run.response?.error?.code)) break;
     }

@@ -4,7 +4,69 @@ import { once } from 'node:events';
 import { createApp } from '../server/app.js';
 import { ProviderError, type CorrectionProvider } from '../server/llm/provider.js';
 import { createGeminiProvider } from '../server/llm/gemini.js';
+import { createEliceProvider } from '../server/llm/elice.js';
+import { explanationInstruction } from '../server/llm/prompt.js';
 import coverageCases from './fixtures/correction-coverage-cases.json';
+
+for (const name of ['gemini', 'elice'] as const) {
+  test(`${name}: existing model format isolates malformed and mismatched candidate explanations through HTTP`, async t => {
+    const sourceText = '회의를\n시작합니다.';
+    const candidates = [{ id: 'good', text: '회의를\n진행합니다.' }, { id: 'bad', text: '회의를\n엽니다.' }, { id: 'format', text: '회의가 시작됩니다.' }];
+    let calls = 0;
+    let malformed: Record<string, unknown> = {};
+    const providerConfig = { apiKey: 'fake-test-key', model: 'gemini-test', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' };
+    const fetcher: typeof fetch = async (_url, options) => {
+      calls++;
+      const request = JSON.parse(String(options?.body));
+      assert.equal(name === 'gemini' ? request.systemInstruction.parts[0].text : request.messages[0].content, explanationInstruction);
+      assert.deepEqual(JSON.parse(name === 'gemini' ? request.contents[0].parts[0].text : request.messages[1].content), { sourceText, candidates });
+      if (name === 'gemini') assert.deepEqual(request.generationConfig.responseJsonSchema.properties.explanations.items.required, ['candidateId', 'explanation']);
+      const text = JSON.stringify({ explanations: [
+        { candidateId: 'format', ...malformed },
+        { candidateId: 'good', explanation: '‘회의를\n시작합니다.’가 ‘회의를\n진행합니다.’로 바뀌었습니다.' },
+        { candidateId: 'bad', explanation: '‘회의를\n종료합니다.’로 바뀌었습니다.' },
+      ] });
+      return Response.json(name === 'gemini'
+        ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text }] } }] }
+        : { choices: [{ finish_reason: 'stop', message: { content: text } }] });
+    };
+    const provider = name === 'gemini' ? createGeminiProvider(providerConfig, fetcher) : createEliceProvider(providerConfig, fetcher);
+    const { base } = await setup(t, provider);
+    for (const invalid of [{}, { explanation: ' ' }, { explanation: '가'.repeat(401) }, { explanation: 5 }, { explanation: '설명', extra: true }, { error: 'EXPLANATION_INVALID' }]) {
+      malformed = invalid;
+      const response = await fetch(`${base}/api/explanations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: `partial-${name}`, sourceText, candidates }) });
+      assert.equal(response.status, 200);
+      const body = await response.json();
+      assert.deepEqual(body.candidates, candidates);
+      assert.deepEqual(body.explanations[0], { candidateId: 'format', error: 'EXPLANATION_INVALID' });
+      assert.match(body.explanations[1].explanation, /회의를\n진행합니다/);
+      assert.deepEqual(body.explanations[2], { candidateId: 'bad', error: 'EXPLANATION_QUOTE_MISMATCH' });
+      assert.ok(!JSON.stringify(body.explanations).includes('종료합니다'));
+    }
+    assert.equal(calls, 6); // One call per explicit request; no hidden retry.
+  });
+
+  test(`${name}: ambiguous IDs or malformed envelopes still reject the entire response`, async () => {
+    const candidates = [{ id: 'one', text: '후보 하나' }, { id: 'two', text: '후보 둘' }];
+    const good = { candidateId: 'one', explanation: '설명' };
+    const fixtures = [null, {}, { explanations: [good] }, { explanations: [good, good] },
+      { explanations: [good, { candidateId: 'foreign', explanation: '설명' }] },
+      { explanations: [good, { explanation: 'ID 누락' }] },
+      { explanations: [good, { candidateId: 'two', explanation: '설명' }], extra: true },
+      { explanations: [good, { candidateId: 'two', explanation: '설명' }, good, good] }];
+    for (const raw of fixtures) {
+      const fetcher: typeof fetch = async () => {
+        const text = JSON.stringify(raw);
+        return Response.json(name === 'gemini'
+          ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text }] } }] }
+          : { choices: [{ finish_reason: 'stop', message: { content: text } }] });
+      };
+      const config = { apiKey: 'fake-test-key', model: 'gemini-test', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' };
+      const provider = name === 'gemini' ? createGeminiProvider(config, fetcher) : createEliceProvider(config, fetcher);
+      await assert.rejects(provider.generateExplanations!('원문', candidates, new AbortController().signal), error => error instanceof ProviderError && error.kind === 'invalid');
+    }
+  });
+}
 
 async function setup(t: TestContext, provider?: CorrectionProvider, timeoutMs?: number) {
   const server = createApp(provider, timeoutMs).listen(0, '127.0.0.1');
@@ -154,11 +216,13 @@ test('explanation API withholds mismatched quotations without changing candidate
   } });
   const post = () => fetch(`${base}/api/explanations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
   const response = await post();
-  assert.equal(response.status, 502);
+  assert.equal(response.status, 200);
   const body = await response.json();
-  assert.equal(body.error.code, 'EXPLANATION_QUOTE_MISMATCH');
-  assert.equal(body.error.retryable, true);
-  assert.equal(body.explanations, undefined);
+  assert.deepEqual(body.candidates, input.candidates);
+  assert.deepEqual(body.explanations, [
+    { candidateId: 'spaced', explanation: "'주세여'를 '주세요'로 고쳤습니다." },
+    { candidateId: 'joined', error: 'EXPLANATION_QUOTE_MISMATCH' },
+  ]);
   assert.equal(calls, 1);
   correct = true;
   const retried = await post();

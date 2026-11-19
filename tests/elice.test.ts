@@ -124,6 +124,5 @@ test('Elice explanations bind source and candidate IDs and normalize unchanged c
   for (const explanations of [
     [], [{ candidateId: 'wrong', explanation: '설명' }],
     [{ candidateId: 'one', explanation: '설명' }, { candidateId: 'one', explanation: '중복' }],
-    [{ candidateId: 'one', explanation: ' ' }], [{ candidateId: 'one', explanation: '가'.repeat(401) }],
   ]) await assert.rejects(createEliceProvider(config, fakeFetch(completion({ explanations }))).generateExplanations!('원문', [{ id: 'one', text: '후보' }], signal()), failure('invalid'));
 });

@@ -31,7 +31,8 @@ try {
     return result;
   }
   const correction = await request('corrections', { requestId: 'elice-smoke-correction', sourceText });
-  await request('explanations', { requestId: 'elice-smoke-explanation', sourceText, candidates: correction.candidates });
+  const explained = await request('explanations', { requestId: 'elice-smoke-explanation', sourceText, candidates: correction.candidates });
+  if (explained.explanations.some(item => 'error' in item)) throw new Error('LIVE_CHECK_FAILED');
   console.log('엘리스 교정·설명 API 확인 완료. 품질 전반·교육 지원 한도 검증과는 별개입니다.');
 } catch (error) {
   // Never print raw upstream exceptions, URLs containing credentials or headers.
