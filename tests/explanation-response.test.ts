@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { renderExplanationResponse } from '../server/llm/explanation-response.js';
-import { explanationQuotesMatch } from '../server/llm/explanation-check.js';
+import { explanationQuotesMatch, explanationProseError } from '../server/llm/explanation-check.js';
 import { createGeminiProvider } from '../server/llm/gemini.js';
 import { createEliceProvider } from '../server/llm/elice.js';
 import { ProviderError } from '../server/llm/provider.js';
@@ -56,13 +56,40 @@ test('invalid prose, empty or duplicated evidence and excessive rendered length 
   for (const entry of [
     { ...draft, explanation: ' ' }, { ...draft, explanation: '가'.repeat(401) },
     { ...draft, explanation: '가'.repeat(390) }, // Evidence also counts toward the 400-character limit.
-    { ...draft, explanation: '‘유일하다’라는 뜻입니다.' },
+    { ...draft, explanation: '‘유일했다라는 뜻입니다.' },
     { ...draft, explanation: '첫째\n둘째' },
     { ...draft, references: [] }, { ...draft, references: [{ before: '', after: '' }] },
     { ...draft, references: [{ before: '세상', after: '세상' }] },
     { ...draft, references: [...draft.references, ...draft.references] },
     { candidateId: 'one', explanation: '이전 자유문 형식' },
   ]) assert.deepEqual(render(entry), [{ candidateId: 'one', error: 'EXPLANATION_INVALID' }]);
+});
+
+test('exact prose quotations survive unchanged; invented or other-candidate quotations do not', () => {
+  for (const [open, close] of [["'", "'"], ['"', '"'], ['‘', '’'], ['“', '”'], ['「', '」'], ['『', '』'], ['`', '`']]) {
+    const explanation = `${open}하나였다${close}를 ${open}유일했다${close}로 바꿨습니다.`;
+    const result = render({ ...draft, explanation })[0];
+    assert.ok('explanation' in result && result.explanation.endsWith(explanation));
+  }
+  for (const explanation of ['‘유일하다’라는 뜻입니다.', '‘하나 였다’를 수정했습니다.', '‘없는 말’을 고쳤습니다.']) {
+    assert.deepEqual(render({ ...draft, explanation }), [{ candidateId: 'one', error: 'EXPLANATION_QUOTE_MISMATCH' }]);
+  }
+  const result = renderExplanationResponse(source, [...candidates, { id: 'two', text: '유일하다' }], { explanations: [
+    { ...draft, explanation: '‘유일하다’로 수정했습니다.' },
+    { candidateId: 'two', references: [{ before: source, after: '유일하다' }], explanation: '‘유일하다’로 바뀌었습니다.' },
+  ] });
+  assert.deepEqual(result[0], { candidateId: 'one', error: 'EXPLANATION_QUOTE_MISMATCH' });
+  assert.ok('explanation' in result[1]);
+});
+
+test('unclosed, mismatched, nested, blank and multiline prose quotes fail rather than bypass matching', () => {
+  for (const prose of ['‘유일했다', '유일했다’', '‘유일했다"', "'유일했다", '‘ ’', '‘유일\n했다’',
+    '‘“유일했다”’', '‘유일했다’ 뒤의 ‘열린 인용', '‘없는 구절’ 뒤의 ‘열린 인용']) {
+    assert.equal(explanationProseError(source, candidates[0].text, prose), 'EXPLANATION_INVALID');
+  }
+  assert.equal(explanationProseError('회의를\n시작합니다', '회의를\n진행합니다', '‘회의를 진행합니다’로 변경'), 'EXPLANATION_QUOTE_MISMATCH');
+  // Exact words alone cannot validate a false account of the change.
+  assert.equal(explanationProseError(source, candidates[0].text, '‘유일했다’가 두 사람이라는 뜻입니다.'), undefined);
 });
 
 test('unknown, missing or duplicate candidate IDs remain whole-response errors', () => {

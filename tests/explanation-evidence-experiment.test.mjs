@@ -37,11 +37,11 @@ test('IDs resolve only within their candidate and preserve a valid sibling on pa
   }
 });
 
-test('selection experiment does not strip quotes, fabricate missing evidence or bypass length limits', () => {
+test('selection experiment does not repair malformed prose, fabricate evidence or bypass length limits', () => {
   const source = '원문'; const candidates = [{ id: 'one', text: '후보' }];
   const input = buildEvidenceInput(source, candidates);
   for (const draft of [
-    { candidateId: 'one', evidenceIds: ['c1-e1'], explanation: '‘후보’로 바꿨습니다.' },
+    { candidateId: 'one', evidenceIds: ['c1-e1'], explanation: '‘후보로 바꿨습니다.' },
     { candidateId: 'one', evidenceIds: ['c1-e1'], explanation: '가'.repeat(400) },
     { candidateId: 'one', evidenceIds: ['c1-e1'], explanation: '변경', references: [] },
   ]) assert.deepEqual(renderExplanationResponse(source, candidates, resolveEvidence(input, { explanations: [draft] })),

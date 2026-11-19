@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { countCharacters, explanationsSchema, explanationsMatch, requestIdSchema, type Candidate, type ExplanationResult } from '../../shared/contracts.js';
 import { ProviderError } from './provider.js';
+import { explanationProseError } from './explanation-check.js';
 
 // Reuses #22's separation of exact evidence and prose, without importing its
 // experimental semantic categories, remaining-word checks or extra model calls.
@@ -27,9 +28,10 @@ export function renderExplanationResponse(source: string, candidates: Candidate[
     const parsed = draftSchema.safeParse(raw);
     if (!parsed.success) return failure('EXPLANATION_INVALID');
     const { references, explanation } = parsed.data;
-    // A basic form may appear in prose, but quotation marks would make it an
-    // ambiguous quote. Do not strip quotes, normalize evidence or infer inflections.
-    if (!explanation.trim() || /["'‘’“”「」『』`\r\n]/u.test(explanation)) return failure('EXPLANATION_INVALID');
+    // Allow exact quotes without rewriting model prose. Basic forms remain unquoted
+    // unless actually present in this source/candidate. Meaning needs separate review.
+    const proseError = explanationProseError(source, candidate.text, explanation);
+    if (proseError) return failure(proseError);
     if (references.some(({ before, after }) =>
       (before && (!before.trim() || !source.includes(before)))
       || (after && (!after.trim() || !candidate.text.includes(after))))) return failure('EXPLANATION_QUOTE_MISMATCH');

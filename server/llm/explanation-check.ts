@@ -10,3 +10,28 @@ export function explanationQuotesMatch(source: string, candidate: string, explan
   }
   return true;
 }
+
+/** Strict prose-only check. Exact quotes are allowed, but malformed/nested quotes
+ * must not bypass matching. This verifies text presence, not meaning or attribution.
+ * Server-rendered evidence can contain newlines and is validated separately.
+ */
+export function explanationProseError(source: string, candidate: string, prose: string):
+  'EXPLANATION_INVALID' | 'EXPLANATION_QUOTE_MISMATCH' | undefined {
+  if (!prose.trim() || /[\r\n]/u.test(prose)) return 'EXPLANATION_INVALID';
+  const pairs: Record<string, string> = { "'": "'", '"': '"', '‘': '’', '“': '”', '「': '」', '『': '』', '`': '`' };
+  const marks = new Set([...Object.keys(pairs), ...Object.values(pairs)]);
+  let mismatch = false;
+  for (let i = 0; i < prose.length; i++) {
+    if (!marks.has(prose[i])) continue;
+    const closing = pairs[prose[i]];
+    if (!closing) return 'EXPLANATION_INVALID';
+    let end = i + 1;
+    while (end < prose.length && !marks.has(prose[end])) end++;
+    if (end === prose.length || prose[end] !== closing) return 'EXPLANATION_INVALID';
+    const quote = prose.slice(i + 1, end);
+    if (!quote.trim()) return 'EXPLANATION_INVALID';
+    if (!source.includes(quote) && !candidate.includes(quote)) mismatch = true;
+    i = end;
+  }
+  return mismatch ? 'EXPLANATION_QUOTE_MISMATCH' : undefined;
+}

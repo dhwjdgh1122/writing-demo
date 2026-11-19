@@ -92,6 +92,9 @@ if (!args.includes('--live')) {
     startedAt, codeCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     workingTreeStatus: execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim(),
     runnerSha256: hash(readFileSync('scripts/evaluate-explanation-partial.mjs', 'utf8')),
+    implementationSha256: Object.fromEntries(['server/llm/explanation-check.ts', 'server/llm/explanation-response.ts',
+      'server/llm/gemini.ts', 'server/llm/elice.ts', 'server/app.ts', 'shared/contracts.ts']
+      .map(path => [path, hash(readFileSync(path, 'utf8'))])),
     reportedFixtureSha256: hash(readFileSync(reportedPath, 'utf8')), casesSha256: hash(JSON.stringify(cases)),
     provider: providerName, model, experiment: experiment ? 'server-owned-line-evidence-ids' : null,
     experimentModuleSha256: experiment ? hash(readFileSync('scripts/lib/explanation-evidence-experiment.mjs', 'utf8')) : null,
