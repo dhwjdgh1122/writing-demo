@@ -160,6 +160,8 @@ npm.cmd start
 
 같은 작업 브랜치의 [공백 비교 보완](docs/검증%20기록.md#explanation-partial-06)은 일반 공백만 달라진 후보의 설명을 서버가 직접 계산합니다. 공백 외 변화나 의미의 적절성을 판정하지 않으며, 기존 모델 호출·실패 처리와 #22의 미완료 품질 범위는 유지합니다.
 
+`node --import tsx scripts/evaluate-explanation-partial.mjs --quality-cases --provider=gemini --thinking=low` 또는 `--thinking=high`는 같은 입력·프롬프트로 추론 설정만 비교하는 **수동 실험**입니다. 기본은 호출 없는 점검이며 `--live`를 붙인 실행당 최대 4회 호출합니다. Gemini 3 모델에만 사용하고 예시·근거 번호 실험과 혼합하지 않습니다. 서비스 오류 시 해당 실행을 중단하며 자동 재시도하지 않습니다. [LOW/HIGH 실제 비교·미채택 근거](docs/검증%20기록.md#explanation-partial-07)를 참고하세요. 제품 설정과 `.env`는 변경하지 않습니다.
+
 #1의 여러 문장 누락을 재현하려면 `node --import tsx scripts/evaluate-correction-coverage.mjs`로 입력을 점검합니다. `--live`를 붙이면 **현재 설정 제공자에 교정만 최대 4회 요청**하며 사용량이 발생합니다. 설명 요청·자동 재시도·모델 전환은 없고, 선택 원문·어댑터 반환값·API 결과를 `docs/evaluations/`에 저장합니다. 줄 수와 내용 누락은 별도로 검토해야 합니다. [재현 결과와 한계](docs/검증%20기록.md#correction-coverage-01)를 참고하세요.
 
 #2의 줄바꿈 예문 전후 비교에는 같은 도구에 `--linebreaks --baseline` 또는 `--linebreaks --revised`를 붙입니다. 기본은 입력 점검이며 `--live`를 추가하면 **실행당 교정 최대 6회** 요청합니다. 두 옵션은 기록 이름을 구분할 뿐 프롬프트 버전을 바꾸지 않습니다. 비교하려는 코드 버전에서 각각 실행하고 저장된 프롬프트·해시를 확인해야 합니다. [전후 결과와 한계](docs/검증%20기록.md#linebreak-prompt-01)를 참고하세요.
