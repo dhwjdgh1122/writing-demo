@@ -1,0 +1,532 @@
+{
+  "reviewedAt": "2026-11-19T10:36:36.278Z",
+  "reviewer": "Codex AI 내부 1인 검토",
+  "method": "실제 표시 설명을 기존 required와 공통 사실 일치·영향·선택 기준으로 수동 검토. 의미 자동 채점 아님.",
+  "limitations": "개선 대상 선정에 사용한 기존 사례의 1회 점검이다. 독립 평가·일반 정확도·실제 사용자 효과가 아니며 앞선 3회 결과와 통제된 동시 비교가 아니다.",
+  "baseCommit": "c2d823c",
+  "productionDecision": "미채택. 실제 시험한 수정 지침은 각 원자료 prompt/promptSha256에 보존하고 제품 프롬프트는 c2d823c로 복원. 검사·API 계약·화면·모델·환경변수 변경 없음.",
+  "reports": [
+    {
+      "file": "focused-gate-gemini-2026-11-19T10-34-11-433Z.json",
+      "sha256": "7b807f7325640ed5eb6b1f8c31b2a5764e051c72225eb73264163f728dd59d52",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "promptSha256": "602d45f6d4dab9b95e4b0f256e2dbc5316a38b15638a61d5e10eb000bcd14f1c",
+      "counts": {
+        "calls": 9,
+        "completed": true,
+        "displayed": 10,
+        "withheld": 0,
+        "pass": 8,
+        "needsWork": 2,
+        "factualError": 0
+      }
+    },
+    {
+      "file": "focused-gate-elice-2026-11-19T10-34-13-605Z.json",
+      "sha256": "330411051d93ae3bc7ca42fb7737d64264056a5ed1a6bea215a568196f0fb002",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "promptSha256": "602d45f6d4dab9b95e4b0f256e2dbc5316a38b15638a61d5e10eb000bcd14f1c",
+      "counts": {
+        "calls": 9,
+        "completed": true,
+        "displayed": 7,
+        "withheld": 3,
+        "pass": 1,
+        "needsWork": 4,
+        "factualError": 2
+      }
+    }
+  ],
+  "rows": [
+    {
+      "id": "gemini/E-01/e01-c1",
+      "report": "focused-gate-gemini-2026-11-19T10-34-11-433Z.json",
+      "source": "금요일까지 자료를 보내 주세여.",
+      "candidate": "금요일까지 자료를 보내 주세요.",
+      "actualExplanation": "‘보내 주세여.’ → ‘보내 주세요.’. 오탈자인 보내 주세여를 표준 표현인 보내 주세요로 수정하여 맞춤법을 바르게 고쳤다.",
+      "error": null,
+      "verdict": "통과",
+      "reason": "실제 오타 수정만 설명하며 어조 개선을 주장하지 않는다.",
+      "checks": [
+        {
+          "requirement": "주세여→주세요 수정",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "날짜·요청 내용에 없는 변화 주장 없음",
+          "verdict": "통과"
+        }
+      ]
+    },
+    {
+      "id": "gemini/E-03/e03-c1",
+      "report": "focused-gate-gemini-2026-11-19T10-34-11-433Z.json",
+      "source": "담당자의 확인을 받은 경우에만 화요일까지 8명에게 자료를 보낼 예정이며, 발송은 확정되지 않았습니다.",
+      "candidate": "화요일까지 10명에게 자료를 발송합니다.",
+      "actualExplanation": "‘담당자의 확인을 받은 경우에만 화요일까지 8명에게 자료를 보낼 예정이며, 발송은 확정되지 않았습니다.’ → ‘화요일까지 10명에게 자료를 발송합니다.’. 담당자 확인 조건과 미확정 상태가 삭제되고 인원이 8명에서 10명으로 바뀌며 화요일 발송이 확정되었다. 원래의 조건부 예정 사항을 유지하려면 원문을 선택한다.",
+      "error": null,
+      "verdict": "보완 필요",
+      "reason": "조건 삭제·인원 증가·미확정 삭제는 포착했으나 선택 기준은 조건부 예정만 언급하고 원래 8명 유지 안내가 빠졌다. 화요일까지라는 기한을 화요일 발송으로 줄인 표현도 정밀하지 않다.",
+      "checks": [
+        {
+          "requirement": "담당자 확인 조건 삭제",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "8명→10명",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "예정·미확정 표현 소실",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "원문의 정보 유지 시 선택 기준",
+          "verdict": "보완 필요"
+        }
+      ]
+    },
+    {
+      "id": "gemini/E-04/e04-p1",
+      "report": "focused-gate-gemini-2026-11-19T10-34-11-433Z.json",
+      "source": "참가자 8명중 2명은 등록비를 아직 결재하지 않앗습니다.",
+      "candidate": "참가자 8명 중 2명은 등록비를 아직 결제하지 않았습니다.",
+      "actualExplanation": "‘8명중’ → ‘8명 중’; ‘결재하지 않앗습니다.’ → ‘결제하지 않았습니다.’. 등록비 대금 지불을 뜻하는 결제와 맞춤법에 맞게 어문 규정을 수정했다.",
+      "error": null,
+      "verdict": "보완 필요",
+      "reason": "실제 수정 근거는 맞지만 어문 규정을 수정했다는 서술은 문장을 고친 것과 규칙 자체를 고친 것을 혼동하게 한다.",
+      "checks": [
+        {
+          "requirement": "p1의 결재→결제와 p2의 유지 구분",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "8명·2명·미납 상태 왜곡 없음",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "없는 규칙·출처 발명 없음",
+          "verdict": "통과"
+        }
+      ]
+    },
+    {
+      "id": "gemini/E-04/e04-p2",
+      "report": "focused-gate-gemini-2026-11-19T10-34-11-433Z.json",
+      "source": "참가자 8명중 2명은 등록비를 아직 결재하지 않앗습니다.",
+      "candidate": "참가자 8명 중 2명은 등록비를 아직 결재하지 않았습니다.",
+      "actualExplanation": "‘8명중’ → ‘8명 중’; ‘않앗습니다.’ → ‘않았습니다.’. 문맥상 대금 지불을 뜻하는 결제 대신 승인을 뜻하는 결재가 남아 있어 대상을 확인해야 한다.",
+      "error": null,
+      "verdict": "통과",
+      "reason": "근거는 오타·공백 변화만 표시하고, 대금 지불 문맥에 남은 승인 뜻 결재를 구분해 알린다. 대상을 확인하라는 안내는 다소 추상적이다.",
+      "checks": [
+        {
+          "requirement": "p1의 결재→결제와 p2의 유지 구분",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "8명·2명·미납 상태 왜곡 없음",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "없는 규칙·출처 발명 없음",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "납부 문맥에 남은 결재 오용을 구분해 설명",
+          "verdict": "통과"
+        }
+      ]
+    },
+    {
+      "id": "gemini/CT-01/ct01-c1",
+      "report": "focused-gate-gemini-2026-11-19T10-34-11-433Z.json",
+      "source": "담당자가 동의하면 일정을 변경합니다.",
+      "candidate": "예산이 확보되면 일정을 변경합니다.",
+      "actualExplanation": "‘담당자가 동의하면’ → ‘예산이 확보되면’. 일정 변경의 조건이 담당자의 동의에서 예산의 확보로 바뀌었다. 담당자의 동의 여부와 관계없이 예산 확보를 기준으로 삼으려면 이 후보를 선택할 수 있다.",
+      "error": null,
+      "verdict": "통과",
+      "reason": "일정 변경의 전제 교체를 설명하고 예산 확보를 기준으로 삼으려는 경우라는 선택 기준을 제공한다.",
+      "checks": [
+        {
+          "requirement": "담당자 동의에서 예산 확보로 전제가 교체됨",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "조건 변화로 분류하고 행동 주체 교체로 단정하지 않음",
+          "verdict": "통과"
+        }
+      ]
+    },
+    {
+      "id": "gemini/CT-03/ct03-c1",
+      "report": "focused-gate-gemini-2026-11-19T10-34-11-433Z.json",
+      "source": "회원인 경우에만 자료를 받을 수 있습니다.",
+      "candidate": "회원만 자료를 받을 수 있습니다.",
+      "actualExplanation": "‘회원인 경우에만’ → ‘회원만’. 회원인 경우에만을 회원만으로 줄여 문장을 간결하게 다듬었다. 회원 한정이라는 조건과 자료를 받을 수 있다는 전달 내용은 동일하므로 간결한 표현을 선호할 때 선택한다.",
+      "error": null,
+      "verdict": "통과",
+      "reason": "회원 한정과 전달 내용 유지를 정확히 설명한다.",
+      "checks": [
+        {
+          "requirement": "회원만 받을 수 있다는 제한 유지",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "표현 다듬기로 분류하고 조건 삭제로 지적하지 않음",
+          "verdict": "통과"
+        }
+      ]
+    },
+    {
+      "id": "gemini/CS-02/cs02-c1",
+      "report": "focused-gate-gemini-2026-11-19T10-34-11-433Z.json",
+      "source": "환불하지 않습니다.",
+      "candidate": "상품을 사용한 경우에는 환불하지 않습니다.",
+      "actualExplanation": "‘상품을 사용한 경우에는 ’ 추가. 원문에 상품을 사용한 경우라는 조건이 추가되어 해당 상황에서 환불이 불가함을 명시한다. 예외 없는 환불 불가 원칙을 유지하려면 원문을, 특정 조건에 따른 제한을 두려면 해당 후보를 선택할 수 있다.",
+      "error": null,
+      "verdict": "통과",
+      "reason": "상품 사용 조건 추가와 제한 범위·원래 조건 없는 환불 불가를 유지할 선택을 설명하며 미사용 환불을 보장하지 않는다.",
+      "checks": [
+        {
+          "requirement": "상품 사용 시라는 조건 추가",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "조건 없는 환불 불가에서 상품 사용 시 환불 불가로 표현 범위가 달라짐",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "미사용 상품은 반드시 환불된다고 추론하지 않음",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "부정 유지와 조건 변화를 구분",
+          "verdict": "통과"
+        }
+      ]
+    },
+    {
+      "id": "gemini/R-02/r02-c1",
+      "report": "focused-gate-gemini-2026-11-19T10-34-11-433Z.json",
+      "source": "결재를 완료햇습니다.",
+      "candidate": "결재를 완료했습니다.",
+      "actualExplanation": "‘햇습니다’ → ‘했습니다’. 오탈자 완료햇습니다를 완료했습니다로 수정했다.",
+      "error": null,
+      "verdict": "통과",
+      "reason": "오타 수정만 설명하고 승인/지불 문맥을 추측하지 않는다.",
+      "checks": [
+        {
+          "requirement": "완료햇습니다→완료했습니다 오타 설명",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "결재를 결제로 바꿔야 한다고 지적하지 않음",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "승인 또는 지불 상황을 추측하지 않음",
+          "verdict": "통과"
+        }
+      ]
+    },
+    {
+      "id": "gemini/R-03/r03-c1",
+      "report": "focused-gate-gemini-2026-11-19T10-34-11-433Z.json",
+      "source": "카드로 상품 대금을 결재햇습니다.",
+      "candidate": "카드로 상품 대금을 결재했습니다.",
+      "actualExplanation": "‘결재햇습니다.’ → ‘결재했습니다.’. 오탈자 결재햇습니다를 결재했습니다로 수정하여 맞춤법을 맞추었다. 대금 지불을 뜻하는 결제와 승인을 뜻하는 결재 중 지불 문맥에는 결제가 올바른 표기이나, 원문의 오탈자 교정 외에 단어 자체의 의미적 오류는 그대로 유지되었다.",
+      "error": null,
+      "verdict": "통과",
+      "reason": "오타 수정과 지불 문맥에 남은 결재 오용을 구분하며 이미 결제로 바꿨다고 주장하지 않는다.",
+      "checks": [
+        {
+          "requirement": "오타 수정 설명",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "양쪽에 남은 결재를 notes에서 지불 문맥에 맞지 않는 단어로 설명",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "결제로 이미 고쳤다고 설명하지 않음",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "결재를 그대로 둔 것을 의미 변화로 꾸미지 않음",
+          "verdict": "통과"
+        }
+      ]
+    },
+    {
+      "id": "gemini/R-05/r05-c1",
+      "report": "focused-gate-gemini-2026-11-19T10-34-11-433Z.json",
+      "source": "카드로 상품 대금을 결제햇습니다.",
+      "candidate": "카드로 상품 대금을 결제했습니다.",
+      "actualExplanation": "‘결제햇습니다.’ → ‘결제했습니다.’. 결제햇습니다를 결제했습니다로 고쳐 맞춤법을 바르게 수정했다.",
+      "error": null,
+      "verdict": "통과",
+      "reason": "실제 오타 수정만 설명하며 정상 결제를 지적하지 않는다.",
+      "checks": [
+        {
+          "requirement": "오타 수정 설명",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "정상 결제를 오류로 지적하지 않음",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "없는 의미 변화 발명 없음",
+          "verdict": "통과"
+        }
+      ]
+    },
+    {
+      "id": "elice/E-01/e01-c1",
+      "report": "focused-gate-elice-2026-11-19T10-34-13-605Z.json",
+      "source": "금요일까지 자료를 보내 주세여.",
+      "candidate": "금요일까지 자료를 보내 주세요.",
+      "actualExplanation": "‘세여’ → ‘주세요’. '세여'가 '주세요'로 변경되어 더욱 자연스럽고 정중한 표현으로 바뀌었으며, 요청의 전달 방식이 개선되었습니다.",
+      "error": null,
+      "verdict": "보완 필요",
+      "reason": "세여→주세요로 수정 단위를 부정확하게 대응시키고 오타 수정만으로 정중함·전달 방식 개선을 주장한다.",
+      "checks": [
+        {
+          "requirement": "주세여→주세요 수정",
+          "verdict": "보완 필요"
+        },
+        {
+          "requirement": "날짜·요청 내용에 없는 변화 주장 없음",
+          "verdict": "통과"
+        }
+      ]
+    },
+    {
+      "id": "elice/E-03/e03-c1",
+      "report": "focused-gate-elice-2026-11-19T10-34-13-605Z.json",
+      "source": "담당자의 확인을 받은 경우에만 화요일까지 8명에게 자료를 보낼 예정이며, 발송은 확정되지 않았습니다.",
+      "candidate": "화요일까지 10명에게 자료를 발송합니다.",
+      "actualExplanation": "‘8명에게 자료를 보낼 예정이며, 발송은 확정되지 않았습니다.’ → ‘10명에게 자료를 발송합니다.’. 후보에서 '8명'이 '10명'으로 바뀌면서 대상 인원이 증가하고, '보낼 예정이며, 발송은 확정되지 않았습니다'가 '발송합니다'로 변경되어 발송 확정이 됐습니다. 이는 정보의 변화를 초래하며, 발송 시점과 범위가 달라졌습니다.",
+      "error": null,
+      "verdict": "사실 오류 포함",
+      "reason": "인원·확정 표현 변화는 있지만 담당자 확인 조건과 선택 기준이 빠졌다. 그대로인 화요일까지 기한을 발송 시점이 달라졌다고 설명한다.",
+      "checks": [
+        {
+          "requirement": "담당자 확인 조건 삭제",
+          "verdict": "보완 필요"
+        },
+        {
+          "requirement": "8명→10명",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "예정·미확정 표현 소실",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "원문의 정보 유지 시 선택 기준",
+          "verdict": "보완 필요"
+        }
+      ]
+    },
+    {
+      "id": "elice/E-04/e04-p1",
+      "report": "focused-gate-elice-2026-11-19T10-34-13-605Z.json",
+      "source": "참가자 8명중 2명은 등록비를 아직 결재하지 않앗습니다.",
+      "candidate": "참가자 8명 중 2명은 등록비를 아직 결제하지 않았습니다.",
+      "actualExplanation": null,
+      "error": "EXPLANATION_QUOTE_MISMATCH",
+      "verdict": "설명 미제공",
+      "checks": [
+        {
+          "requirement": "p1의 결재→결제와 p2의 유지 구분",
+          "verdict": "판정 보류"
+        },
+        {
+          "requirement": "8명·2명·미납 상태 왜곡 없음",
+          "verdict": "판정 보류"
+        },
+        {
+          "requirement": "없는 규칙·출처 발명 없음",
+          "verdict": "판정 보류"
+        }
+      ],
+      "reason": "원문/후보에 없는 안앗습니다를 설명에 인용해 차단. 원출력도 실제 수정 방향을 잘못 설명하므로 검사만의 문제로 보지 않음."
+    },
+    {
+      "id": "elice/E-04/e04-p2",
+      "report": "focused-gate-elice-2026-11-19T10-34-13-605Z.json",
+      "source": "참가자 8명중 2명은 등록비를 아직 결재하지 않앗습니다.",
+      "candidate": "참가자 8명 중 2명은 등록비를 아직 결재하지 않았습니다.",
+      "actualExplanation": null,
+      "error": "EXPLANATION_QUOTE_MISMATCH",
+      "verdict": "설명 미제공",
+      "checks": [
+        {
+          "requirement": "p1의 결재→결제와 p2의 유지 구분",
+          "verdict": "판정 보류"
+        },
+        {
+          "requirement": "8명·2명·미납 상태 왜곡 없음",
+          "verdict": "판정 보류"
+        },
+        {
+          "requirement": "없는 규칙·출처 발명 없음",
+          "verdict": "판정 보류"
+        },
+        {
+          "requirement": "납부 문맥에 남은 결재 오용을 구분해 설명",
+          "verdict": "판정 보류"
+        }
+      ],
+      "reason": "원문/후보에 없는 안앗습니다를 설명에 인용해 차단. 원출력도 실제 수정 방향을 잘못 설명하므로 검사만의 문제로 보지 않음."
+    },
+    {
+      "id": "elice/CT-01/ct01-c1",
+      "report": "focused-gate-elice-2026-11-19T10-34-13-605Z.json",
+      "source": "담당자가 동의하면 일정을 변경합니다.",
+      "candidate": "예산이 확보되면 일정을 변경합니다.",
+      "actualExplanation": "‘동의하면’ → ‘확보되면’. 원문에서 '담당자가 동의하면'은 동의의 조건을 나타내지만, 후보에서는 '예산이 확보되면'으로 조건이 변경되어, 예산 확보가 조건으로 바뀌면서 의미가 달라졌다. 결과적으로 일정을 변경하는 조건이 담당자의 동의에서 예산 확보로 전환되어, 원문의 의도를 잃게 되었다.",
+      "error": null,
+      "verdict": "보완 필요",
+      "reason": "조건 교체는 맞지만 원문의 의도를 잃었다고 단정하며 사용 의도에 따른 선택 기준이 없다.",
+      "checks": [
+        {
+          "requirement": "담당자 동의에서 예산 확보로 전제가 교체됨",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "조건 변화로 분류하고 행동 주체 교체로 단정하지 않음",
+          "verdict": "통과"
+        }
+      ]
+    },
+    {
+      "id": "elice/CT-03/ct03-c1",
+      "report": "focused-gate-elice-2026-11-19T10-34-13-605Z.json",
+      "source": "회원인 경우에만 자료를 받을 수 있습니다.",
+      "candidate": "회원만 자료를 받을 수 있습니다.",
+      "actualExplanation": "‘회원인 경우에만’ → ‘회원만’. '회원인 경우에만'에서 '회원만'으로 바뀌며 조건의 구체성이 줄어들었습니다. 원문의 경우 개별적인 조건을 강조하는 반면, 후보는 단순한 주체 표시로 변하므로 메시지가 다소 약해질 수 있습니다.",
+      "error": null,
+      "verdict": "사실 오류 포함",
+      "reason": "회원만이라는 제한을 단순 주체 표시로 해석해 조건의 구체성과 메시지가 약해졌다고 설명한다.",
+      "checks": [
+        {
+          "requirement": "회원만 받을 수 있다는 제한 유지",
+          "verdict": "보완 필요"
+        },
+        {
+          "requirement": "표현 다듬기로 분류하고 조건 삭제로 지적하지 않음",
+          "verdict": "보완 필요"
+        }
+      ]
+    },
+    {
+      "id": "elice/CS-02/cs02-c1",
+      "report": "focused-gate-elice-2026-11-19T10-34-13-605Z.json",
+      "source": "환불하지 않습니다.",
+      "candidate": "상품을 사용한 경우에는 환불하지 않습니다.",
+      "actualExplanation": null,
+      "error": "EXPLANATION_INVALID",
+      "verdict": "설명 미제공",
+      "checks": [
+        {
+          "requirement": "상품 사용 시라는 조건 추가",
+          "verdict": "판정 보류"
+        },
+        {
+          "requirement": "조건 없는 환불 불가에서 상품 사용 시 환불 불가로 표현 범위가 달라짐",
+          "verdict": "판정 보류"
+        },
+        {
+          "requirement": "미사용 상품은 반드시 환불된다고 추론하지 않음",
+          "verdict": "판정 보류"
+        },
+        {
+          "requirement": "부정 유지와 조건 변화를 구분",
+          "verdict": "판정 보류"
+        }
+      ],
+      "reason": "같은 환불하지 않습니다를 before/after에 중복해 차단. 원출력에 선택 기준도 없음."
+    },
+    {
+      "id": "elice/R-02/r02-c1",
+      "report": "focused-gate-elice-2026-11-19T10-34-13-605Z.json",
+      "source": "결재를 완료햇습니다.",
+      "candidate": "결재를 완료했습니다.",
+      "actualExplanation": "‘햇습니다.’ → ‘했습니다.’. '햇습니다'가 '했습니다'로 수정되어 표현이 정중해졌습니다. 두 표현의 의미는 동일하지만, '했습니다'는 더 표준적인 형태로 간주됩니다.",
+      "error": null,
+      "verdict": "보완 필요",
+      "reason": "단어 사용을 오지적하지 않지만 오타 수정만으로 정중함이 높아졌다고 주장한다.",
+      "checks": [
+        {
+          "requirement": "완료햇습니다→완료했습니다 오타 설명",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "결재를 결제로 바꿔야 한다고 지적하지 않음",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "승인 또는 지불 상황을 추측하지 않음",
+          "verdict": "통과"
+        }
+      ]
+    },
+    {
+      "id": "elice/R-03/r03-c1",
+      "report": "focused-gate-elice-2026-11-19T10-34-13-605Z.json",
+      "source": "카드로 상품 대금을 결재햇습니다.",
+      "candidate": "카드로 상품 대금을 결재했습니다.",
+      "actualExplanation": "‘결재햇습니다.’ → ‘결재했습니다.’. '결재햇습니다.'의 '햇'을 '했습니다.'로 바꾸어 문법적으로 올바른 표현으로 수정하였습니다.",
+      "error": null,
+      "verdict": "보완 필요",
+      "reason": "지불 문맥의 결재 잔존 문제를 누락하고 햇→했습니다라는 부정확한 수정 단위를 서술한다.",
+      "checks": [
+        {
+          "requirement": "오타 수정 설명",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "양쪽에 남은 결재를 notes에서 지불 문맥에 맞지 않는 단어로 설명",
+          "verdict": "보완 필요"
+        },
+        {
+          "requirement": "결제로 이미 고쳤다고 설명하지 않음",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "결재를 그대로 둔 것을 의미 변화로 꾸미지 않음",
+          "verdict": "통과"
+        }
+      ]
+    },
+    {
+      "id": "elice/R-05/r05-c1",
+      "report": "focused-gate-elice-2026-11-19T10-34-13-605Z.json",
+      "source": "카드로 상품 대금을 결제햇습니다.",
+      "candidate": "카드로 상품 대금을 결제했습니다.",
+      "actualExplanation": "‘결제햇습니다.’ → ‘결제했습니다.’. ‘결제햇습니다.’에서 나타난 오타가 올바르게 수정되어 ‘결제했습니다.’로 바뀌었습니다. 이는 문장의 정확성을 높여줍니다.",
+      "error": null,
+      "verdict": "통과",
+      "reason": "실제 오타 수정만 설명하며 정상 결제를 문제 삼지 않는다.",
+      "checks": [
+        {
+          "requirement": "오타 수정 설명",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "정상 결제를 오류로 지적하지 않음",
+          "verdict": "통과"
+        },
+        {
+          "requirement": "없는 의미 변화 발명 없음",
+          "verdict": "통과"
+        }
+      ]
+    }
+  ]
+}

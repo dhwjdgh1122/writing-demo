@@ -36,8 +36,9 @@ const quality = args.includes('--quality-cases');
 const thinking = args.find(a => a.startsWith('--thinking='))?.slice(11).toUpperCase();
 const impact = args.includes('--impact-fields');
 const finalGate = args.includes('--final-gate');
+const focusedGate = args.includes('--focused-gate');
 const gatePaths = ['tests/fixtures/explanation-criteria-cases.json', 'tests/fixtures/explanation-condition-scope-cases.json', 'tests/fixtures/explanation-usage-boundary-cases.json'];
-if (finalGate) {
+if (finalGate || focusedGate) {
   const [base, conditions, usage] = gatePaths.map(path => JSON.parse(readFileSync(path, 'utf8')));
   const pick = (items, ids) => ids.map(id => {
     const matches = items.filter(c => c.id === id);
@@ -47,22 +48,24 @@ if (finalGate) {
   cases = [...pick(base, ['E-01', 'E-02', 'E-03', 'E-04', 'E-05', 'E-07']),
     ...pick(conditions, ['CT-01', 'CT-02', 'CT-03', 'CS-02']), ...pick(usage, ['L-01', 'R-02', 'R-03', 'R-05'])];
   if (cases.length !== 14 || cases.reduce((n, c) => n + c.candidates.length, 0) !== 15) throw new Error('Gate size changed.');
+  if (focusedGate) cases = pick(cases, ['E-01', 'E-03', 'E-04', 'CT-01', 'CT-03', 'CS-02', 'R-02', 'R-03', 'R-05']);
 }
 if (quality) cases = [...cases.filter(c => ['P-03', 'P-04'].includes(c.id)), ...qualityHoldouts];
 for (const c of cases) explanationInputSchema.parse({ requestId: c.id, sourceText: c.sourceText, candidates: c.candidates });
 const instruction = impact ? impactInstruction(explanationInstruction) : experiment ? evidenceInstruction(explanationInstruction) : explanationInstruction + (contrast ? contrastExamples : '');
-if (args.some(a => !['--live', '--final-gate', '--evidence-ids', '--contrast-examples', '--quality-cases', '--provider=gemini', '--provider=elice', '--thinking=low', '--thinking=high', '--impact-fields'].includes(a))
+if (args.some(a => !['--live', '--final-gate', '--focused-gate', '--evidence-ids', '--contrast-examples', '--quality-cases', '--provider=gemini', '--provider=elice', '--thinking=low', '--thinking=high', '--impact-fields'].includes(a))
   || new Set(args).size !== args.length || args.filter(a => a.startsWith('--provider=')).length > 1
   || args.filter(a => a.startsWith('--thinking=')).length > 1
   || (thinking && (providerName !== 'gemini' || experiment || contrast || !quality))
   || (impact && (thinking || experiment || contrast || !quality))
   || (experiment && (contrast || quality))
-  || (finalGate && (experiment || contrast || quality || thinking || impact))
-  || (args.includes('--live') && !providerName)) throw new Error('Usage: node --import tsx scripts/evaluate-explanation-partial.mjs [--final-gate | --evidence-ids | --quality-cases [--contrast-examples | --impact-fields]] [--provider=gemini|elice --live]; thinking comparison: --quality-cases --provider=gemini --thinking=low|high [--live]');
+  || ((finalGate || focusedGate) && (experiment || contrast || quality || thinking || impact))
+  || (finalGate && focusedGate)
+  || (args.includes('--live') && !providerName)) throw new Error('Usage: node --import tsx scripts/evaluate-explanation-partial.mjs [--final-gate | --focused-gate | --evidence-ids | --quality-cases [--contrast-examples | --impact-fields]] [--provider=gemini|elice --live]; thinking comparison: --quality-cases --provider=gemini --thinking=low|high [--live]');
 const plan = Array.from({ length: finalGate ? 3 : 1 }, (_, i) => cases.map(c => ({ caseId: c.id, repetition: i + 1 }))).flat();
 const maxCalls = plan.length;
 if (!args.includes('--live')) {
-  console.log(JSON.stringify({ dryRun: true, experiment, contrast, quality, thinking, impact, finalGate, cases, plan, maxCallsPerProvider: maxCalls, candidatesPerProvider: cases.reduce((sum, c) => sum + c.candidates.length, 0) * (finalGate ? 3 : 1),
+  console.log(JSON.stringify({ dryRun: true, experiment, contrast, quality, thinking, impact, finalGate, focusedGate, cases, plan, maxCallsPerProvider: maxCalls, candidatesPerProvider: cases.reduce((sum, c) => sum + c.candidates.length, 0) * (finalGate ? 3 : 1),
     ...(experiment ? { derivedInputs: cases.map(c => buildEvidenceInput(c.sourceText, c.candidates)) } : {}) }));
 } else {
   try { loadEnvFile('.env'); } catch (e) { if (e.code !== 'ENOENT') throw new Error('Cannot read local .env.'); }
@@ -70,7 +73,7 @@ if (!args.includes('--live')) {
   const apiKey = process.env[providerName === 'gemini' ? 'GEMINI_API_KEY' : 'ELICE_API_KEY']?.trim();
   const baseUrl = process.env.ELICE_BASE_URL?.trim();
   if (!model || !apiKey || (providerName === 'elice' && !baseUrl)) throw new Error('Required provider settings missing.');
-  if (finalGate && model !== (providerName === 'gemini' ? 'gemini-3.5-flash-lite' : 'gpt-4o-mini')) throw new Error('Final gate model differs from fixed criteria.');
+  if ((finalGate || focusedGate) && model !== (providerName === 'gemini' ? 'gemini-3.5-flash-lite' : 'gpt-4o-mini')) throw new Error('Gate model differs from fixed criteria.');
   if (thinking && !/^gemini-3[.-]/.test(model)) throw new Error('Thinking comparison requires a Gemini 3 model.');
   let calls = 0;
   let rawCompletion = null;
@@ -153,8 +156,8 @@ if (!args.includes('--live')) {
     provider: providerName, model, experiment: impact ? 'impact-fields' : experiment ? 'server-owned-line-evidence-ids' : contrast ? 'contrast-examples' : thinking ? `thinking-${thinking.toLowerCase()}` : null,
     impactModuleSha256: impact ? hash(readFileSync('scripts/lib/explanation-impact-experiment.mjs', 'utf8')) : null,
     thinkingModuleSha256: thinking ? hash(readFileSync('scripts/lib/explanation-thinking-experiment.mjs', 'utf8')) : null,
-    caseSet: finalGate ? 'issue22-fixed-14-three-repetitions' : quality ? 'quality-with-holdouts' : 'original-four',
-    ...(finalGate ? { plan, maxCalls, gateSourceCommit: '0e4df1d', fixtureSha256: Object.fromEntries(gatePaths.map(path => [path, hash(readFileSync(path))])),
+    caseSet: finalGate ? 'issue22-fixed-14-three-repetitions' : focusedGate ? 'issue22-fixed-nine-focused-single-run' : quality ? 'quality-with-holdouts' : 'original-four',
+    ...(finalGate || focusedGate ? { plan, maxCalls, gateSourceCommit: '0e4df1d', fixtureSha256: Object.fromEntries(gatePaths.map(path => [path, hash(readFileSync(path))])),
       reviewContract: 'Reuse fixed required criteria. Legacy notes requirements are assessed in displayed explanation, not a missing legacy JSON field. E-04-p2 must explain retained payment-word misuse. E-05 is server-fixed, excluded from model quality; current production still calls model for that request. No UI guidance counts as satisfying missing explanation content.' } : {}),
     contrastModuleSha256: quality || contrast ? hash(readFileSync('scripts/lib/explanation-contrast-experiment.mjs', 'utf8')) : null,
     experimentModuleSha256: experiment ? hash(readFileSync('scripts/lib/explanation-evidence-experiment.mjs', 'utf8')) : null,
@@ -163,7 +166,7 @@ if (!args.includes('--live')) {
     notes: 'One call per case per planned repetition, no retries or automatic provider switching. Raw completion text is separate from validated output. HTTP 200 is not semantic correctness. Single AI review is not user validation or a frequency estimate.', runs: [],
   };
   mkdirSync('docs/evaluations', { recursive: true });
-  const output = `docs/evaluations/${finalGate ? 'final-gate' : impact ? 'impact-fields' : thinking ? `thinking-${thinking.toLowerCase()}` : experiment ? 'evidence-ids' : contrast ? 'contrast-examples' : quality ? 'quality-baseline' : 'partial'}-${providerName}-${startedAt.replace(/[:.]/g, '-')}.json`;
+  const output = `docs/evaluations/${finalGate ? 'final-gate' : focusedGate ? 'focused-gate' : impact ? 'impact-fields' : thinking ? `thinking-${thinking.toLowerCase()}` : experiment ? 'evidence-ids' : contrast ? 'contrast-examples' : quality ? 'quality-baseline' : 'partial'}-${providerName}-${startedAt.replace(/[:.]/g, '-')}.json`;
   const save = () => writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
   const server = createApp(provider).listen(0, '127.0.0.1');
   await new Promise((resolve, reject) => { server.once('listening', resolve); server.once('error', reject); });
@@ -177,7 +180,7 @@ if (!args.includes('--live')) {
       tokenUsage = null;
       requestSettings = null;
       const start = Date.now();
-      const run = { caseId: c.id, ...(finalGate ? { repetition: entry.repetition } : {}), startedAt: new Date().toISOString() };
+      const run = { caseId: c.id, ...(finalGate || focusedGate ? { repetition: entry.repetition } : {}), startedAt: new Date().toISOString() };
       try {
         const response = await fetch(`http://127.0.0.1:${server.address().port}/api/explanations`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(50_000),
@@ -205,7 +208,7 @@ if (!args.includes('--live')) {
     report.finishedAt = new Date().toISOString();
     report.modelCalls = calls;
     report.completed = report.runs.length === plan.length;
-    report.unexecuted = finalGate ? plan.slice(report.runs.length) : plan.slice(report.runs.length).map(c => c.caseId);
+    report.unexecuted = finalGate || focusedGate ? plan.slice(report.runs.length) : plan.slice(report.runs.length).map(c => c.caseId);
     save();
     server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));
