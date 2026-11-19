@@ -16,6 +16,34 @@ const draft = {
 };
 const render = (entry: unknown) => renderExplanationResponse(source, candidates, { explanations: [entry] });
 
+test('reported multiline quotes are consumed as spans, not as the particle between quotes', () => {
+  const report = JSON.parse(readFileSync(new URL('./fixtures/explanation-reported-multiline.json', import.meta.url), 'utf8'));
+  assert.equal(explanationQuotesMatch(report.sourceText, report.candidate.text, report.reportedExplanation), true);
+  // Fixing the final guard does not relax the current adapter's single-line prose contract.
+  assert.equal(explanationProseError(report.sourceText, report.candidate.text, report.reportedExplanation), 'EXPLANATION_INVALID');
+  const results = renderExplanationResponse(report.sourceText, [report.candidate], { explanations: [{
+    candidateId: report.candidate.id,
+    references: [{ before: '조~빠\n십게', after: '조~빠\n쉽게' }],
+    explanation: '십게를 쉽게로 고쳤습니다.',
+  }] });
+  assert.ok('explanation' in results[0]);
+  assert.equal(explanationQuotesMatch(report.sourceText, report.candidate.text, results[0].explanation), true);
+});
+
+test('all quote styles check exact multiline content instead of skipping or normalizing it', () => {
+  for (const [open, close] of [["'", "'"], ['"', '"'], ['‘', '’'], ['“', '”'], ['「', '」'], ['『', '』'], ['`', '`']]) {
+    for (const newline of ['\n', '\r\n']) {
+      const before = `회의를${newline}시작합니다`;
+      const after = `회의를${newline}진행합니다`;
+      const text = `${open}${before}${close}가 ${open}${after}${close}로 바뀌었습니다.`;
+      assert.equal(explanationQuotesMatch(before, after, text), true);
+      assert.equal(explanationQuotesMatch(before, after, text.replace('진행합니다', '종료합니다')), false);
+      assert.equal(explanationQuotesMatch(before, after, text.replaceAll(newline, ' ')), false);
+      assert.equal(explanationQuotesMatch(before, after, text.replace(newline, newline === '\n' ? '\r\n' : '\n')), false);
+    }
+  }
+});
+
 test('preserved teammate output reproduces the exact quote rejection without a model call', () => {
   const report = JSON.parse(readFileSync(new URL('./fixtures/explanation-reported-quote.json', import.meta.url), 'utf8'));
   assert.equal(explanationQuotesMatch(report.sourceText, report.candidate.text, report.reportedExplanation), false);

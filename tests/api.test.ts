@@ -5,6 +5,7 @@ import { createApp } from '../server/app.js';
 import { ProviderError, type CorrectionProvider } from '../server/llm/provider.js';
 import { createGeminiProvider } from '../server/llm/gemini.js';
 import coverageCases from './fixtures/correction-coverage-cases.json';
+import { renderExplanationResponse } from '../server/llm/explanation-response.js';
 
 async function setup(t: TestContext, provider?: CorrectionProvider, timeoutMs?: number) {
   const server = createApp(provider, timeoutMs).listen(0, '127.0.0.1');
@@ -15,6 +16,26 @@ async function setup(t: TestContext, provider?: CorrectionProvider, timeoutMs?: 
   const base = `http://127.0.0.1:${address.port}`;
   return { base, post: (body: unknown) => fetch(`${base}/api/corrections`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) };
 }
+
+test('HTTP guard preserves exact multiline evidence and rejects a fabricated multiline quote per candidate', async t => {
+  const sourceText = '회의를\n시작합니다.';
+  const candidates = [{ id: 'good', text: '회의를\n진행합니다.' }, { id: 'bad', text: '회의를\n엽니다.' }];
+  const { base } = await setup(t, { configured: true, async generateCandidates() { return []; },
+    async generateExplanations() {
+      return [
+        ...renderExplanationResponse(sourceText, [candidates[0]], { explanations: [{ candidateId: 'good',
+          references: [{ before: sourceText, after: candidates[0].text }], explanation: '시작한다는 표현을 진행한다는 표현으로 바꿨습니다.' }] }),
+        { candidateId: 'bad', explanation: '‘회의를\n종료합니다.’로 바뀌었습니다.' },
+      ];
+    },
+  });
+  const response = await fetch(`${base}/api/explanations`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requestId: 'multiline-guard', sourceText, candidates }) });
+  assert.equal(response.status, 200);
+  const result = (await response.json()).explanations;
+  assert.match(result[0].explanation, /회의를\n진행합니다/);
+  assert.deepEqual(result[1], { candidateId: 'bad', error: 'EXPLANATION_QUOTE_MISMATCH' });
+});
 test('without API, returns honest health state and 503 instead of fabricated candidates', async t => {
   const { base, post } = await setup(t);
   assert.deepEqual(await (await fetch(`${base}/api/health`)).json(), { status: 'ok', modelConfigured: false });

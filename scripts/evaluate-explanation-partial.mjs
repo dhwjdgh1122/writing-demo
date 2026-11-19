@@ -9,10 +9,11 @@ import { createEliceProvider } from '../server/llm/elice.ts';
 import { explanationInstruction } from '../server/llm/prompt.ts';
 import { explanationInputSchema } from '../shared/contracts.ts';
 import { buildEvidenceInput, evidenceInstruction, evidenceResponseSchema, resolveEvidence } from './lib/explanation-evidence-experiment.mjs';
+import { contrastExamples, qualityHoldouts } from './lib/explanation-contrast-experiment.mjs';
 
 const reportedPath = 'tests/fixtures/explanation-reported-quote.json';
 const reported = JSON.parse(readFileSync(reportedPath, 'utf8'));
-const cases = [
+let cases = [
   { id: 'P-01', origin: reported.origin, sourceText: reported.sourceText, candidates: [reported.candidate],
     criteria: ['정확한 근거와 기본형 풀이 구분', '하나였다→유일했다만으로 의미 변화 단정 금지', '실제 수정 설명; 전체 정확성 보증·비한국어 혼입 금지'] },
   { id: 'P-02', origin: '합성 줄바꿈 대조. 팀원 추가 제보는 전체 후보·응답 미확보로 직접 재현 아님.',
@@ -25,16 +26,20 @@ const cases = [
     candidates: [{ id: 'spaced', text: '금요일까지 자료를 보내 주세요.' }, { id: 'joined', text: '금요일까지 자료를 보내주세요.' }],
     criteria: ['각 후보의 실제 공백에 맞는 근거', '오타 수정은 짧게 설명', '날짜·요청 뜻의 변화나 틀린 문법 규칙을 만들지 않음'] },
 ];
-for (const c of cases) explanationInputSchema.parse({ requestId: c.id, sourceText: c.sourceText, candidates: c.candidates });
 const args = process.argv.slice(2);
 const providerName = args.find(a => a.startsWith('--provider='))?.slice(11);
 const experiment = args.includes('--evidence-ids');
-const instruction = experiment ? evidenceInstruction(explanationInstruction) : explanationInstruction;
-if (args.some(a => !['--live', '--evidence-ids', '--provider=gemini', '--provider=elice'].includes(a))
+const contrast = args.includes('--contrast-examples');
+const quality = args.includes('--quality-cases');
+if (quality) cases = [...cases.filter(c => ['P-03', 'P-04'].includes(c.id)), ...qualityHoldouts];
+for (const c of cases) explanationInputSchema.parse({ requestId: c.id, sourceText: c.sourceText, candidates: c.candidates });
+const instruction = experiment ? evidenceInstruction(explanationInstruction) : explanationInstruction + (contrast ? contrastExamples : '');
+if (args.some(a => !['--live', '--evidence-ids', '--contrast-examples', '--quality-cases', '--provider=gemini', '--provider=elice'].includes(a))
   || new Set(args).size !== args.length || args.filter(a => a.startsWith('--provider=')).length > 1
-  || (args.includes('--live') && !providerName)) throw new Error('Usage: node --import tsx scripts/evaluate-explanation-partial.mjs [--evidence-ids] [--provider=gemini|elice --live]');
+  || (experiment && (contrast || quality))
+  || (args.includes('--live') && !providerName)) throw new Error('Usage: node --import tsx scripts/evaluate-explanation-partial.mjs [--evidence-ids | --quality-cases [--contrast-examples]] [--provider=gemini|elice --live]');
 if (!args.includes('--live')) {
-  console.log(JSON.stringify({ dryRun: true, experiment, cases, maxCallsPerProvider: cases.length, candidatesPerProvider: 6,
+  console.log(JSON.stringify({ dryRun: true, experiment, contrast, quality, cases, maxCallsPerProvider: cases.length, candidatesPerProvider: cases.reduce((sum, c) => sum + c.candidates.length, 0),
     ...(experiment ? { derivedInputs: cases.map(c => buildEvidenceInput(c.sourceText, c.candidates)) } : {}) }));
 } else {
   try { loadEnvFile('.env'); } catch (e) { if (e.code !== 'ENOENT') throw new Error('Cannot read local .env.'); }
@@ -61,6 +66,12 @@ if (!args.includes('--live')) {
         body.messages[0].content = instruction;
         body.messages[1].content = JSON.stringify(derivedInput);
       }
+      fetchArgs[1] = { ...fetchArgs[1], body: JSON.stringify(body) };
+    }
+    if (contrast) {
+      const body = JSON.parse(fetchArgs[1].body);
+      if (providerName === 'gemini') body.systemInstruction = { parts: [{ text: instruction }] };
+      else body.messages[0].content = instruction;
       fetchArgs[1] = { ...fetchArgs[1], body: JSON.stringify(body) };
     }
     const response = await fetch(...fetchArgs);
@@ -96,14 +107,16 @@ if (!args.includes('--live')) {
       'server/llm/gemini.ts', 'server/llm/elice.ts', 'server/app.ts', 'shared/contracts.ts']
       .map(path => [path, hash(readFileSync(path, 'utf8'))])),
     reportedFixtureSha256: hash(readFileSync(reportedPath, 'utf8')), casesSha256: hash(JSON.stringify(cases)),
-    provider: providerName, model, experiment: experiment ? 'server-owned-line-evidence-ids' : null,
+    provider: providerName, model, experiment: experiment ? 'server-owned-line-evidence-ids' : contrast ? 'contrast-examples' : null,
+    caseSet: quality ? 'quality-with-holdouts' : 'original-four',
+    contrastModuleSha256: quality || contrast ? hash(readFileSync('scripts/lib/explanation-contrast-experiment.mjs', 'utf8')) : null,
     experimentModuleSha256: experiment ? hash(readFileSync('scripts/lib/explanation-evidence-experiment.mjs', 'utf8')) : null,
     promptSha256: hash(instruction), prompt: instruction, cases,
-    path: experiment ? 'Manual request/response bridge: server-owned line pairs → real provider IDs → exact pair resolution → unchanged adapter/app validation; NOT deployed service behavior.' : 'Fixed candidates → loopback /api/explanations → real provider → adapter validation → HTTP result; no browser.',
+    path: experiment ? 'Manual request/response bridge: server-owned line pairs → real provider IDs → exact pair resolution → unchanged adapter/app validation; NOT deployed service behavior.' : contrast ? 'Manual prompt append only → real provider → unchanged adapter/app validation; NOT deployed service behavior; no browser.' : 'Fixed candidates → loopback /api/explanations → real provider → adapter validation → HTTP result; no browser.',
     notes: 'One call per case, no retries or automatic provider switching. Raw completion text is separate from validated output. HTTP 200 is not semantic correctness. Single AI review is not user validation or a frequency estimate.', runs: [],
   };
   mkdirSync('docs/evaluations', { recursive: true });
-  const output = `docs/evaluations/${experiment ? 'evidence-ids' : 'partial'}-${providerName}-${startedAt.replace(/[:.]/g, '-')}.json`;
+  const output = `docs/evaluations/${experiment ? 'evidence-ids' : contrast ? 'contrast-examples' : quality ? 'quality-baseline' : 'partial'}-${providerName}-${startedAt.replace(/[:.]/g, '-')}.json`;
   const save = () => writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
   const server = createApp(provider).listen(0, '127.0.0.1');
   await new Promise((resolve, reject) => { server.once('listening', resolve); server.once('error', reject); });
