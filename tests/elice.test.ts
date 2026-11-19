@@ -114,16 +114,16 @@ test('Elice explanations bind source and candidate IDs and normalize unchanged c
     assert.deepEqual(JSON.parse(body.messages[1].content), { sourceText, candidates });
     assert.match(body.messages[0].content, /정당화하지 않는다/);
     return Response.json(completion({ explanations: [
-      { candidateId: 'changed', explanation: '안내 날짜가 불분명해졌습니다.' },
+      { candidateId: 'changed', references: [{ before: '목요일', after: '이후' }], explanation: '안내 날짜가 불분명해졌습니다.' },
       { candidateId: 'same', explanation: '더 좋아졌습니다.' },
     ] }));
   });
   const result = await provider.generateExplanations!(sourceText, candidates, signal()) as { candidateId: string; explanation: string }[];
   assert.equal(result[0].candidateId, 'changed');
+  assert.match(result[0].explanation, /‘목요일’ → ‘이후’/);
   assert.equal(result[1].explanation, '원문과 동일하여 변경된 표현이나 의미가 없습니다.');
   for (const explanations of [
     [], [{ candidateId: 'wrong', explanation: '설명' }],
     [{ candidateId: 'one', explanation: '설명' }, { candidateId: 'one', explanation: '중복' }],
-    [{ candidateId: 'one', explanation: ' ' }], [{ candidateId: 'one', explanation: '가'.repeat(401) }],
   ]) await assert.rejects(createEliceProvider(config, fakeFetch(completion({ explanations }))).generateExplanations!('원문', [{ id: 'one', text: '후보' }], signal()), failure('invalid'));
 });

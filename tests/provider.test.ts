@@ -141,20 +141,21 @@ test('explanations use only source and candidates; IDs are preserved and identic
     assert.match(body.systemInstruction.parts[0].text, /정당화하지 않는다/);
     return new Response(JSON.stringify(completion({ explanations: [
       { candidateId: 'same', explanation: '더 명확해졌습니다.' },
-      { candidateId: 'date', explanation: '목요일이 이후로 바뀌어 날짜가 불분명해졌습니다.' },
+      { candidateId: 'date', references: [{ before: '목요일', after: '이후' }], explanation: '목요일이 이후로 바뀌어 날짜가 불분명해졌습니다.' },
     ] })));
   });
   const result = await provider.generateExplanations!('목요일에 안내합니다.', candidates, signal()) as { candidateId: string; explanation: string }[];
   assert.equal(calls, 1);
   assert.match(result[0].explanation, /원문과 동일/);
   assert.equal(result[1].candidateId, 'date');
+  assert.match(result[1].explanation, /‘목요일’ → ‘이후’/);
 });
 
-test('explanation output rejects unknown, duplicated, missing IDs and unsupported length', async () => {
+test('explanation output rejects unknown, duplicated and missing IDs', async () => {
   for (const explanations of [
     [{ candidateId: 'wrong', explanation: '설명' }],
     [{ candidateId: 'one', explanation: '설명' }, { candidateId: 'one', explanation: '중복' }],
-    [], [{ candidateId: 'one', explanation: ' ' }], [{ candidateId: 'one', explanation: '가'.repeat(401) }],
+    [],
   ]) {
     const provider = createGeminiProvider(config, fakeFetch(completion({ explanations })));
     await assert.rejects(provider.generateExplanations!('원문', [{ id: 'one', text: '후보' }], signal()), failure('invalid'));

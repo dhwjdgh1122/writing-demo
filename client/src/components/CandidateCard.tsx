@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { diffText, type DiffPart } from '../lib/diff';
-import type { Candidate } from '../../../shared/contracts';
+import type { Candidate, ExplanationResult } from '../../../shared/contracts';
 import { Icon } from './Icon';
 
 function visibleSpaces(text: string) { return text.replace(/ /g, '·').replace(/\t/g, '⇥').replace(/\n/g, '↵\n'); }
@@ -13,7 +13,7 @@ function DiffLine({ parts, side, compare = false }: { parts: DiffPart[]; side: '
   })}</>;
 }
 
-export function CandidateCard({ candidate, source, index, explanation, onApply }: { candidate: Candidate; source: string; index: number; explanation?: string; onApply: () => void }) {
+export function CandidateCard({ candidate, source, index, explanation, onApply }: { candidate: Candidate; source: string; index: number; explanation?: ExplanationResult; onApply: () => void }) {
   const comparison = useMemo(() => { try { return diffText(source, candidate.text); } catch { return null; } }, [source, candidate.text]);
   const identical = source === candidate.text;
   return <article className="candidate-card">
@@ -38,7 +38,9 @@ export function CandidateCard({ candidate, source, index, explanation, onApply }
         <span className="comparison-label">교정안</span><p>{comparison ? <DiffLine parts={comparison} side="candidate" compare /> : candidate.text}</p>
       </div>
     </details>
-    {explanation && <div className="candidate-explanation"><h4>교정 이유</h4><p>{explanation}</p></div>}
+    {explanation && <div className="candidate-explanation"><h4>교정 이유</h4><p>{'error' in explanation
+      ? explanation.error === 'EXPLANATION_QUOTE_MISMATCH' ? '원문·교정안과 인용이 맞지 않아 이 후보의 설명을 표시하지 않았습니다.' : '이 후보의 설명 형식을 확인하지 못해 표시하지 않았습니다.'
+      : explanation.explanation}</p></div>}
     <button className="apply-button" disabled={identical} onClick={onApply}>{identical ? '변경 없음' : '이 문장 적용'}<Icon name={identical ? 'check' : 'arrow'} size={17} /></button>
   </article>;
 }

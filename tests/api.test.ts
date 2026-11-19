@@ -154,15 +154,43 @@ test('explanation API withholds mismatched quotations without changing candidate
   } });
   const post = () => fetch(`${base}/api/explanations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
   const response = await post();
-  assert.equal(response.status, 502);
+  assert.equal(response.status, 200);
   const body = await response.json();
-  assert.equal(body.error.code, 'EXPLANATION_QUOTE_MISMATCH');
-  assert.equal(body.error.retryable, true);
-  assert.equal(body.explanations, undefined);
+  assert.deepEqual(body.candidates, input.candidates);
+  assert.deepEqual(body.explanations, [
+    { candidateId: 'spaced', explanation: "'주세여'를 '주세요'로 고쳤습니다." },
+    { candidateId: 'joined', error: 'EXPLANATION_QUOTE_MISMATCH' },
+  ]);
   assert.equal(calls, 1);
   correct = true;
   const retried = await post();
   assert.equal(retried.status, 200);
   assert.deepEqual((await retried.json()).candidates, input.candidates);
+  assert.equal(calls, 2);
+});
+
+test('structured provider results travel through HTTP without hiding valid candidates or treating all failures as success text', async t => {
+  const input = { requestId: 'partial-http', sourceText: '세상에서 하나였다.', candidates: [
+    { id: 'one', text: '세상에서 유일했다.' }, { id: 'two', text: '세상에서 하나뿐이었다.' },
+  ] };
+  let calls = 0;
+  const provider = createGeminiProvider({ apiKey: 'fake-test-key', model: 'gemini-test' }, async () => {
+    calls++;
+    const value = { explanations: [
+      { candidateId: 'one', references: [{ before: '하나였다', after: '유일했다' }], explanation: '유일하다는 하나뿐임을 나타내는 말입니다.' },
+      { candidateId: 'two', references: [{ before: '하나였다', after: '유일하다' }], explanation: '잘못된 근거이므로 표시하면 안 되는 설명' },
+    ] };
+    return Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(value) }] } }] });
+  });
+  const { base } = await setup(t, provider);
+  for (const sourceText of [input.sourceText, '다른 원문']) {
+    const response = await fetch(`${base}/api/explanations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...input, sourceText }) });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.candidates, input.candidates);
+    assert.deepEqual(body.explanations[1], { candidateId: 'two', error: 'EXPLANATION_QUOTE_MISMATCH' });
+    assert.equal('explanation' in body.explanations[0], sourceText === input.sourceText);
+    assert.ok(!JSON.stringify(body).includes('표시하면 안 되는 설명'));
+  }
   assert.equal(calls, 2);
 });
