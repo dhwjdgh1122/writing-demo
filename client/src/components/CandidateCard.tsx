@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useId, useMemo, useRef } from 'react';
 import { diffText, type DiffPart } from '../lib/diff';
 import type { Candidate, ExplanationResult } from '../../../shared/contracts';
 import { Icon } from './Icon';
@@ -14,6 +14,14 @@ function DiffLine({ parts, side, compare = false }: { parts: DiffPart[]; side: '
 }
 
 export function CandidateCard({ candidate, source, index, explanation, onApply }: { candidate: Candidate; source: string; index: number; explanation?: ExplanationResult; onApply: () => void }) {
+  const comparisonId = useId();
+  const comparisonRef = useRef<HTMLDetailsElement>(null);
+  const comparisonSummaryRef = useRef<HTMLElement>(null);
+  const showComparison = () => {
+    if (!comparisonRef.current) return;
+    comparisonRef.current.open = true;
+    comparisonSummaryRef.current?.focus();
+  };
   const comparison = useMemo(() => { try { return diffText(source, candidate.text); } catch { return null; } }, [source, candidate.text]);
   const identical = source === candidate.text;
   return <article className="candidate-card">
@@ -21,8 +29,8 @@ export function CandidateCard({ candidate, source, index, explanation, onApply }
     <p className="candidate-text">{comparison ? <DiffLine parts={comparison} side="candidate" /> : candidate.text}</p>
     {comparison?.some(p => p.kind === 'remove') && <p className="deletion-note">삭제된 내용 있음 · 원문 비교에서 확인하세요.</p>}
     {!comparison && <p className="deletion-note">변경 강조를 제공하지 못했습니다. 원문과 직접 비교해주세요.</p>}
-    <details className="comparison">
-      <summary>원문 비교</summary>
+    <details className="comparison" id={comparisonId} ref={comparisonRef}>
+      <summary ref={comparisonSummaryRef}>원문 비교</summary>
       <div className="comparison-content">
         {comparison && <div className="comparison-legend" role="group" aria-label="변경 표시 안내">
           <ul className="comparison-legend-items">
@@ -40,7 +48,12 @@ export function CandidateCard({ candidate, source, index, explanation, onApply }
     </details>
     {explanation && <div className="candidate-explanation"><h4>교정 이유</h4><p>{'error' in explanation
       ? explanation.error === 'EXPLANATION_QUOTE_MISMATCH' ? '원문·교정안과 인용이 맞지 않아 이 후보의 설명을 표시하지 않았습니다.' : '이 후보의 설명 형식을 확인하지 못해 표시하지 않았습니다.'
-      : explanation.explanation}</p></div>}
+      : explanation.explanation}</p>
+      {!('error' in explanation) && !identical && <div className="explanation-comparison-help">
+        <p>날짜·수치·조건이 의도대로 유지됐는지 원문과 비교해보세요.</p>
+        <button type="button" className="text-button" aria-controls={comparisonId} onClick={showComparison}>원문 비교 확인<Icon name="arrow" size={15} /></button>
+      </div>}
+    </div>}
     <button className="apply-button" disabled={identical} onClick={onApply}>{identical ? '변경 없음' : '이 문장 적용'}<Icon name={identical ? 'check' : 'arrow'} size={17} /></button>
   </article>;
 }

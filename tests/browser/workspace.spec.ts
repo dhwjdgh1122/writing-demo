@@ -337,7 +337,7 @@ test('all candidate failures remain visible as failures and applying still works
   await page.getByRole('button', { name: /교정 이유/ }).click();
   await expect(page.locator('.explanation-error')).toContainText('교정 이유를 표시하지 못했습니다');
   await expect(page.getByText('이 후보의 설명 형식을 확인하지 못해 표시하지 않았습니다.', { exact: true })).toHaveCount(2);
-  await expect(page.getByText('원문과 후보의 차이를 설명한 내용입니다. 실제 차이와 함께 확인해주세요.', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '원문 비교 확인' })).toHaveCount(0);
   expect(calls).toBe(1);
   await page.getByRole('button', { name: '이 문장 적용', exact: true }).click();
   await expect(page.getByLabel('원문 입력')).toHaveValue('앞 문장. 이후에 안내하겠습니다. 뒤 문장.');
