@@ -62,6 +62,10 @@ if (!args.includes('--live')) {
         });
         run.status = response.status;
         run.response = await response.json();
+        if (response.ok) {
+          run.displayed = run.response.explanations.filter(e => 'explanation' in e).map(e => e.candidateId);
+          run.withheld = run.response.explanations.filter(e => 'error' in e).map(e => ({ candidateId: e.candidateId, error: e.error }));
+        }
         run.adapterExplanations = captured;
       } catch {
         run.transportError = 'local-request-failed'; // Do not persist unsafe error objects.
@@ -70,7 +74,7 @@ if (!args.includes('--live')) {
       run.elapsedMs = Date.now()-start;
       report.runs.push(run);
       save();
-      console.log(JSON.stringify({ run: run.id, caseId: c.id, status: run.status, error: run.response?.error?.code ?? run.transportError, elapsedMs: run.elapsedMs }));
+      console.log(JSON.stringify({ run: run.id, caseId: c.id, status: run.status, displayed: run.displayed, withheld: run.withheld, error: run.response?.error?.code ?? run.transportError, elapsedMs: run.elapsedMs }));
       // Continue on case-specific invalid output/quote mismatch; stop on availability/quota/configuration failures.
       if (run.transportError || ['MODEL_NOT_CONFIGURED','MODEL_CONFIGURATION_ERROR','MODEL_QUOTA_EXCEEDED','MODEL_UNAVAILABLE','MODEL_TIMEOUT','MODEL_REQUEST_FAILED'].includes(run.response?.error?.code)) break;
     }

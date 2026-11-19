@@ -1,6 +1,6 @@
 import express, { type ErrorRequestHandler } from 'express';
 import { randomUUID } from 'node:crypto';
-import { correctionInputSchema, explanationInputSchema, explanationsSchema, explanationsMatch, modelOutputSchema, LIMITS, requestIdSchema, type ApiErrorBody, type ErrorCode } from '../shared/contracts.js';
+import { correctionInputSchema, explanationInputSchema, explanationResultsSchema, explanationsMatch, modelOutputSchema, LIMITS, requestIdSchema, type ApiErrorBody, type ErrorCode, type ExplanationResult } from '../shared/contracts.js';
 import { ProviderError, unavailableProvider, type CorrectionProvider } from './llm/provider.js';
 import { explanationQuotesMatch } from './llm/explanation-check.js';
 
@@ -34,17 +34,17 @@ export function createApp(provider: CorrectionProvider = unavailableProvider, ti
         new Promise<never>((_, reject) => { timer = setTimeout(() => { reject(timedOut); controller.abort(); }, timeoutMs); }),
       ]);
       if (explanationInput?.success) {
-        const explanations = explanationsSchema.safeParse(raw);
+        const explanations = explanationResultsSchema.safeParse(raw);
         if (!explanations.success || !explanationsMatch(explanationInput.data.candidates, explanations.data)) {
           fail(502, 'MODEL_RESPONSE_INVALID', '현재 후보에 맞는 설명을 받지 못했습니다. 설명을 다시 요청해주세요.', true); return;
         }
-        if (!explanations.data.every(item => {
+        const results: ExplanationResult[] = explanations.data.map(item => {
+          if ('error' in item) return item;
           const candidate = explanationInput.data.candidates.find(c => c.id === item.candidateId)!;
-          return explanationQuotesMatch(explanationInput.data.sourceText, candidate.text, item.explanation);
-        })) {
-          fail(502, 'EXPLANATION_QUOTE_MISMATCH', '설명에 원문·교정안과 맞지 않는 인용이 있어 표시하지 않았습니다. 후보는 그대로 사용할 수 있습니다. 설명을 다시 요청해주세요.', true); return;
-        }
-        if (!res.destroyed) res.json({ ...explanationInput.data, explanations: explanations.data });
+          return explanationQuotesMatch(explanationInput.data.sourceText, candidate.text, item.explanation) ? item
+            : { candidateId: item.candidateId, error: 'EXPLANATION_QUOTE_MISMATCH' };
+        });
+        if (!res.destroyed) res.json({ ...explanationInput.data, explanations: results });
         return;
       }
       const candidates = modelOutputSchema.safeParse(raw);

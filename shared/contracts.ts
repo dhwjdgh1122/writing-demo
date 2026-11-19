@@ -19,10 +19,16 @@ export const explanationInputSchema = correctionInputSchema.extend({
   candidates: z.array(candidateSchema).min(1).max(3).refine(cs => new Set(cs.map(c => c.id)).size === cs.length),
 }).strict();
 export const explanationsSchema = z.array(z.object({ candidateId: requestIdSchema, explanation: nonBlank(400) }).strict()).min(1).max(3);
-export const explanationOutputSchema = explanationInputSchema.extend({ explanations: explanationsSchema }).strict();
+export const explanationFailureSchema = z.object({
+  candidateId: requestIdSchema,
+  error: z.enum(['EXPLANATION_QUOTE_MISMATCH', 'EXPLANATION_INVALID']),
+}).strict();
+export const explanationResultsSchema = z.array(z.union([explanationsSchema.element, explanationFailureSchema])).min(1).max(3);
+export const explanationOutputSchema = explanationInputSchema.extend({ explanations: explanationResultsSchema }).strict();
 export type ExplanationInput = z.infer<typeof explanationInputSchema>;
 export type Explanation = z.infer<typeof explanationsSchema>[number];
-export function explanationsMatch(candidates: Candidate[], explanations: Explanation[]): boolean {
+export type ExplanationResult = z.infer<typeof explanationResultsSchema>[number];
+export function explanationsMatch(candidates: Candidate[], explanations: { candidateId: string }[]): boolean {
   return candidates.length === explanations.length && new Set(explanations.map(e => e.candidateId)).size === candidates.length
     && explanations.every(e => candidates.some(c => c.id === e.candidateId));
 }

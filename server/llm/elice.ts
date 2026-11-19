@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { modelOutputSchema, explanationsSchema, explanationsMatch } from '../../shared/contracts.js';
+import { modelOutputSchema } from '../../shared/contracts.js';
+import { renderExplanationResponse } from './explanation-response.js';
 import { ProviderError, type CorrectionProvider } from './provider.js';
 import { correctionInstruction, explanationInstruction } from './prompt.js';
 
@@ -73,10 +74,7 @@ export function createEliceProvider(config: { apiKey: string; model: string; bas
     },
     async generateExplanations(sourceText, candidates, signal) {
       const decoded = await generate(explanationInstruction, { sourceText, candidates }, signal);
-      const result = z.object({ explanations: explanationsSchema }).strict().safeParse(decoded);
-      if (!result.success || !explanationsMatch(candidates, result.data.explanations)) throw new ProviderError('invalid');
-      return result.data.explanations.map(e => candidates.find(c => c.id === e.candidateId)?.text === sourceText
-        ? { ...e, explanation: '원문과 동일하여 변경된 표현이나 의미가 없습니다.' } : e);
+      return renderExplanationResponse(sourceText, candidates, decoded);
     },
   };
 }

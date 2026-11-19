@@ -23,8 +23,9 @@ try {
       body: JSON.stringify(input), signal: AbortSignal.timeout(50_000),
     });
     const result = await response.json();
-    if (!response.ok) {
-      console.error(JSON.stringify({ step: route, status: response.status, code: result.error?.code, elapsedMs: Date.now() - started }));
+    if (!response.ok || (route === 'explanations' && result.explanations?.some(e => 'error' in e))) {
+      console.error(JSON.stringify({ step: route, status: response.status, code: result.error?.code,
+        withheld: result.explanations?.filter(e => 'error' in e), elapsedMs: Date.now() - started }));
       throw new Error('LIVE_CHECK_FAILED');
     }
     console.log(JSON.stringify({ step: route, status: response.status, elapsedMs: Date.now() - started, result }));

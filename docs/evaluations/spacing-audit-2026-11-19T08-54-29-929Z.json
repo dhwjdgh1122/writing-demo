@@ -1,0 +1,692 @@
+{
+  "createdAt": "2026-11-19T08:54:29.929Z",
+  "codeCommit": "aa5d7b7f7b106f24def586d45f4c0d1a9c1ac537",
+  "workingTreeStatus": "M package.json\n?? scripts/audit-explanation-spacing.mjs\n?? scripts/lib/explanation-spacing-audit.mjs\n?? tests/explanation-spacing-audit.test.mjs",
+  "detectorSha256": "8cbc3481d7426b9013684758517c4e1a49d405ffba6374d588e2851804e2b201",
+  "runnerSha256": "ecfe42f7c7f2f7b7e58e4120b0a2be71ec917205597a1ac2695da89e542a20d7",
+  "scope": "Saved displayed explanations only; offline review suggestions, NOT product blocking or semantic quality verdicts.",
+  "sources": [
+    {
+      "path": "docs/evaluations/contrast-examples-elice-2026-11-19T07-54-18-560Z.json",
+      "sha256": "c67774641e11d2a75e6e5d9c9e58b67877927b0325ee72b76bbc15963f1163cb",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "experiment": "contrast-examples"
+    },
+    {
+      "path": "docs/evaluations/contrast-examples-gemini-2026-11-19T07-54-54-574Z.json",
+      "sha256": "39a7141bdbfec529ddca0cdf2c73aa2b0e8347a46d4d59853f1b784438e32cfc",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "experiment": "contrast-examples"
+    },
+    {
+      "path": "docs/evaluations/impact-fields-elice-2026-11-19T08-34-20-592Z.json",
+      "sha256": "4fc6c22caa7f84be4cd9bdb4379c2f22309bd2c591550053afe364baac6592fd",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "experiment": "impact-fields"
+    },
+    {
+      "path": "docs/evaluations/impact-fields-gemini-2026-11-19T08-34-19-860Z.json",
+      "sha256": "6722005f2c85809619051ee2e32b7e554105bf8fb8312206874216f22f5f6047",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "experiment": "impact-fields"
+    },
+    {
+      "path": "docs/evaluations/partial-elice-2026-11-19T07-01-10-148Z.json",
+      "sha256": "efbba4c8981bfdcfc03adbf7ef57b5db10cb4d299976d131bfd70561cb1edc61",
+      "provider": "elice",
+      "model": "gpt-4o-mini"
+    },
+    {
+      "path": "docs/evaluations/partial-elice-2026-11-19T07-41-41-211Z.json",
+      "sha256": "b5549d6125a5b4b032d1e4be179846023ece21337d2f2bf7a33a9f174d1bff29",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "experiment": null
+    },
+    {
+      "path": "docs/evaluations/partial-gemini-2026-11-19T07-01-44-541Z.json",
+      "sha256": "2863b7f1bf22709223d82447c80dcbc0d8853db6d3dc037e7bbd0a4e85046bd6",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "path": "docs/evaluations/partial-gemini-2026-11-19T07-42-05-260Z.json",
+      "sha256": "e2a1d3f93e3001b52a19f4dcaa6904c9b14fc0aa5f2d86c00cb5f6102201eb70",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "experiment": null
+    },
+    {
+      "path": "docs/evaluations/quality-baseline-elice-2026-11-19T07-53-59-786Z.json",
+      "sha256": "162b0d19f0e5d249e7dc351d1f72bf281ba6e5f73535e7e1fe2e44ada37b78c6",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "experiment": null
+    },
+    {
+      "path": "docs/evaluations/quality-baseline-gemini-2026-11-19T07-54-38-370Z.json",
+      "sha256": "a813f63ed5f45d6c1fde26306b32f1f411e11cec7cb1db0fbdfe52a4d0d68b40",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "experiment": null
+    },
+    {
+      "path": "docs/evaluations/thinking-high-gemini-2026-11-19T08-25-04-725Z.json",
+      "sha256": "f9c96ad7bb5fe5aeb025f74f4ced261cc8f80b578ffcc443c2af48d1b8e1bc72",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "experiment": "thinking-high"
+    },
+    {
+      "path": "docs/evaluations/thinking-low-gemini-2026-11-19T08-24-23-774Z.json",
+      "sha256": "62ceb188f072ed8776cb5e80c0e9f627a7b95da7b34cc8f851f5fa26eadbdad3",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "experiment": "thinking-low"
+    }
+  ],
+  "entries": [
+    {
+      "path": "docs/evaluations/contrast-examples-elice-2026-11-19T07-54-18-560Z.json",
+      "caseId": "P-03",
+      "candidateId": "preserved",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인되면 목요일에 15명에게 알려드립니다.",
+      "explanation": "‘승인되면 목요일에 15명에게 안내합니다.’ → ‘승인되면 목요일에 15명에게 알려드립니다.’. 안내하다는 알려드립니다로 바뀌었고, 정보는 그대로 유지되었습니다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/contrast-examples-elice-2026-11-19T07-54-18-560Z.json",
+      "caseId": "P-03",
+      "candidateId": "changed",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인 여부와 관계없이 이후에 안내합니다.",
+      "explanation": "‘승인되면 목요일에 15명에게 안내합니다.’ → ‘승인 여부와 관계없이 이후에 안내합니다.’. 승인 여부와 관계없이라는 조건이 추가되고, 기존의 목요일과 15명이라는 정보가 사라졌습니다. 안내 시점을 불분명하게 하므로 해당 내용이 필요한 경우 그대로 유지해야 합니다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/contrast-examples-elice-2026-11-19T07-54-18-560Z.json",
+      "caseId": "P-04",
+      "candidateId": "spaced",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내 주세요.",
+      "explanation": "‘주세여’ → ‘주세요’. 주세여를 주세요로 수정하여 표기 오류가 해결됐고, 보내와 주세요 사이의 공백이 추가되었습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/contrast-examples-elice-2026-11-19T07-54-18-560Z.json",
+      "caseId": "P-04",
+      "candidateId": "joined",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내주세요.",
+      "explanation": "‘주세여’ → ‘주세요’. 주세여의 오타를 수정하여 주세요로 바꿨고, 보내와 주세요가 붙었습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/contrast-examples-elice-2026-11-19T07-54-18-560Z.json",
+      "caseId": "Q-01",
+      "candidateId": "changed-facts",
+      "sourceText": "검토가 끝나면 금요일에 13명에게 결과를 보냅니다.",
+      "candidateText": "검토가 끝나지 않아도 일요일에 30명에게 결과를 보냅니다.",
+      "explanation": "‘금요일에 13명에게 결과를 보냅니다.’ → ‘일요일에 30명에게 결과를 보냅니다.’. 검토가 끝나지 않아도 결과를 발송할 수 있다는 조건이 추가되었고, 발송 일정이 금요일에서 일요일로 변경되며, 대상 인원이 13명에서 30명으로 늘어났습니다. 원문이 제시한 조건과 인원, 일정을 모두 다르게 표현하였으므로 주의가 필요합니다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/contrast-examples-elice-2026-11-19T07-54-18-560Z.json",
+      "caseId": "Q-02",
+      "candidateId": "same-facts",
+      "sourceText": "등록을 마친 사람만 월요일에 스무 명씩 입장할 수 있습니다.",
+      "candidateText": "등록을 완료한 사람에 한해 월요일에 20명씩 입장할 수 있습니다.",
+      "explanation": "‘등록을 마친 사람만’ → ‘등록을 완료한 사람에 한해’. ‘등록을 마친 사람만’이라는 구절이 ‘등록을 완료한 사람에 한해’로 바뀌었습니다. 두 표현 모두 같은 의미를 지니지만, ‘마친’ 대신 ‘완료한’을 사용하여 표현이 조금 더 공식적이고 부드럽게 들립니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/contrast-examples-gemini-2026-11-19T07-54-54-574Z.json",
+      "caseId": "P-03",
+      "candidateId": "preserved",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인되면 목요일에 15명에게 알려드립니다.",
+      "explanation": "‘안내합니다.’ → ‘알려드립니다.’. 안내한다는 표현을 알려드린다는 표현으로 바꿨습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/contrast-examples-gemini-2026-11-19T07-54-54-574Z.json",
+      "caseId": "P-03",
+      "candidateId": "changed",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인 여부와 관계없이 이후에 안내합니다.",
+      "explanation": "‘승인되면 목요일에 15명에게 안내합니다.’ → ‘승인 여부와 관계없이 이후에 안내합니다.’. 승인 조건, 목요일이라는 일정, 15명이라는 대상 인원이 사라지고 승인 여부와 관계없이 이후에 안내하도록 바뀌었습니다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/contrast-examples-gemini-2026-11-19T07-54-54-574Z.json",
+      "caseId": "P-04",
+      "candidateId": "spaced",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내 주세요.",
+      "explanation": "‘주세여.’ → ‘주세요.’. 주세여의 오타를 주세요로 고쳤습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/contrast-examples-gemini-2026-11-19T07-54-54-574Z.json",
+      "caseId": "P-04",
+      "candidateId": "joined",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내주세요.",
+      "explanation": "‘보내 주세여.’ → ‘보내주세요.’. 보내 주세여의 오타를 보내주세요로 고치고 단어 사이의 공백을 없앴습니다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/contrast-examples-gemini-2026-11-19T07-54-54-574Z.json",
+      "caseId": "Q-01",
+      "candidateId": "changed-facts",
+      "sourceText": "검토가 끝나면 금요일에 13명에게 결과를 보냅니다.",
+      "candidateText": "검토가 끝나지 않아도 일요일에 30명에게 결과를 보냅니다.",
+      "explanation": "‘끝나면 금요일에 13명에게’ → ‘끝나지 않아도 일요일에 30명에게’. 검토가 끝나야 한다는 조건이 검토가 끝나지 않아도로 바뀌고, 금요일이라는 일정과 13명이라는 대상 인원이 일요일과 30명으로 변경되었습니다. 원래의 조건과 일정, 인원 정보를 유지하려면 원문 표현을 선택하는 것이 맞습니다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/contrast-examples-gemini-2026-11-19T07-54-54-574Z.json",
+      "caseId": "Q-02",
+      "candidateId": "same-facts",
+      "sourceText": "등록을 마친 사람만 월요일에 스무 명씩 입장할 수 있습니다.",
+      "candidateText": "등록을 완료한 사람에 한해 월요일에 20명씩 입장할 수 있습니다.",
+      "explanation": "‘등록을 마친 사람만’ → ‘등록을 완료한 사람에 한해’; ‘스무 명씩’ → ‘20명씩’. 등록을 마친 사람이라는 조건과 월요일이라는 요일, 입장 인원 정보는 유지되며 표현이 바뀌었습니다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/impact-fields-elice-2026-11-19T08-34-20-592Z.json",
+      "caseId": "P-03",
+      "candidateId": "changed",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인 여부와 관계없이 이후에 안내합니다.",
+      "explanation": "‘목요일에 15명에게 안내합니다.’ → ‘이후에 안내합니다.’. ‘목요일에 15명에게 안내합니다’가 ‘이후에 안내합니다’로 바뀌어 일정과 대상이 불명확해졌습니다. 이로 인해 안내 날짜와 인원이 구체적이지 않게 되어 누가 언제 받는지 불분명해집니다. 원문 표현이 필요한 경우, 안내할 날짜와 인원 정보를 유지하는 것이 좋습니다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/impact-fields-elice-2026-11-19T08-34-20-592Z.json",
+      "caseId": "P-04",
+      "candidateId": "spaced",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내 주세요.",
+      "explanation": "‘주세여.’ → ‘주세요.’. ‘주세여’가 ‘주세요’로 수정되었습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/impact-fields-elice-2026-11-19T08-34-20-592Z.json",
+      "caseId": "P-04",
+      "candidateId": "joined",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내주세요.",
+      "explanation": "‘주세여.’ → ‘주세요.’. ‘주세여’가 ‘주세요’로 수정되었습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/impact-fields-elice-2026-11-19T08-34-20-592Z.json",
+      "caseId": "Q-01",
+      "candidateId": "changed-facts",
+      "sourceText": "검토가 끝나면 금요일에 13명에게 결과를 보냅니다.",
+      "candidateText": "검토가 끝나지 않아도 일요일에 30명에게 결과를 보냅니다.",
+      "explanation": "‘금요일에 13명에게 결과를 보냅니다.’ → ‘일요일에 30명에게 결과를 보냅니다.’. 요일과 인원 수가 변경되었습니다. 검토 결과가 금요일이 아닌 일요일에 30명에게 전달되므로, 원래의 금요일과 13명에게 전달된다는 정보가 사라졌습니다. 특정 인원이나 날짜에 결과를 전달하려는 경우 원래 표현을 유지하는 것이 맞습니다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/impact-fields-elice-2026-11-19T08-34-20-592Z.json",
+      "caseId": "Q-02",
+      "candidateId": "same-facts",
+      "sourceText": "등록을 마친 사람만 월요일에 스무 명씩 입장할 수 있습니다.",
+      "candidateText": "등록을 완료한 사람에 한해 월요일에 20명씩 입장할 수 있습니다.",
+      "explanation": "‘등록을 마친 사람만’ → ‘등록을 완료한 사람에 한해’; ‘스무 명씩’ → ‘20명씩’. '등록을 마친'이라는 표현이 '등록을 완료한'으로 바뀌고, '스무 명'이 '20명'으로 변경되었습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/impact-fields-gemini-2026-11-19T08-34-19-860Z.json",
+      "caseId": "P-03",
+      "candidateId": "preserved",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인되면 목요일에 15명에게 알려드립니다.",
+      "explanation": "‘안내합니다.’ → ‘알려드립니다.’. 종결 표현을 정중하게 바꿨습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/impact-fields-gemini-2026-11-19T08-34-19-860Z.json",
+      "caseId": "P-03",
+      "candidateId": "changed",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인 여부와 관계없이 이후에 안내합니다.",
+      "explanation": "‘승인되면 목요일에 15명에게 안내합니다.’ → ‘승인 여부와 관계없이 이후에 안내합니다.’. 승인 조건과 특정 요일 및 인원 정보를 없애고 대상과 시기를 변경했습니다. 승인 시 목요일에 15명에게 안내하던 조건이 사라지고 승인 여부와 무관하게 이후에 안내하는 것으로 바뀌어 구체적인 일정과 대상을 알 수 없게 됩니다. 특정 승인 조건과 목요일 일정을 유지하여 안내하려면 원래 표현을 사용하는 것이 맞습니다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/impact-fields-gemini-2026-11-19T08-34-19-860Z.json",
+      "caseId": "P-04",
+      "candidateId": "spaced",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내 주세요.",
+      "explanation": "‘보내 주세여.’ → ‘보내 주세요.’. 오탈자를 바로잡고 띄어쓰기를 수정했습니다.",
+      "verdict": "review-needed",
+      "reason": "spacing-claim-versus-preserved-alignment",
+      "claims": [
+        "띄어쓰기를 수정했습니다"
+      ],
+      "alignment": {
+        "status": "preserved",
+        "editDistance": 1,
+        "alignmentModel": "unit-cost-code-point-Levenshtein"
+      }
+    },
+    {
+      "path": "docs/evaluations/impact-fields-gemini-2026-11-19T08-34-19-860Z.json",
+      "caseId": "P-04",
+      "candidateId": "joined",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내주세요.",
+      "explanation": "‘보내 주세여.’ → ‘보내주세요.’. 오탈자를 바로잡고 붙여 썼습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/impact-fields-gemini-2026-11-19T08-34-19-860Z.json",
+      "caseId": "Q-01",
+      "candidateId": "changed-facts",
+      "sourceText": "검토가 끝나면 금요일에 13명에게 결과를 보냅니다.",
+      "candidateText": "검토가 끝나지 않아도 일요일에 30명에게 결과를 보냅니다.",
+      "explanation": "‘끝나면 금요일에 13명에게’ → ‘끝나지 않아도 일요일에 30명에게’. 검토 조건과 일정 및 인원수가 변경되었습니다. 검토 완료 여부와 관계없이 일요일에 30명에게 결과를 보내도록 바뀌어 대상 인원과 발송 시점이 달라집니다. 원래 일정인 금요일에 13명에게만 전달해야 한다면 원래 표현을 유지하는 것이 좋습니다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/impact-fields-gemini-2026-11-19T08-34-19-860Z.json",
+      "caseId": "Q-02",
+      "candidateId": "same-facts",
+      "sourceText": "등록을 마친 사람만 월요일에 스무 명씩 입장할 수 있습니다.",
+      "candidateText": "등록을 완료한 사람에 한해 월요일에 20명씩 입장할 수 있습니다.",
+      "explanation": "‘마친’ → ‘완료한’; ‘스무’ → ‘20’. 마친과 스무를 각각 완료한와 20으로 바꿨습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/partial-elice-2026-11-19T07-41-41-211Z.json",
+      "caseId": "P-01",
+      "candidateId": "5cd8834a-b81f-49c6-a7b6-86a4087766b4",
+      "sourceText": "투명드래곤은 졸라짱쎄서 드랜 곤중에서 최강이엇다\n신이나 마족도 이겼따 다덤벼도 이겼따 투명드래곤은\n새상에서 하나였다 어쨌든 걔가 울부짓었다",
+      "candidateText": "투명 드래곤은 졸라짱 쎄서 드래곤 중에서 최강이었다.\n신이나 마족도 이겼다. 다 덤벼도 이겼다. 투명 드래곤은\n세상에서 유일했다. 어쨌든 걔가 울부짖었다.",
+      "explanation": "‘졸라짱쎄서’ → ‘졸라짱 쎄서’; ‘드랜 곤중에서’ → ‘드래곤 중에서’; ‘최강이엇다’ → ‘최강이었다’; ‘이겼따’ → ‘이겼다’; ‘다덤벼도’ → ‘다 덤벼도’; ‘새상에서 하나였다’ → ‘세상에서 유일했다’; ‘울부짓었다’ → ‘울부짖었다’. ‘투명 드래곤은 졸라짱 쎄서’와 같이 띄어쓰기가 적용되어 가독성이 향상되었습니다. 또한 ‘세상에서 유일했다’는 표현으로 의미가 보다 명확하게 강조되었으며, ‘이겼다’와 ‘울부짖었다’는 띄어쓰기와 문법적으로 수정되어 보다 자연스러운 문장 구조로 개선되었습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/partial-elice-2026-11-19T07-41-41-211Z.json",
+      "caseId": "P-02",
+      "candidateId": "newline",
+      "sourceText": "목요일 오후 3시에\n회의를 시작합니다.",
+      "candidateText": "목요일 오후 3시에\n회의를 진행합니다.",
+      "explanation": "‘시작합니다.’ → ‘진행합니다.’. '시작합니다'에서 '진행합니다'로 변경되어 의미가 약간 다르게 전달된다. '시작합니다'는 시작 시점을 강조하는 반면, '진행합니다'는 현재 진행 중임을 나타내어 약간의 뉘앙스 변화가 있다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/partial-elice-2026-11-19T07-41-41-211Z.json",
+      "caseId": "P-03",
+      "candidateId": "changed",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인 여부와 관계없이 이후에 안내합니다.",
+      "explanation": "‘목요일에 15명에게 안내합니다.’ → ‘이후에 안내합니다.’. '목요일에 15명에게 안내합니다'에서 '이후에 안내합니다'로 바뀌며, 날짜와 구체적인 인원이 빠져 정보가 불명확해졌다. 이 선택은 내용을 다르게 전달하는 중요한 변화다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/partial-elice-2026-11-19T07-41-41-211Z.json",
+      "caseId": "P-04",
+      "candidateId": "spaced",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내 주세요.",
+      "explanation": "‘보내 주세여’ → ‘보내 주세요’. ‘주세여’의 잘못된 표기를 ‘주세요’로 수정하여 정확성을 높였습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/partial-elice-2026-11-19T07-41-41-211Z.json",
+      "caseId": "P-04",
+      "candidateId": "joined",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내주세요.",
+      "explanation": "‘보내 주세여’ → ‘보내주세요’. ‘주세여’를 붙여 쓴 ‘주세요’로 변경하여 표현이 보다 자연스럽고 간결해졌습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/partial-gemini-2026-11-19T07-01-44-541Z.json",
+      "caseId": "P-02",
+      "candidateId": "newline",
+      "sourceText": "목요일 오후 3시에\n회의를 시작합니다.",
+      "candidateText": "목요일 오후 3시에\n회의를 진행합니다.",
+      "explanation": "‘시작합니다’ → ‘진행합니다’. 시작한다는 의미의 단어가 진행한다는 표현으로 바뀌어 회의의 운영 방식을 강조한다",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/partial-gemini-2026-11-19T07-01-44-541Z.json",
+      "caseId": "P-03",
+      "candidateId": "preserved",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인되면 목요일에 15명에게 알려드립니다.",
+      "explanation": "‘안내합니다.’ → ‘알려드립니다.’. 안내하다를 알려드립니다로 바꾸어 수신자에게 전달하는 행위를 높임 표현으로 정중하게 전달한다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/partial-gemini-2026-11-19T07-01-44-541Z.json",
+      "caseId": "P-03",
+      "candidateId": "changed",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인 여부와 관계없이 이후에 안내합니다.",
+      "explanation": "‘승인되면 목요일에 15명에게 안내합니다.’ → ‘승인 여부와 관계없이 이후에 안내합니다.’. 승인 조건과 특정 요일 및 인원수가 사라지고 승인 여부와 무관하게 이후로 일정이 변경되어 조건과 대상이 크게 달라진다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/partial-gemini-2026-11-19T07-42-05-260Z.json",
+      "caseId": "P-01",
+      "candidateId": "5cd8834a-b81f-49c6-a7b6-86a4087766b4",
+      "sourceText": "투명드래곤은 졸라짱쎄서 드랜 곤중에서 최강이엇다\n신이나 마족도 이겼따 다덤벼도 이겼따 투명드래곤은\n새상에서 하나였다 어쨌든 걔가 울부짓었다",
+      "candidateText": "투명 드래곤은 졸라짱 쎄서 드래곤 중에서 최강이었다.\n신이나 마족도 이겼다. 다 덤벼도 이겼다. 투명 드래곤은\n세상에서 유일했다. 어쨌든 걔가 울부짖었다.",
+      "explanation": "‘투명드래곤은’ → ‘투명 드래곤은’; ‘졸라짱쎄서’ → ‘졸라짱 쎄서’; ‘드랜 곤중에서’ → ‘드래곤 중에서’; ‘최강이엇다’ → ‘최강이었다.’; ‘이겼따’ → ‘이겼다.’; ‘다덤벼도 이겼따’ → ‘다 덤벼도 이겼다.’; ‘새상에서 하나였다’ → ‘세상에서 유일했다.’; ‘울부짓었다’ → ‘울부짖었다.’. 맞춤법과 띄어쓰기를 올바르게 수정하여 가독성을 높였다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/partial-gemini-2026-11-19T07-42-05-260Z.json",
+      "caseId": "P-02",
+      "candidateId": "newline",
+      "sourceText": "목요일 오후 3시에\n회의를 시작합니다.",
+      "candidateText": "목요일 오후 3시에\n회의를 진행합니다.",
+      "explanation": "‘시작합니다’ → ‘진행합니다’. 시작합니다를 진행합니다로 바꾸어 회의의 개최뿐만 아니라 이어지는 과정까지 포괄하도록 표현을 수정했다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/partial-gemini-2026-11-19T07-42-05-260Z.json",
+      "caseId": "P-03",
+      "candidateId": "preserved",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인되면 목요일에 15명에게 알려드립니다.",
+      "explanation": "‘안내합니다.’ → ‘알려드립니다.’. 안내합니다를 알려드립니다로 바꾸어 상대에게 전달하는 행위를 정중하게 표현한다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/partial-gemini-2026-11-19T07-42-05-260Z.json",
+      "caseId": "P-03",
+      "candidateId": "changed",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인 여부와 관계없이 이후에 안내합니다.",
+      "explanation": "‘승인되면 목요일에 15명에게 안내합니다.’ → ‘승인 여부와 관계없이 이후에 안내합니다.’. 승인 조건과 목요일이라는 특정 일정이 사라지고 승인 여부와 관계없이 이후에 안내하는 것으로 대상과 조건이 크게 달라진다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/partial-gemini-2026-11-19T07-42-05-260Z.json",
+      "caseId": "P-04",
+      "candidateId": "spaced",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내 주세요.",
+      "explanation": "‘보내 주세여.’ → ‘보내 주세요.’. 어조를 나타내는 종결 어미를 올바르게 수정했다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/partial-gemini-2026-11-19T07-42-05-260Z.json",
+      "caseId": "P-04",
+      "candidateId": "joined",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내주세요.",
+      "explanation": "‘보내 주세여.’ → ‘보내주세요.’. 어조를 나타내는 종결 어미를 수정하고 두 단어를 붙여 썼다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/quality-baseline-elice-2026-11-19T07-53-59-786Z.json",
+      "caseId": "P-03",
+      "candidateId": "changed",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인 여부와 관계없이 이후에 안내합니다.",
+      "explanation": "‘목요일에 15명에게 안내합니다.’ → ‘이후에 안내합니다.’. '목요일'이 사라지고 '이후에'로 설명이 바뀌어 날짜 정보가 불분명해졌습니다. 또한, 대상을 특정한 '15명'이 언급되지 않아 내용이 모호해졌습니다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/quality-baseline-elice-2026-11-19T07-53-59-786Z.json",
+      "caseId": "P-04",
+      "candidateId": "spaced",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내 주세요.",
+      "explanation": "‘주세여’ → ‘주세요’. ‘주세여’를 ‘주세요’로 수정하여 더 자연스럽고 정중한 표현이 되었습니다. 이 변경은 요청의 정중함을 유지하면서도 명확성을 강화합니다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/quality-baseline-elice-2026-11-19T07-53-59-786Z.json",
+      "caseId": "P-04",
+      "candidateId": "joined",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내주세요.",
+      "explanation": "‘주세여’ → ‘주세요’. ‘주세여’를 ‘주세요’로 수정하여 표현이 간결해졌습니다. 그러나 붙여 쓴 형태인 ‘보내주세요’는 약간의 비격식적인 뉘앙스를 줄 수 있습니다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/quality-baseline-elice-2026-11-19T07-53-59-786Z.json",
+      "caseId": "Q-01",
+      "candidateId": "changed-facts",
+      "sourceText": "검토가 끝나면 금요일에 13명에게 결과를 보냅니다.",
+      "candidateText": "검토가 끝나지 않아도 일요일에 30명에게 결과를 보냅니다.",
+      "explanation": "‘금요일에 13명에게 결과를 보냅니다.’ → ‘일요일에 30명에게 결과를 보냅니다.’. 후보는 날짜를 금요일에서 일요일로, 수신 인원을 13명에서 30명으로 변경하여, 원래의 내용에 비해 전달 시점과 대상이 명확히 달라졌다. 이런 변화는 사용자의 의도를 완전히 바꿀 수 있으므로 중요하다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/quality-baseline-elice-2026-11-19T07-53-59-786Z.json",
+      "caseId": "Q-02",
+      "candidateId": "same-facts",
+      "sourceText": "등록을 마친 사람만 월요일에 스무 명씩 입장할 수 있습니다.",
+      "candidateText": "등록을 완료한 사람에 한해 월요일에 20명씩 입장할 수 있습니다.",
+      "explanation": "‘스무 명씩’ → ‘20명씩’; ‘등록을 마친 사람만’ → ‘등록을 완료한 사람에 한해’. '스무 명'이 '20명'으로 변경되면서 수치 표현이 명확해졌고, '등록을 마친 사람만'이 '등록을 완료한 사람에 한해'로 바뀌어 대상이 더 명확하게 규정되었습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/quality-baseline-gemini-2026-11-19T07-54-38-370Z.json",
+      "caseId": "P-03",
+      "candidateId": "preserved",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인되면 목요일에 15명에게 알려드립니다.",
+      "explanation": "‘안내합니다.’ → ‘알려드립니다.’. 안내합니다를 알려드립니다로 바꾸어 정중한 표현으로 수정했다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/quality-baseline-gemini-2026-11-19T07-54-38-370Z.json",
+      "caseId": "P-03",
+      "candidateId": "changed",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인 여부와 관계없이 이후에 안내합니다.",
+      "explanation": "‘승인되면 목요일에 15명에게 안내합니다.’ → ‘승인 여부와 관계없이 이후에 안내합니다.’. 승인 조건과 목요일이라는 특정 일정이 사라지고 승인 여부와 관계없이 이후에 안내하는 것으로 조건과 대상이 완전히 바뀌었다. 원래 일정을 유지하려면 원문이나 첫 번째 후보를 선택해야 한다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/quality-baseline-gemini-2026-11-19T07-54-38-370Z.json",
+      "caseId": "P-04",
+      "candidateId": "spaced",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내 주세요.",
+      "explanation": "‘주세여.’ → ‘주세요.’. 어조를 나타내는 종결어미가 '주세요.'로 수정되었습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/quality-baseline-gemini-2026-11-19T07-54-38-370Z.json",
+      "caseId": "P-04",
+      "candidateId": "joined",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내주세요.",
+      "explanation": "‘보내 주세여.’ → ‘보내주세요.’. '보내 주세여.'가 '보내주세요.'로 붙여쓰기와 함께 종결어미가 수정되었습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/quality-baseline-gemini-2026-11-19T07-54-38-370Z.json",
+      "caseId": "Q-01",
+      "candidateId": "changed-facts",
+      "sourceText": "검토가 끝나면 금요일에 13명에게 결과를 보냅니다.",
+      "candidateText": "검토가 끝나지 않아도 일요일에 30명에게 결과를 보냅니다.",
+      "explanation": "‘끝나면’ → ‘끝나지 않아도’; ‘금요일에’ → ‘일요일에’; ‘13명에게’ → ‘30명에게’. 검토 조건, 발송 일정, 대상 인원이 변경되었으므로 원래의 조건과 일정을 유지하려면 원문을 선택해야 한다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/quality-baseline-gemini-2026-11-19T07-54-38-370Z.json",
+      "caseId": "Q-02",
+      "candidateId": "same-facts",
+      "sourceText": "등록을 마친 사람만 월요일에 스무 명씩 입장할 수 있습니다.",
+      "candidateText": "등록을 완료한 사람에 한해 월요일에 20명씩 입장할 수 있습니다.",
+      "explanation": "‘등록을 마친’ → ‘등록을 완료한’; ‘사람만’ → ‘사람에 한해’; ‘스무’ → ‘20’. 원문의 마친을 완료한으로, 사람만을 사람에 한해로 바꾸어 표현을 다듬고 스무를 숫자로 변경했습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/thinking-high-gemini-2026-11-19T08-25-04-725Z.json",
+      "caseId": "P-03",
+      "candidateId": "preserved",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인되면 목요일에 15명에게 알려드립니다.",
+      "explanation": "‘안내합니다.’ → ‘알려드립니다.’. 안내합니다를 알려드립니다로 바꾸어 표현을 다듬었다. 원문의 조건과 일정은 그대로 유지된다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/thinking-high-gemini-2026-11-19T08-25-04-725Z.json",
+      "caseId": "P-03",
+      "candidateId": "changed",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인 여부와 관계없이 이후에 안내합니다.",
+      "explanation": "‘승인되면 목요일에 15명에게’ → ‘승인 여부와 관계없이 이후에’. 승인 조건과 목요일 일정 및 15명이라는 대상이 빠지고 승인 여부와 관계없는 추후 안내로 변경되었다. 원래의 일정과 조건을 전달하려면 해당 정보를 유지하는 표현을 선택해야 한다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/thinking-high-gemini-2026-11-19T08-25-04-725Z.json",
+      "caseId": "P-04",
+      "candidateId": "spaced",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내 주세요.",
+      "explanation": "‘주세여.’ → ‘주세요.’. 오타인 '주세여.'를 '주세요.'로 수정하여 맞춤법을 바르게 고쳤습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/thinking-high-gemini-2026-11-19T08-25-04-725Z.json",
+      "caseId": "P-04",
+      "candidateId": "joined",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내주세요.",
+      "explanation": "‘보내 주세여.’ → ‘보내주세요.’. 오타를 수정하고 '보내주세요'로 붙여 써서 맞춤법에 맞게 정리했습니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/thinking-high-gemini-2026-11-19T08-25-04-725Z.json",
+      "caseId": "Q-01",
+      "candidateId": "changed-facts",
+      "sourceText": "검토가 끝나면 금요일에 13명에게 결과를 보냅니다.",
+      "candidateText": "검토가 끝나지 않아도 일요일에 30명에게 결과를 보냅니다.",
+      "explanation": "‘검토가 끝나면’ → ‘검토가 끝나지 않아도’; ‘금요일에’ → ‘일요일에’; ‘13명’ → ‘30명’. 조건, 요일, 대상 인원이 변경되었으므로 원래의 조건과 일정을 전달하려면 원문 표현을 선택해야 합니다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/thinking-high-gemini-2026-11-19T08-25-04-725Z.json",
+      "caseId": "Q-02",
+      "candidateId": "same-facts",
+      "sourceText": "등록을 마친 사람만 월요일에 스무 명씩 입장할 수 있습니다.",
+      "candidateText": "등록을 완료한 사람에 한해 월요일에 20명씩 입장할 수 있습니다.",
+      "explanation": "‘등록을 마친’ → ‘등록을 완료한’; ‘사람만’ → ‘사람에 한해’; ‘스무’ → ‘20’. \"등록을 마친\"을 \"등록을 완료한\"으로, \"사람만\"을 \"사람에 한해\"로, \"스무\"를 \"20\"으로 바꾸어 표현을 다듬었으며 의미와 조건은 동일합니다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/thinking-low-gemini-2026-11-19T08-24-23-774Z.json",
+      "caseId": "P-03",
+      "candidateId": "preserved",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인되면 목요일에 15명에게 알려드립니다.",
+      "explanation": "‘안내합니다.’ → ‘알려드립니다.’. 안내합니다를 알려드립니다로 바꾸어 정중한 표현으로 수정했다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/thinking-low-gemini-2026-11-19T08-24-23-774Z.json",
+      "caseId": "P-03",
+      "candidateId": "changed",
+      "sourceText": "승인되면 목요일에 15명에게 안내합니다.",
+      "candidateText": "승인 여부와 관계없이 이후에 안내합니다.",
+      "explanation": "‘승인되면 목요일에 15명에게 안내합니다.’ → ‘승인 여부와 관계없이 이후에 안내합니다.’. 승인 조건과 목요일이라는 특정 일정이 삭제되고 승인 여부와 관계없이 이후에 안내하는 것으로 조건과 대상이 완전히 변경되었다. 원래의 일정과 조건을 유지하려면 원문이나 첫 번째 후보를 선택하는 것이 좋다.",
+      "verdict": "abstained",
+      "reason": "context-not-covered"
+    },
+    {
+      "path": "docs/evaluations/thinking-low-gemini-2026-11-19T08-24-23-774Z.json",
+      "caseId": "P-04",
+      "candidateId": "spaced",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내 주세요.",
+      "explanation": "‘주세여.’ → ‘주세요.’. 어조를 나타내는 종결 어미를 올바르게 수정했다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    },
+    {
+      "path": "docs/evaluations/thinking-low-gemini-2026-11-19T08-24-23-774Z.json",
+      "caseId": "P-04",
+      "candidateId": "joined",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidateText": "금요일까지 자료를 보내주세요.",
+      "explanation": "‘보내 주세여.’ → ‘보내주세요.’. 띄어쓰기를 붙이고 종결 어미를 올바르게 수정했다.",
+      "verdict": "not-covered",
+      "reason": "no-supported-assertion"
+    }
+  ],
+  "excluded": {
+    "withheld": 10,
+    "requestFailedCandidates": 3,
+    "unexecutedCandidates": 1
+  },
+  "counts": {
+    "review-needed": 1,
+    "not-covered": 34,
+    "abstained": 23
+  }
+}

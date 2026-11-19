@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react';
-import { LIMITS, type CorrectionResult, type Explanation } from '../../../shared/contracts';
+import { LIMITS, type CorrectionResult, type ExplanationResult, type Candidate } from '../../../shared/contracts';
 import { requestExplanations } from '../lib/api';
 import { CandidateCard } from './CandidateCard';
 import { Icon } from './Icon';
@@ -10,7 +10,8 @@ export function CorrectionResults({ result, onApply }: { result: CorrectionResul
   const [open, setOpen] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [explanations, setExplanations] = useState<Explanation[] | null>(null);
+  const [explanations, setExplanations] = useState<ExplanationResult[] | null>(null);
+  const [targets, setTargets] = useState<Candidate[]>(result.candidates);
   const [error, setError] = useState<string | null>(null);
   const panelId = useId();
 
@@ -20,14 +21,19 @@ export function CorrectionResults({ result, onApply }: { result: CorrectionResul
     let active = true;
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; controller.abort(); }, LIMITS.timeout + 5_000);
-    requestExplanations({ requestId: crypto.randomUUID(), sourceText: result.sourceText, candidates: result.candidates }, controller.signal)
-      .then(value => { if (active) setExplanations(value); })
+    requestExplanations({ requestId: crypto.randomUUID(), sourceText: result.sourceText, candidates: targets }, controller.signal)
+      .then(value => { if (active) setExplanations(previous => [...(previous ?? []).filter(e => !value.some(v => v.candidateId === e.candidateId)), ...value]); })
       .catch(reason => { if (active) setError(timedOut ? '설명 응답 시간이 초과되었습니다. 다시 시도해주세요.' : reason instanceof Error ? reason.message : '설명을 불러오지 못했습니다.'); })
       .finally(() => { clearTimeout(timer); if (active) setLoading(false); });
     return () => { active = false; clearTimeout(timer); controller.abort(); };
-  }, [attempt, result]);
+  }, [attempt, result, targets]);
 
-  const request = () => { if (loading) return; setError(null); setLoading(true); setAttempt(n => n + 1); };
+  const failedIds = explanations?.filter(e => 'error' in e).map(e => e.candidateId) ?? [];
+  const request = () => {
+    if (loading) return;
+    setTargets(failedIds.length ? result.candidates.filter(c => failedIds.includes(c.id)) : result.candidates);
+    setError(null); setLoading(true); setAttempt(n => n + 1);
+  };
   const toggle = () => {
     setOpen(!open);
     if (!open && !explanations && !loading && !error) request();
@@ -37,11 +43,11 @@ export function CorrectionResults({ result, onApply }: { result: CorrectionResul
     <div id={panelId} hidden={!open} className="explanation-status" role="status" aria-live="polite">
       {loading && <p className="loading-message"><span className="spinner" />교정 이유를 확인하고 있습니다.</p>}
       {error && <div className="explanation-error"><p>{error}</p><button className="text-button" onClick={request} disabled={loading}>설명 다시 시도</button></div>}
-      {explanations && <p>원문과 후보를 비교한 AI 설명입니다. 실제 차이와 함께 확인해주세요.</p>}
+      {!error && failedIds.length > 0 && <div className="explanation-error"><p>{failedIds.length === result.candidates.length ? '교정 이유를 표시하지 못했습니다.' : '일부 후보의 교정 이유를 표시하지 못했습니다.'} 후보 비교와 적용은 계속할 수 있습니다.</p><button className="text-button" onClick={request} disabled={loading}>실패한 설명 다시 시도</button></div>}
     </div>
     <p className="diff-legend">밑줄은 추가된 표현입니다. 삭제·교체된 내용은 ‘원문 비교’에서 확인하세요.</p>
     <div className="candidate-list">{result.candidates.map((candidate, index) => <CandidateCard key={candidate.id} candidate={candidate} index={index} source={result.sourceText}
-      explanation={open ? explanations?.find(e => e.candidateId === candidate.id)?.explanation : undefined} onApply={() => onApply(candidate.id)} />)}</div>
+      explanation={open ? explanations?.find(e => e.candidateId === candidate.id) : undefined} onApply={() => onApply(candidate.id)} />)}</div>
     <p className="result-disclaimer">데모 생성 결과입니다. 적용 전에 내용을 확인해주세요.</p>
   </>;
 }
