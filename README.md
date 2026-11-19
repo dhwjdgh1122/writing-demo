@@ -211,4 +211,4 @@ README는 요약과 안내를 제공하며, 상세 내용과 상태는 각 기�
 
 [PRD](docs/PRD.md)로 목적과 범위를 확인하고, [CONTRIBUTING](CONTRIBUTING.md)에 따라 작업합니다. 팀원들의 초대 수락과 README 기반 실행은 전달받았으며, 환경별 상세 확인과 사용 피드백은 계속 기록합니다. 실행 확인을 교정·설명 품질 전체의 검증 완료로 보지는 않습니다.
 
-[공동 작업 보드](https://github.com/users/dhwjdgh1122/projects/7)에 공통 준비 작업과 미배정 후보를 등록했습니다. Issues에서 작업 내용·완료 기준·논의를, Projects에서 상태·담당·목표일을 관리합니다. [TASKS](docs/TASKS.md)에서 작업 링크와 사용 안내를 확인할 수 있습니다. 문서 수정과 보드의 상시 자동 동기화는 설정하지 않았습니다.
+[공동 작업 보드](https://github.com/users/dhwjdgh1122/projects/7)에 공통 준비 작업과 미배정 후보를 등록했습니다. Issues에서 작업 내용·완료 기준·논의를, Projects에서 상태·담당·목표일을 관리합니다. [TASKS](docs/TASKS.md)에서 작업 링크와 사용 안내를 확인할 수 있습니다. 신규·기존·완료 카드의 작성은 [6개 항목 공통 양식](docs/TASKS.md#issue-card-format)을 따릅니다. 문서 수정과 보드의 상시 자동 동기화는 설정하지 않았습니다.
