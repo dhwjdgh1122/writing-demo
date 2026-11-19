@@ -114,7 +114,7 @@ git merge origin/main
 - 화면·선택·적용 흐름 변경: `npm.cmd run test:browser`도 확인한다. 현재 브라우저 테스트는 Microsoft Edge가 필요하며, 실제 모델 대신 테스트 응답을 사용한다.
 - 빌드·실행 구성 변경: `npm.cmd run build`와 필요한 실행 확인을 수행한다.
 - 문서만 변경: 링크·명령·기능 설명이 실제 파일과 맞는지 확인한다.
-- 실제 모델 호출 결과와 테스트용 응답을 구분한다. `scripts/evaluate-explanations.mjs`는 Gemini 실제 평가, `scripts/check-elice.mjs`는 엘리스 실제 연결 점검이다. 사용량이 발생할 수 있으므로 자동 검사에 포함하지 않는다.
+- 실제 모델 호출 결과와 테스트용 응답을 구분한다. 현재 평가 도구와 실행 조건은 [README의 평가 안내](README.md)에 따른다. 기존 `scripts/evaluate-explanations.mjs`는 새 응답 형식과 호환되지 않아 호출 전에 중단한다. `scripts/check-elice.mjs`는 엘리스 실제 연결 점검이다. 실제 모델 호출은 사용량이 발생할 수 있으므로 자동 검사에 포함하지 않는다.
 - 기능 동작이 달라지면 관련 명세를 함께 갱신한다. 확인하지 못한 항목은 PR에 미검증으로 남긴다.
 
 ## 작업과 기록 관리

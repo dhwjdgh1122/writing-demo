@@ -148,7 +148,9 @@ npm.cmd start
 
 #5의 기준 사례로 **현재 설정 제공자·현재 프롬프트**를 평가하려면 `node --import tsx scripts/evaluate-explanation-criteria.mjs`로 입력만 먼저 점검합니다. 실제 호출은 끝에 `--live`를 붙이며 최대 6회 요청합니다. API 사용량이 발생하고 재시도·자동 모델 전환은 하지 않습니다. 앱 API의 형식·인용 검사를 거친 응답과 차단 전 어댑터 결과를 분리 저장합니다. 브라우저 표시나 사용자 효과 시험은 아닙니다. [1차 평가 결과와 한계](docs/검증%20기록.md#explanation-eval-01)를 참고하세요.
 
-후보별 `displayed`·`withheld`를 별도 기록하며 HTTP 200만으로 설명 성공을 판단하지 않습니다. 어댑터 결과도 이미 구조 검사를 거친 값이며 모델 원출력이 아닙니다. 11/19 근거 분리·부분 실패 처리는 작업 브랜치의 변경이고 main 반영 전입니다. [범위·검증·남은 한계](docs/검증%20기록.md#explanation-partial-01)를 확인하세요.
+후보별 `displayed`·`withheld`를 별도 기록하며 HTTP 200만으로 설명 성공을 판단하지 않습니다. 어댑터 결과도 이미 구조 검사를 거친 값이며 모델 원출력이 아닙니다. 11/19 근거 분리·부분 실패 처리는 작업 브랜치의 변경이고 main 반영 전입니다. [오프라인 검증](docs/검증%20기록.md#explanation-partial-01) 이후 [실제 모델 제한 평가](docs/검증%20기록.md#explanation-partial-02)에서 형식·인용·내용 문제가 남아 Draft를 유지합니다.
+
+#22의 제보·줄바꿈·중요 정보·간단 오타 4사례는 `node --import tsx scripts/evaluate-explanation-partial.mjs`로 사전 점검합니다. 명시적으로 `--provider=gemini --live` 또는 `--provider=elice --live`를 붙이면 해당 제공자에 최대 4회 호출합니다. 고정 후보의 설명 시험이며 각 제공자의 기존 환경변수가 필요합니다. 성공 응답의 completion 텍스트와 실제 HTTP 결과를 구분해 저장하고 인증정보는 저장하지 않습니다. 자동 테스트·서버 시작에는 포함하지 않습니다.
 
 #1의 여러 문장 누락을 재현하려면 `node --import tsx scripts/evaluate-correction-coverage.mjs`로 입력을 점검합니다. `--live`를 붙이면 **현재 설정 제공자에 교정만 최대 4회 요청**하며 사용량이 발생합니다. 설명 요청·자동 재시도·모델 전환은 없고, 선택 원문·어댑터 반환값·API 결과를 `docs/evaluations/`에 저장합니다. 줄 수와 내용 누락은 별도로 검토해야 합니다. [재현 결과와 한계](docs/검증%20기록.md#correction-coverage-01)를 참고하세요.
 
