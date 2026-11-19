@@ -4,6 +4,25 @@ import { createGeminiProvider } from '../server/llm/gemini.js';
 import { providerFromEnv } from '../server/llm/config.js';
 import { ProviderError, type ProviderFailure } from '../server/llm/provider.js';
 import { explanationQuotesMatch } from '../server/llm/explanation-check.js';
+import multilineReport from './fixtures/explanation-reported-multiline.json';
+
+test('reported multiline quote consumes the whole span instead of the particle between closing and opening quotes', () => {
+  assert.equal(explanationQuotesMatch(multilineReport.sourceText, multilineReport.candidate.text, multilineReport.reportedExplanation), true);
+  for (const newline of ['\n', '\r\n']) {
+    for (const [open, close] of [["'", "'"], ['"', '"'], ['‘', '’'], ['“', '”'], ['「', '」'], ['『', '』'], ['`', '`']]) {
+      const source = `회의를${newline}시작합니다.`;
+      const candidate = `회의를${newline}진행합니다.`;
+      assert.equal(explanationQuotesMatch(source, candidate, `${open}${source}${close}가 ${open}${candidate}${close}로 바뀌었습니다.`), true);
+      assert.equal(explanationQuotesMatch(source, candidate, `${open}회의를${newline}종료합니다.${close}`), false);
+      assert.equal(explanationQuotesMatch(source, candidate, `${open}회의를 시작합니다.${close}`), false);
+    }
+  }
+});
+
+test('omitted line breaks and inflected dictionary forms remain mismatches, not silently normalized', () => {
+  assert.equal(explanationQuotesMatch('해치울준비를하고있었\n는데', '해치울 준비를 하고 있었습니다만', '‘있었는데’가 ‘있었습니다만’으로 바뀌었습니다.'), false);
+  assert.equal(explanationQuotesMatch('하나였다', '유일했다', '‘유일하다’로 바뀌었습니다.'), false);
+});
 
 test('reported spacing quotation is rejected for its own candidate, even when another candidate contains it', () => {
   const source = '금요일까지 자료를 보내 주세여.';
@@ -150,11 +169,11 @@ test('explanations use only source and candidates; IDs are preserved and identic
   assert.equal(result[1].candidateId, 'date');
 });
 
-test('explanation output rejects unknown, duplicated, missing IDs and unsupported length', async () => {
+test('explanation output rejects unknown, duplicated and missing IDs', async () => {
   for (const explanations of [
     [{ candidateId: 'wrong', explanation: '설명' }],
     [{ candidateId: 'one', explanation: '설명' }, { candidateId: 'one', explanation: '중복' }],
-    [], [{ candidateId: 'one', explanation: ' ' }], [{ candidateId: 'one', explanation: '가'.repeat(401) }],
+    [],
   ]) {
     const provider = createGeminiProvider(config, fakeFetch(completion({ explanations })));
     await assert.rejects(provider.generateExplanations!('원문', [{ id: 'one', text: '후보' }], signal()), failure('invalid'));

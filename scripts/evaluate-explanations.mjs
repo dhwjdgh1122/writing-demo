@@ -29,6 +29,7 @@ for (const item of cases) {
       const run = { caseId: item.id, version: version.name, elapsedMs: Date.now() - started, explanations };
       report.runs.push(run);
       console.log(JSON.stringify(run));
+      if (explanations.some(item => 'error' in item)) { stop = true; break; }
     } catch (error) {
       // Do not persist raw upstream errors, credentials or request headers.
       const run = { caseId: item.id, version: version.name, elapsedMs: Date.now() - started, error: error.kind ?? error.name };

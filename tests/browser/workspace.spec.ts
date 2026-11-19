@@ -283,3 +283,91 @@ test('quotation validation error keeps candidates available and retries only exp
   expect(corrections).toBe(1);
   expect(explanations).toBe(2);
 });
+
+test('partial explanations preserve success through retry failures and retry only failed IDs', async ({ page }) => {
+  let corrections = 0;
+  const requests: string[][] = [];
+  page.on('request', request => { if (request.url().endsWith('/api/corrections')) corrections++; });
+  await page.route('**/api/explanations', async route => {
+    const input = route.request().postDataJSON();
+    requests.push(input.candidates.map((c: { id: string }) => c.id));
+    if (requests.length === 2) {
+      await route.fulfill({ status: 503, json: { requestId: input.requestId, error: { code: 'MODEL_UNAVAILABLE', message: '잠시 후 다시 시도해주세요.', retryable: true } } });
+      return;
+    }
+    await route.fulfill({ json: { ...input, explanations: requests.length === 1 ? [
+      { candidateId: 'same', explanation: '보존할 정상 설명입니다.' },
+      { candidateId: 'date', error: 'EXPLANATION_QUOTE_MISMATCH' },
+    ] : [{ candidateId: 'date', explanation: '재시도한 날짜 설명입니다.' }] } });
+  });
+  await prepareExplanation(page);
+  const toggle = page.getByRole('button', { name: /교정 이유/ });
+  await toggle.click();
+  await expect(page.locator('.candidate-card').first()).toContainText('이 후보의 설명을 표시하지 않았습니다');
+  await expect(page.locator('.candidate-card').last()).toContainText('보존할 정상 설명');
+  await expect(page.locator('.explanation-error')).toContainText('일부 후보');
+  await page.screenshot({ path: 'test-results/explanations-partial-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/explanations-partial-mobile.png', fullPage: true });
+  await toggle.click();
+  await toggle.click();
+  expect(requests).toHaveLength(1);
+  await page.getByRole('button', { name: '실패한 설명 다시 시도' }).click();
+  await expect(page.locator('.explanation-error')).toContainText('잠시 후');
+  await expect(page.locator('.candidate-card').last()).toContainText('보존할 정상 설명');
+  await page.getByRole('button', { name: '설명 다시 시도', exact: true }).click();
+  await expect(page.locator('.candidate-card').first()).toContainText('재시도한 날짜 설명');
+  await expect(page.locator('.candidate-card').last()).toContainText('보존할 정상 설명');
+  await expect(page.locator('.explanation-error')).toHaveCount(0);
+  expect(requests).toEqual([['date', 'same'], ['date'], ['date']]);
+  expect(corrections).toBe(1);
+  await page.getByRole('button', { name: '이 문장 적용', exact: true }).click();
+  await expect(page.getByLabel('원문 입력')).toHaveValue('앞 문장. 이후에 안내하겠습니다. 뒤 문장.');
+});
+
+test('all candidate failures remain visible as failures and applying still works', async ({ page }) => {
+  let calls = 0;
+  await page.route('**/api/explanations', async route => {
+    calls++;
+    const input = route.request().postDataJSON();
+    await route.fulfill({ json: { ...input, explanations: input.candidates.map((c: { id: string }) => ({ candidateId: c.id, error: 'EXPLANATION_INVALID' })) } });
+  });
+  await prepareExplanation(page);
+  await page.getByRole('button', { name: /교정 이유/ }).click();
+  await expect(page.locator('.explanation-error')).toContainText('교정 이유를 표시하지 못했습니다');
+  await expect(page.getByText('이 후보의 설명 형식을 확인하지 못해 표시하지 않았습니다.', { exact: true })).toHaveCount(2);
+  await expect(page.getByRole('button', { name: '원문 비교 확인' })).toHaveCount(0);
+  expect(calls).toBe(1);
+  await page.getByRole('button', { name: '이 문장 적용', exact: true }).click();
+  await expect(page.getByLabel('원문 입력')).toHaveValue('앞 문장. 이후에 안내하겠습니다. 뒤 문장.');
+});
+
+test('a delayed failed-only retry is discarded when the selection changes', async ({ page }) => {
+  let release: () => void = () => {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let received: () => void = () => {};
+  const requested = new Promise<void>(resolve => { received = resolve; });
+  let calls = 0;
+  await page.route('**/api/explanations', async route => {
+    calls++;
+    const input = route.request().postDataJSON();
+    if (calls === 1) {
+      await route.fulfill({ json: { ...input, explanations: [
+        { candidateId: 'date', error: 'EXPLANATION_INVALID' }, { candidateId: 'same', explanation: '변경 없음' },
+      ] } });
+    } else {
+      expect(input.candidates.map((c: { id: string }) => c.id)).toEqual(['date']);
+      received(); await gate;
+      await route.fulfill({ json: { ...input, explanations: [{ candidateId: 'date', explanation: '늦게 도착한 재시도 설명' }] } }).catch(() => {});
+    }
+  });
+  await prepareExplanation(page);
+  await page.getByRole('button', { name: /교정 이유/ }).click();
+  await page.getByRole('button', { name: '실패한 설명 다시 시도' }).click();
+  await requested;
+  await select(page, 0, 5);
+  release();
+  await expect(page.locator('.candidate-card')).toHaveCount(0);
+  await expect(page.getByText('늦게 도착한 재시도 설명', { exact: true })).toHaveCount(0);
+});
