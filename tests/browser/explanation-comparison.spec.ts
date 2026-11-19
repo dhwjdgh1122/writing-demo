@@ -39,6 +39,10 @@ for (const width of [1440, 390]) {
     await expect(page.locator('details.comparison[open]')).toHaveCount(0);
     await expect(cards.nth(2)).toContainText('이 후보의 설명을 표시하지 않았습니다');
     await expect(cards.first().locator('.explanation-comparison-help')).toContainText('날짜·수치·조건');
+    await expect(cards.first().getByRole('group', { name: '숫자 표기 비교' })).toHaveCount(0);
+    await expect(cards.nth(1).getByRole('group', { name: '숫자 표기 비교' })).toContainText('원문: 15');
+    await expect(cards.nth(1).getByRole('group', { name: '숫자 표기 비교' })).toContainText('교정안: 20');
+    await expect(cards.nth(2).getByRole('group', { name: '숫자 표기 비교' })).toHaveCount(0);
     await expect(page.locator('.explanation-status')).not.toContainText('실제 차이와 함께 확인해주세요');
 
     const secondCompare = cards.nth(1).getByRole('button', { name: '원문 비교 확인' });
@@ -62,6 +66,7 @@ for (const width of [1440, 390]) {
     await expect(page.locator('details.comparison[open]')).toHaveCount(1);
     await toggle.click();
     await expect(compare).toHaveCount(0);
+    await expect(page.getByRole('group', { name: '숫자 표기 비교' })).toHaveCount(0);
     await toggle.click();
     await expect(compare).toHaveCount(2);
     expect(requests).toHaveLength(1);
@@ -78,3 +83,35 @@ for (const width of [1440, 390]) {
     await expect(cards).toHaveCount(0);
   });
 }
+
+test('numeric spelling comparison preserves formatting and counts without trusting model prose', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const source = '8명과 8명에게 각각 1,000원을 안내합니다.';
+  const candidates = [{ id: 'numbers', text: '8명에게 1000원을 안내합니다.' }];
+  let calls = 0;
+  await page.route('**/api/corrections', route => route.fulfill({ json: { ...route.request().postDataJSON(), candidates } }));
+  await page.route('**/api/explanations', route => {
+    calls++;
+    return route.fulfill({ json: { ...route.request().postDataJSON(), explanations: [
+      { candidateId: 'numbers', explanation: '테스트 응답: 모든 정보가 같습니다.' },
+    ] } });
+  });
+  await page.goto('/');
+  const editor = page.getByLabel('원문 입력');
+  await editor.fill(source);
+  await editor.press('Control+a');
+  await startCorrection(page);
+  await page.getByRole('button', { name: /교정 이유/ }).click();
+  const group = page.getByRole('group', { name: '숫자 표기 비교' });
+  await expect(group).toContainText('원문: 8 (2회) / 1,000');
+  await expect(group).toContainText('교정안: 8 / 1000');
+  await expect(group).toContainText('같은 수를 다르게 쓴 경우도 포함');
+  await expect(group).not.toContainText('수량이');
+  await expect(page.locator('.candidate-explanation')).toContainText('테스트 응답: 모든 정보가 같습니다.');
+  await page.getByRole('button', { name: '원문 비교 확인' }).click();
+  await expect(page.locator('details.comparison')).toHaveAttribute('open', '');
+  expect(calls).toBe(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await group.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'test-results/numeric-comparison-390.png' });
+});

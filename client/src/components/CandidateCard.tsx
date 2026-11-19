@@ -1,5 +1,6 @@
 import { useId, useMemo, useRef } from 'react';
 import { diffText, type DiffPart } from '../lib/diff';
+import { compareNumberSpellings, formatNumberSpellings } from '../lib/numeric-comparison';
 import type { Candidate, ExplanationResult } from '../../../shared/contracts';
 import { Icon } from './Icon';
 
@@ -24,6 +25,7 @@ export function CandidateCard({ candidate, source, index, explanation, onApply }
   };
   const comparison = useMemo(() => { try { return diffText(source, candidate.text); } catch { return null; } }, [source, candidate.text]);
   const identical = source === candidate.text;
+  const numberComparison = useMemo(() => compareNumberSpellings(source, candidate.text), [source, candidate.text]);
   return <article className="candidate-card">
     <div className="candidate-heading"><span className="candidate-number">{String(index + 1).padStart(2, '0')}</span><h3>후보 {index + 1}</h3>{identical && <span className="neutral-label">원문과 동일</span>}</div>
     <p className="candidate-text">{comparison ? <DiffLine parts={comparison} side="candidate" /> : candidate.text}</p>
@@ -50,6 +52,13 @@ export function CandidateCard({ candidate, source, index, explanation, onApply }
       ? explanation.error === 'EXPLANATION_QUOTE_MISMATCH' ? '원문·교정안과 인용이 맞지 않아 이 후보의 설명을 표시하지 않았습니다.' : '이 후보의 설명 형식을 확인하지 못해 표시하지 않았습니다.'
       : explanation.explanation}</p>
       {!('error' in explanation) && !identical && <div className="explanation-comparison-help">
+        {numberComparison && <div className="numeric-comparison" role="group" aria-label="숫자 표기 비교">
+          <h5>숫자 표기 비교</h5>
+          <p>원문: <strong>{formatNumberSpellings(numberComparison.source)}</strong></p>
+          <p>교정안: <strong>{formatNumberSpellings(numberComparison.candidate)}</strong></p>
+          <p>등장 횟수가 다른 숫자 표기입니다. 같은 수를 다르게 쓴 경우도 포함됩니다.</p>
+          <p>원문의 숫자 표기를 유지하려면 위 차이를 확인해 주세요.</p>
+        </div>}
         <p>날짜·수치·조건이 의도대로 유지됐는지 원문과 비교해보세요.</p>
         <button type="button" className="text-button" aria-controls={comparisonId} onClick={showComparison}>원문 비교 확인<Icon name="arrow" size={15} /></button>
       </div>}

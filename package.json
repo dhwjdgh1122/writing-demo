@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch server/dev.ts",
     "check": "tsc --noEmit",
-    "test": "tsx --test tests/editor.test.ts tests/api.test.ts tests/provider.test.ts tests/elice.test.ts tests/explanation-response.test.ts tests/explanation-evidence-experiment.test.mjs tests/explanation-thinking-experiment.test.mjs tests/explanation-impact-experiment.test.mjs tests/explanation-spacing-audit.test.mjs",
+    "test": "tsx --test tests/editor.test.ts tests/api.test.ts tests/provider.test.ts tests/elice.test.ts tests/explanation-response.test.ts tests/explanation-evidence-experiment.test.mjs tests/explanation-thinking-experiment.test.mjs tests/explanation-impact-experiment.test.mjs tests/explanation-spacing-audit.test.mjs tests/numeric-comparison.test.ts",
     "test:browser": "playwright test",
     "build": "npm run check && node scripts/build.mjs",
     "start": "node dist/server/index.js"

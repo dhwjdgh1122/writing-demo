@@ -55,4 +55,7 @@ main{max-width:1488px;margin:0 auto;padding:38px 24px 20px}.page-intro{display:f
 .candidate-explanation p { margin: 0; font-size: 14px; line-height: 1.8; color: #4c435e; white-space: pre-wrap; }
 .explanation-comparison-help { margin-top: 12px; border-top: 1px solid #e7def6; padding-top: 10px; }
 .explanation-comparison-help p { font-size: 12px; color: #62566f; white-space: normal; }
+.numeric-comparison { margin-bottom: 10px; }
+.numeric-comparison h5 { margin: 0 0 4px; font-size: 13px; color: #4c435e; }
+.numeric-comparison strong { font-size: 14px; font-weight: 600; }
 .explanation-comparison-help .text-button { font-size: 13px; color: #6930c3; min-height: 44px; text-align: left; }
