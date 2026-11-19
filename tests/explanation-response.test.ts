@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { renderExplanationResponse } from '../server/llm/explanation-response.js';
 import { explanationQuotesMatch, explanationProseError } from '../server/llm/explanation-check.js';
+import { spacingOnlyExplanation } from '../server/llm/explanation-spacing.js';
 import { createGeminiProvider } from '../server/llm/gemini.js';
 import { createEliceProvider } from '../server/llm/elice.js';
 import { ProviderError } from '../server/llm/provider.js';
@@ -15,6 +16,43 @@ const draft = {
   explanation: '유일하다는 하나뿐임을 나타내는 말입니다. 문맥에 맞는 표현인지 확인해주세요.',
 };
 const render = (entry: unknown) => renderExplanationResponse(source, candidates, { explanations: [entry] });
+
+test('space-only descriptions count changed positions, including equal-total moves and Unicode text', () => {
+  for (const [before, after, expected] of [
+    ['자료를보내주세요.', '자료를 보내 주세요.', '공백 2개를 추가했습니다.'],
+    ['자료를  보내 주세요.', '자료를 보내주세요.', '공백 2개를 삭제했습니다.'],
+    ['아버지가 방에 들어간다.', '아버지 가방에 들어간다.', '공백 1개를 추가하고 1개를 삭제했습니다.'],
+    [' 🌊자료\n다음 줄 ', '🌊 자료\n다음 줄', '공백 1개를 추가하고 2개를 삭제했습니다.'],
+    ['회의를\r\n시작 합니다.', '회의를\r\n시작합니다.', '공백 1개를 삭제했습니다.'],
+    ['1 5명', '15명', '공백 1개를 삭제했습니다.'],
+  ]) {
+    const text = spacingOnlyExplanation(before, after);
+    assert.equal(text, `${expected} 원문 비교에서 단어가 나뉜 위치가 의도에 맞는지 확인해 주세요.`);
+    assert.doesNotMatch(text!, /의미가 같|의미가 유지|정중|올바르|맞춤법|명확/);
+  }
+});
+
+test('spelling, numeric, punctuation, line break and non-ASCII whitespace changes never use the space-only path', () => {
+  for (const [before, after] of [
+    ['보내 주세여.', '보내주세요.'], ['15명', '30명'], ['승인되면', '승인 여부와 관계없이'],
+    ['안녕', '안녕!'], ['안녕', '안녕'], ['회의\n시작', '회의 시작'], ['회의\r\n시작', '회의\n시작'],
+    ['회의\t시작', '회의 시작'], ['회의\u00a0시작', '회의 시작'], ['가', '\u1100\u1161'], [' ', '  '],
+  ]) assert.equal(spacingOnlyExplanation(before, after), undefined);
+});
+
+test('space-only candidate ignores invented model claims but does not hide sibling or ID failures', () => {
+  const original = '목요일에 자료를 보내 주세요.';
+  const options = [{ id: 'spacing', text: '목요일에 자료를 보내주세요.' }, { id: 'date', text: '이후에 자료를 보내 주세요.' }];
+  const response = renderExplanationResponse(original, options, { explanations: [
+    { candidateId: 'spacing', explanation: '날짜를 바꿔 더 정중해졌습니다.', references: [] },
+    { candidateId: 'date', explanation: '틀린 인용', references: [{ before: '금요일', after: '이후' }] },
+  ] });
+  assert.equal(response[0].candidateId, 'spacing');
+  assert.ok('explanation' in response[0] && response[0].explanation.startsWith('공백 1개를 삭제했습니다.'));
+  assert.deepEqual(response[1], { candidateId: 'date', error: 'EXPLANATION_QUOTE_MISMATCH' });
+  assert.throws(() => renderExplanationResponse(original, options, { explanations: [{ candidateId: 'spacing' }] }), ProviderError);
+  assert.throws(() => renderExplanationResponse(original, options, { explanations: [{ candidateId: 'spacing' }, { candidateId: 'spacing' }] }), ProviderError);
+});
 
 test('reported multiline quotes are consumed as spans, not as the particle between quotes', () => {
   const report = JSON.parse(readFileSync(new URL('./fixtures/explanation-reported-multiline.json', import.meta.url), 'utf8'));

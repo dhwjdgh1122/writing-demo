@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { countCharacters, explanationsSchema, explanationsMatch, requestIdSchema, type Candidate, type ExplanationResult } from '../../shared/contracts.js';
 import { ProviderError } from './provider.js';
 import { explanationProseError } from './explanation-check.js';
+import { spacingOnlyExplanation } from './explanation-spacing.js';
 
 // Reuses #22's separation of exact evidence and prose, without importing its
 // experimental semantic categories, remaining-word checks or extra model calls.
@@ -24,6 +25,10 @@ export function renderExplanationResponse(source: string, candidates: Candidate[
   return envelope.data.explanations.map(raw => {
     const candidate = candidates.find(c => c.id === raw.candidateId)!;
     if (source === candidate.text) return { candidateId: candidate.id, explanation: '원문과 동일하여 변경된 표현이나 의미가 없습니다.' };
+    const spacing = spacingOnlyExplanation(source, candidate.text);
+    // As with identical candidates, derive this limited statement from the input,
+    // not from model claims. Root JSON/ownership checks above still apply.
+    if (spacing) return { candidateId: candidate.id, explanation: spacing };
     const failure = (error: 'EXPLANATION_INVALID' | 'EXPLANATION_QUOTE_MISMATCH'): ExplanationResult => ({ candidateId: candidate.id, error });
     const parsed = draftSchema.safeParse(raw);
     if (!parsed.success) return failure('EXPLANATION_INVALID');

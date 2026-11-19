@@ -4,6 +4,7 @@ import { once } from 'node:events';
 import { createApp } from '../server/app.js';
 import { ProviderError, type CorrectionProvider } from '../server/llm/provider.js';
 import { createGeminiProvider } from '../server/llm/gemini.js';
+import { createEliceProvider } from '../server/llm/elice.js';
 import coverageCases from './fixtures/correction-coverage-cases.json';
 import { renderExplanationResponse } from '../server/llm/explanation-response.js';
 
@@ -15,6 +16,36 @@ async function setup(t: TestContext, provider?: CorrectionProvider, timeoutMs?: 
   t.after(() => new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); }));
   const base = `http://127.0.0.1:${address.port}`;
   return { base, post: (body: unknown) => fetch(`${base}/api/corrections`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) };
+}
+
+for (const name of ['gemini', 'elice'] as const) {
+  test(`${name}: space-only facts replace model speculation through HTTP without an extra call`, async t => {
+    let calls = 0;
+    const sourceText = '금요일까지 자료를 보내 주세요.';
+    const candidates = [{ id: 'spacing', text: '금요일까지 자료를 보내주세요.' }, { id: 'date', text: '이후에 자료를 보내 주세요.' }];
+    const fetcher: typeof fetch = async () => {
+      calls++;
+      const text = JSON.stringify({ explanations: [
+        { candidateId: 'spacing', references: [], explanation: '공백을 추가해 비격식적인 어조로 바뀌었습니다.' },
+        { candidateId: 'date', references: [{ before: '금요일까지', after: '이후에' }], explanation: '금요일이라는 기한이 불분명한 이후로 바뀌었습니다.' },
+      ] });
+      return Response.json(name === 'gemini'
+        ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text }] } }] }
+        : { choices: [{ finish_reason: 'stop', message: { content: text } }] });
+    };
+    const provider = name === 'gemini'
+      ? createGeminiProvider({ apiKey: 'fake-test-key', model: 'gemini-test' }, fetcher)
+      : createEliceProvider({ apiKey: 'fake-test-key', model: 'test-model', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' }, fetcher);
+    const { base } = await setup(t, provider);
+    const response = await fetch(`${base}/api/explanations`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId: `spacing-${name}`, sourceText, candidates }) });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.candidates, candidates);
+    assert.equal(body.explanations[0].explanation, '공백 1개를 삭제했습니다. 원문 비교에서 단어가 나뉜 위치가 의도에 맞는지 확인해 주세요.');
+    assert.match(body.explanations[1].explanation, /금요일이라는 기한/);
+    assert.equal(calls, 1);
+  });
 }
 
 test('HTTP guard preserves exact multiline evidence and rejects a fabricated multiline quote per candidate', async t => {
