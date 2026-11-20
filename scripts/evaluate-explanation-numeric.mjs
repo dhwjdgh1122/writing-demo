@@ -41,40 +41,49 @@ if (!args.includes('--live')) {
     const prior = JSON.parse(readFileSync(`docs/evaluations/${name}`, 'utf8'));
     if (prior.experimentId === experimentId) throw new Error('This provider already has a report for the frozen experiment; preserve it instead of retrying.');
   }
-  try { loadEnvFile('.env'); } catch { throw new Error('Cannot read local provider settings.'); }
-  const model = process.env[providerName === 'gemini' ? 'GEMINI_MODEL' : 'ELICE_MODEL']?.trim();
-  const apiKey = process.env[providerName === 'gemini' ? 'GEMINI_API_KEY' : 'ELICE_API_KEY']?.trim();
-  const baseUrl = process.env.ELICE_BASE_URL?.trim();
-  if (!apiKey || !model || (providerName === 'elice' && !baseUrl)) throw new Error('Required provider settings missing.');
-  if (model !== (providerName === 'gemini' ? 'gemini-3.5-flash-lite' : 'gpt-4o-mini')) throw new Error('Configured model differs from the frozen experiment.');
+  const plannedModel = providerName === 'gemini' ? 'gemini-3.5-flash-lite' : 'gpt-4o-mini';
   let calls = 0;
   let activeRun = null;
   const observedFetch = async (url, options) => {
-    if (!activeRun || ++calls > maxCalls) throw new Error('Unexpected model call.');
+    if (!activeRun || calls >= maxCalls) throw new Error('Unexpected model call.');
+    const run = activeRun;
     const original = JSON.parse(options.body);
-    const body = activeRun.version === 'numeric' ? augmentExplanationRequest(providerName, original) : original;
+    const body = run.version === 'numeric' ? augmentExplanationRequest(providerName, original) : original;
     const input = JSON.parse(providerName === 'gemini' ? body.contents[0].parts[0].text : body.messages[1].content);
-    activeRun.sentInput = input;
-    activeRun.requestSettings = providerName === 'gemini' ? body.generationConfig
+    run.sentInput = input;
+    run.requestSettings = providerName === 'gemini' ? body.generationConfig
       : { model: body.model, response_format: body.response_format, n: body.n, stream: body.stream, max_tokens: body.max_tokens };
-    const response = await fetch(url, { ...options, body: JSON.stringify(body) });
-    activeRun.upstreamStatus = response.status;
+    const requestOptions = { ...options, body: JSON.stringify(body) };
+    // Persist before handing off to fetch. If the process stops here, delivery
+    // and completion are unknown; this is a conservative attempt count.
+    run.modelCallAttempt = ++calls;
+    run.modelCallState = 'pending-result-unknown';
+    report.modelCalls = calls;
+    save();
+    let response;
+    try { response = await fetch(url, requestOptions); }
+    catch (error) {
+      run.modelCallState = 'fetch-failed';
+      save();
+      throw error; // Provider adapters sanitize errors; do not record the raw error.
+    }
+    run.upstreamStatus = response.status;
+    run.modelCallState = 'response-received';
     if (response.ok) {
       try {
         const envelope = await response.clone().json();
-        activeRun.rawCompletion = providerName === 'gemini'
+        run.rawCompletion = providerName === 'gemini'
           ? { finishReason: envelope.candidates?.[0]?.finishReason,
             text: envelope.candidates?.[0]?.content?.parts?.filter(p => !p.thought && typeof p.text === 'string').map(p => p.text).join('') ?? null }
           : { finishReason: envelope.choices?.[0]?.finish_reason, text: envelope.choices?.[0]?.message?.content ?? null };
         const usage = providerName === 'gemini' ? envelope.usageMetadata : envelope.usage;
         const keys = providerName === 'gemini' ? ['promptTokenCount','candidatesTokenCount','thoughtsTokenCount','totalTokenCount'] : ['prompt_tokens','completion_tokens','total_tokens'];
-        activeRun.tokenUsage = Object.fromEntries(keys.filter(k => typeof usage?.[k] === 'number').map(k => [k, usage[k]]));
-      } catch { activeRun.captureError = 'completion-capture-failed'; }
+        run.tokenUsage = Object.fromEntries(keys.filter(k => typeof usage?.[k] === 'number').map(k => [k, usage[k]]));
+      } catch { run.captureError = 'completion-capture-failed'; }
     }
+    save();
     return response; // Never repair output, bypass checks, or transform a partial completion.
   };
-  const provider = providerName === 'gemini' ? createGeminiProvider({ apiKey, model }, observedFetch)
-    : createEliceProvider({ apiKey, model, baseUrl }, observedFetch);
   const startedAt = new Date().toISOString();
   const files = ['scripts/evaluate-explanation-numeric.mjs', 'scripts/lib/explanation-numeric-evidence.ts', fixturePath,
     'server/llm/prompt.ts', 'server/llm/gemini.ts', 'server/llm/elice.ts', 'server/llm/parse-explanations.ts',
@@ -83,23 +92,48 @@ if (!args.includes('--live')) {
     experimentId, startedAt, codeCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     workingTreeStatus: execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim(),
     implementationSha256: Object.fromEntries(files.map(path => [path, hash(readFileSync(path))])),
-    provider: providerName, model, plan, maxCalls, cases,
+    provider: providerName, plannedModel, model: null, plan, maxCalls, cases,
     baselinePrompt: explanationInstruction, numericInstructionAppend: numericEvidenceInstruction,
     intervention: 'Computed literal-number evidence plus its interpretation boundaries; same base prompt, output schema, provider settings and API checks. Not a deployed feature.',
     path: 'Fixed candidates -> loopback /api/explanations -> real provider -> unchanged parser and quote checks. No browser or candidate generation.',
     acceptance: 'Diagnostic only: fewer original/candidate number omissions with no new factual error, required-condition/uncertainty/choice omission, control regression or hidden invalid explanation. No improvement or missing pair => no adoption evidence. One sample per arm is not a quality gate.',
     notes: 'Raw completion is distinct from displayed output. No automatic retry/fallback, no discarded failures. Same-case arms are adjacent, order alternates. Human benefit and satisfaction are not measured.',
-    runs: [],
+    state: 'preflight', modelCalls: 0, completed: false, unexecuted: [...plan], runs: [],
+    modelCallCounting: 'Persisted immediately before upstream fetch. Pending attempts have unknown delivery and completion; counts do not prove provider execution or billing.',
   };
   const output = `docs/evaluations/numeric-evidence-${providerName}-${startedAt.replace(/[:.]/g, '-')}.json`;
   const save = () => writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
-  const server = createApp(provider).listen(0, '127.0.0.1');
-  await new Promise((resolve, reject) => { server.once('listening', resolve); server.once('error', reject); });
   save();
+  const failPreflight = code => {
+    report.state = 'preflight-failed';
+    report.preflightError = code;
+    report.finishedAt = new Date().toISOString();
+    save();
+    throw new Error(`Experiment preflight failed: ${code}.`);
+  };
+  try { loadEnvFile('.env'); } catch { failPreflight('settings-read-failed'); }
+  const model = process.env[providerName === 'gemini' ? 'GEMINI_MODEL' : 'ELICE_MODEL']?.trim();
+  const apiKey = process.env[providerName === 'gemini' ? 'GEMINI_API_KEY' : 'ELICE_API_KEY']?.trim();
+  const baseUrl = process.env.ELICE_BASE_URL?.trim();
+  if (!apiKey || !model || (providerName === 'elice' && !baseUrl)) failPreflight('required-settings-missing');
+  if (model !== plannedModel) failPreflight('configured-model-mismatch');
+  let provider;
   try {
+    provider = providerName === 'gemini' ? createGeminiProvider({ apiKey, model }, observedFetch)
+      : createEliceProvider({ apiKey, model, baseUrl }, observedFetch);
+  } catch { failPreflight('provider-configuration-invalid'); }
+  report.model = model;
+  report.state = 'running';
+  save();
+  const server = createApp(provider).listen(0, '127.0.0.1');
+  try {
+    await new Promise((resolve, reject) => { server.once('listening', resolve); server.once('error', reject); });
     for (const entry of plan) {
       const c = cases.find(c => c.id === entry.caseId);
-      activeRun = { ...entry, startedAt: new Date().toISOString() };
+      activeRun = { ...entry, startedAt: new Date().toISOString(), state: 'pending-result-unknown' };
+      report.runs.push(activeRun);
+      report.unexecuted = plan.slice(report.runs.length);
+      save();
       const start = Date.now();
       try {
         const response = await fetch(`http://127.0.0.1:${server.address().port}/api/explanations`, {
@@ -110,7 +144,8 @@ if (!args.includes('--live')) {
         activeRun.response = await response.json();
       } catch { activeRun.transportError = 'local-request-failed'; }
       activeRun.elapsedMs = Date.now() - start;
-      report.runs.push(activeRun);
+      activeRun.state = 'finished';
+      activeRun.finishedAt = new Date().toISOString();
       save();
       console.log(JSON.stringify({ caseId: c.id, version: entry.version, status: activeRun.status,
         error: activeRun.response?.error?.code ?? activeRun.transportError,
@@ -118,14 +153,20 @@ if (!args.includes('--live')) {
       if (activeRun.transportError || ['MODEL_NOT_CONFIGURED','MODEL_CONFIGURATION_ERROR','MODEL_QUOTA_EXCEEDED',
         'MODEL_UNAVAILABLE','MODEL_TIMEOUT','MODEL_REQUEST_FAILED'].includes(activeRun.response?.error?.code)) break;
     }
+  } catch {
+    report.runnerError = 'runner-failed';
+    process.exitCode = 1;
   } finally {
     report.finishedAt = new Date().toISOString();
     report.modelCalls = calls;
-    report.completed = report.runs.length === plan.length;
+    report.completed = report.runs.length === plan.length && report.runs.every(run => run.state === 'finished');
+    report.state = report.completed ? 'completed' : 'stopped';
     report.unexecuted = plan.slice(report.runs.length);
-    save();
-    server.closeAllConnections();
-    await new Promise(resolve => server.close(resolve));
+    try { save(); }
+    finally {
+      server.closeAllConnections();
+      await new Promise(resolve => server.close(resolve));
+    }
   }
   console.log(JSON.stringify({ reportPath: output, modelCalls: calls, completed: report.completed }));
 }
