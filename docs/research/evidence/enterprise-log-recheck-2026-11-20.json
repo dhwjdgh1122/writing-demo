@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "analysisDateKst": "2026-11-20",
+  "scope": "Fresh read-only CSV and raw log analysis, followed by nested-field and alternative-key checks; no app or model calls",
+  "provenance": {
+    "execution": "One-off Node code executed from standard input; results initially reported in console/chat without creating files",
+    "recording": "Aggregate results transcribed during the subsequent documentation update on the same date",
+    "historicalSummaryGeneratedAtUtc": "2026-10-29T15:15:38.671Z",
+    "historicalSummariesOverwritten": false,
+    "sourceHashes": "SHA-256 captured during the documentation update; raw files were read only"
+  },
+  "sources": [
+    { "file": "(엔터) 북엔드 제공 데이터.csv", "bytes": 32833470, "rows": 75881, "sha256": "faa9e00b3494dec6d7a838699cbd43fbde98c5f50485113c216c6af545f54caf" },
+    { "file": "desktop_2026-04_to_06.jsonl", "bytes": 555159680, "rows": 547854, "sha256": "d01b6ffac9ea8dcd9507c4019ef77e0555e31cc7ef3deb47650c72079f2f9bfa" },
+    { "file": "extension_2026-04_to_06.jsonl", "bytes": 187765196, "rows": 132920, "sha256": "a1834963db81b7c0ab53ac54b53d7d1ce67a88213fe3968d0165c1e5496e3680" },
+    { "file": "homepage_2026-04_to_06.jsonl", "bytes": 122988582, "rows": 128615, "sha256": "cfb50d15ced329f1e544ce5b7fca96f3b8aec07996b5c9b01ca6368b515b6a75" }
+  ],
+  "method": {
+    "csvParser": "Quoted CSV fields including embedded newlines; each row checked against header width",
+    "textPair": "Exact input_sentence and selected_sentence strings, without normalization",
+    "csvLookup": ["source", "selected_sentence_id", "selected_index", "total_paraphrasing_sentence_count", "user_prompt"],
+    "textMatch": "Only lookup groups containing one distinct exact text pair; this does not prove a unique real selection event",
+    "runAndSelectionKey": ["distinct_id", "request_id"],
+    "rerunKey": ["distinct_id", "original_request_id"],
+    "deduplication": "Exact raw JSON line hashes within each core event before request-key joins; raw row totals retain repeats",
+    "alternativeIdentities": ["$user_id", "$device_id", "request ID alone"],
+    "tripleMeaning": "Run, rerun and selection share an original request reference, not proven generation order or regenerated-candidate attribution",
+    "timeComparison": "Event time and API timestamp, then processing timestamp; processing order is not treated as user action order",
+    "nestedInspection": "Recursively inspect llm_infos; inspect trigger enums and explicit child request fields"
+  },
+  "csv": { "rows": 75881, "nonemptyUserPromptRows": 3291, "previousReviewedPairs": 24, "previousReviewedPairsWithUserPrompt": 0 },
+  "logs": [
+    {
+      "source": "desktop", "rows": 547854, "invalidJson": 0, "eventTimeOnHourRows": 547854,
+      "coreRows": { "run": 47944, "selection": 34720, "rerun": 10230 },
+      "distinctRawCoreLines": { "run": 16963, "selection": 11892, "rerun": 3166 },
+      "requestKeys": { "run": 9231, "rerunOriginal": 1985, "selection": 6074, "runAndSelection": 5006, "runAndRerun": 658, "rerunAndSelection": 39, "allThree": 16 },
+      "textMapping": { "csvIdMatchedSelectionRows": 10519, "selectionRowsWithRequestId": 24264, "strictTextRequestRows": 63, "strictTextRequestKeys": 9, "withRun": 9, "withRerun": 0, "withBoth": 0 },
+      "tripleTiming": { "allSelectionAndRerunEventTimesEqual": 15, "anySelectionEventTimeAfterRerun": 0, "anySelectionEventTimeBeforeRerun": 1, "anySelectionProcessingTimeAfterRerun": 2 },
+      "tripleContext": { "distinctOwnerConflicts": 0, "runLengthFieldVersionConflicts": 0 },
+      "alternativeKeys": { "allThreeForEachAlternative": 16, "strictTextRequestKeysForEachAlternative": 9, "textWithRerunForEachAlternative": 0 },
+      "explicitChildRequestKeys": 0,
+      "triggerRows": { "keyboard_shortcut": 14499, "editor": 4609 },
+      "llmInfos": { "rows": 18466, "objects": 55179, "fields": ["category", "index", "name", "provider", "version"], "candidateTextOrRequestIdsObserved": false }
+    },
+    {
+      "source": "extension", "rows": 132920, "invalidJson": 0, "eventTimeOnHourRows": 132920,
+      "coreRows": { "run": 68361, "selection": 58067, "rerun": 0 },
+      "distinctRawCoreLines": { "run": 25124, "selection": 21245, "rerun": 0 },
+      "requestKeys": { "run": 0, "rerunOriginal": 0, "selection": 0, "runAndRerun": 0, "allThree": 0 },
+      "textMapping": { "csvIdMatchedSelectionRows": 58067, "selectionRowsWithRequestId": 0, "strictTextRequestRows": 0, "strictTextRequestKeys": 0, "withRun": 0, "withRerun": 0, "withBoth": 0 },
+      "explicitChildRequestKeys": 0,
+      "triggerRows": { "shortcut": 64, "floating_icon": 7531, "button_click": 3789 },
+      "llmInfos": { "rows": 0 }
+    },
+    {
+      "source": "homepage", "rows": 128615, "invalidJson": 0, "eventTimeOnHourRows": 128615,
+      "coreRows": { "run": 10073, "selection": 7295, "rerun": 0 },
+      "distinctRawCoreLines": { "run": 3497, "selection": 2458, "rerun": 0 },
+      "requestKeys": { "run": 0, "rerunOriginal": 0, "selection": 0, "runAndRerun": 0, "allThree": 0 },
+      "textMapping": { "csvIdMatchedSelectionRows": 7295, "selectionRowsWithRequestId": 0, "strictTextRequestRows": 0, "strictTextRequestKeys": 0, "withRun": 0, "withRerun": 0, "withBoth": 0 },
+      "explicitChildRequestKeys": 0,
+      "triggerRows": { "floating_icon": 1764, "button_click": 8299, "shortcut": 10 },
+      "llmInfos": { "rows": 0 }
+    }
+  ],
+  "totalLogRows": 809389,
+  "findings": {
+    "explicitRerunRecorded": true,
+    "originalRunToRerunPartiallyLinked": true,
+    "selectedTextAttributedToRegeneratedCandidate": "not established",
+    "initialVersusRegeneratedCandidatesComparable": "not established",
+    "dissatisfactionOrSatisfactionProven": false
+  },
+  "limits": [
+    "Counts are rows or observed keys, not verified independent users, requests or actions",
+    "Absent rerun events or request IDs in a product do not establish that no retry occurred",
+    "CSV lacks full unselected candidate sets and generation-attempt attribution",
+    "A common original-request reference does not establish which attempt generated a selected candidate",
+    "Core event and API timestamps have hour granularity; finer processing timestamps do not prove action order",
+    "Nonempty user_prompt is not established as a retry-reason or satisfaction response",
+    "No new explanatory model evaluation, user-effect test, product change or completion of issue 22"
+  ]
+}
