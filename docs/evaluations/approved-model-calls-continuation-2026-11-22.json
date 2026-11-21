@@ -417,6 +417,54 @@
       "status": "received",
       "httpStatus": 503,
       "finishedAt": "2026-11-21T15:42:11.437Z"
+    },
+    {
+      "id": "dc12c831-61a7-479d-8a55-3a9ac1f52a99",
+      "experimentId": "issue22-cross-review-20261122",
+      "label": "E-03-from-gemini",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "perProviderMaxCalls": 2,
+      "reservedAt": "2026-11-21T15:55:03.594Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T15:55:06.613Z"
+    },
+    {
+      "id": "2972cd27-aadc-4759-9ee1-7b393039d00b",
+      "experimentId": "issue22-cross-review-20261122",
+      "label": "R-03-from-gemini",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "perProviderMaxCalls": 2,
+      "reservedAt": "2026-11-21T15:55:06.681Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T15:55:09.177Z"
+    },
+    {
+      "id": "6780c9d5-2b30-486a-ae0e-fb2625e9bbb8",
+      "experimentId": "issue22-cross-review-20261122",
+      "label": "E-03-from-elice",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "perProviderMaxCalls": 2,
+      "reservedAt": "2026-11-21T15:55:21.788Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T15:55:23.567Z"
+    },
+    {
+      "id": "e0278f87-dd34-4fef-b80c-d6a7d36ae141",
+      "experimentId": "issue22-cross-review-20261122",
+      "label": "R-03-from-elice",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "perProviderMaxCalls": 2,
+      "reservedAt": "2026-11-21T15:55:23.648Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T15:55:25.087Z"
     }
   ]
 }
