@@ -31,15 +31,17 @@ function repositoryPath(value) {
 }
 
 export function buildContinuationPlan(config, fixture) {
-  const allowed = ['experimentId', 'fixturePath', 'caseIds', 'arms', 'promptModule', 'reportPrefix', 'perProviderMaxCalls', 'ledgerPath'];
+  const allowed = ['experimentId', 'fixturePath', 'caseIds', 'arms', 'promptModule', 'reportPrefix', 'perProviderMaxCalls', 'ledgerPath', 'repetitions'];
   if (!isObject(config) || Object.keys(config).some(key => !allowed.includes(key)) || !safeId(config.experimentId)
     || !Array.isArray(config.caseIds) || config.caseIds.length === 0 || !config.caseIds.every(safeId)
     || new Set(config.caseIds).size !== config.caseIds.length || !Array.isArray(config.arms) || config.arms.length !== 2
     || !config.arms.every(arm => isObject(arm)
-      && ['id,instructionExport', 'id,instructionExport,referenceExport'].includes(Object.keys(arm).sort().join(','))
+      && Object.keys(arm).every(key => ['id', 'instructionExport', 'referenceExport', 'temperature'].includes(key))
       && safeId(arm.id) && exportName(arm.instructionExport)
-      && (!Object.hasOwn(arm, 'referenceExport') || exportName(arm.referenceExport)))
+      && (!Object.hasOwn(arm, 'referenceExport') || exportName(arm.referenceExport))
+      && (!Object.hasOwn(arm, 'temperature') || arm.temperature === 0))
     || new Set(config.arms.map(arm => arm.id)).size !== config.arms.length
+    || (Object.hasOwn(config, 'repetitions') && ![1, 2].includes(config.repetitions))
     || !Number.isSafeInteger(config.perProviderMaxCalls) || config.perProviderMaxCalls <= 0
     || !Array.isArray(fixture) || !fixture.every(c => isObject(c) && safeId(c.id))
     || new Set(fixture.map(c => c.id)).size !== fixture.length) throw new Error('Invalid continuation experiment plan or fixture.');
@@ -50,12 +52,41 @@ export function buildContinuationPlan(config, fixture) {
     explanationInputSchema.parse({ requestId: c.id, sourceText: c.sourceText, candidates: c.candidates });
     return c;
   });
-  const plan = cases.flatMap((c, index) => (index % 2 ? [...config.arms].reverse() : config.arms)
-    .map(arm => ({ caseId: c.id, arm: arm.id })));
-  if (plan.length > config.perProviderMaxCalls || plan.some(entry => `${entry.caseId}-${entry.arm}`.length > 120)) {
+  const repetitions = config.repetitions ?? 1;
+  const plan = cases.flatMap((c, index) => Array.from({ length: repetitions }, (_, repeat) =>
+    ((index + repeat) % 2 ? [...config.arms].reverse() : config.arms)
+      .map(arm => ({ caseId: c.id, arm: arm.id, ...(repetitions === 2 ? { repetition: repeat + 1 } : {}) }))).flat());
+  if (plan.length > config.perProviderMaxCalls || plan.some(entry => continuationCallLabel(entry).length > 120)) {
     throw new Error('Planned requests exceed the experiment cap or identifier limit.');
   }
   return { cases, plan };
+}
+
+export function continuationCallLabel(entry) {
+  return `${entry.caseId}-${entry.arm}${entry.repetition === undefined ? '' : `-r${entry.repetition}`}`;
+}
+
+export function assertContinuationSamplingProvider(provider, arms) {
+  if (provider !== 'elice' && arms.some(arm => Object.hasOwn(arm, 'temperature'))) {
+    throw new Error('Explicit temperature is supported only for elice in this experiment.');
+  }
+}
+
+const samplingKeys = ['temperature', 'top_p', 'topP', 'seed', 'top_k', 'topK'];
+export function continuationSamplingBody(provider, originalBody, arm) {
+  assertContinuationSamplingProvider(provider, [arm]);
+  if (!isObject(originalBody)) throw new Error('Invalid provider request body.');
+  if (!Object.hasOwn(arm, 'temperature')) return structuredClone(originalBody);
+  if (arm.temperature !== 0 || samplingKeys.some(key => Object.hasOwn(originalBody, key))) {
+    throw new Error('Sampling experiment cannot overwrite existing sampling settings or use a nonzero temperature.');
+  }
+  return { ...structuredClone(originalBody), temperature: 0 };
+}
+
+export function continuationRequestSettings(provider, body) {
+  return provider === 'gemini' ? structuredClone(body.generationConfig)
+    : { model: body.model, response_format: structuredClone(body.response_format), n: body.n, stream: body.stream,
+      max_tokens: body.max_tokens, ...Object.fromEntries(samplingKeys.filter(key => Object.hasOwn(body, key)).map(key => [key, body[key]])) };
 }
 
 // Whitelist the request payload. Fixture required/forbidden/origin fields remain report-only.
@@ -125,6 +156,8 @@ export async function runContinuation(args = process.argv.slice(2)) {
   const fixturePath = repositoryPath(config.fixturePath);
   const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'));
   const { cases, plan } = buildContinuationPlan(config, fixture);
+  // Reject unsupported sampling before loading prompts, .env, ledgers or reports.
+  assertContinuationSamplingProvider(providerName, config.arms);
   const promptPath = repositoryPath(config.promptModule);
   const promptModule = await import(pathToFileURL(promptPath).href);
   const instructions = Object.fromEntries(config.arms.map(arm => {
@@ -167,14 +200,14 @@ export async function runContinuation(args = process.argv.slice(2)) {
     provider: providerName, model, config, cases, plan, instructions, promptSha256, lexicalReferences, referenceSha256,
     priorAuthorization: { previousLedger: ledger.previousLedger, authorization: ledger.authorization, callsAtStart: ledger.calls.length },
     path: 'Fixed candidates -> loopback /api/explanations -> selected real provider -> current parser (including spacing-only factual notice) and quotation check. Raw model output is evaluated separately. No correction generation or browser.',
-    notes: 'Paired arms alternate order by case. No retries, model switching, answer-field injection or discarded failures. Raw completion, parsed model JSON, adapter and API outputs are distinct. This is not a user-benefit evaluation.',
+    notes: 'Paired arms alternate order by case and, when configured, by repetition. No retries, model switching, answer-field injection or discarded failures. Raw completion, parsed model JSON, adapter and API outputs are distinct. This is not a user-benefit evaluation.',
     modelCallCounting: 'Durable reservation immediately before upstream fetch; interrupted/failed attempts count even when delivery or billing is unknown.',
     modelCalls: 0, state: 'preflight', completed: false, runs: [], unexecuted: [...plan],
   };
   // Exclusive creation prevents accidental overwrite by another process or a repeated command.
   writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
   const save = () => {
-    report.unexecuted = plan.filter(entry => !report.runs.some(run => run.caseId === entry.caseId && run.arm === entry.arm && run.callId));
+    report.unexecuted = plan.filter(entry => !report.runs.some(run => continuationCallLabel(run) === continuationCallLabel(entry) && run.callId));
     saveReport(reportPath, report);
   };
   let activeRun = null, server = null;
@@ -183,7 +216,7 @@ export async function runContinuation(args = process.argv.slice(2)) {
     if (!run || run.callId || report.modelCalls >= config.perProviderMaxCalls || report.modelCalls >= plan.length) {
       throw new Error('Unexpected additional model request.');
     }
-    const body = JSON.parse(options.body);
+    let body = JSON.parse(options.body);
     const input = JSON.parse(providerName === 'gemini' ? body.contents[0].parts[0].text : body.messages[1].content);
     const sentInput = continuationModelInput(input, run.submittedInput, lexicalReferences[run.arm] ?? undefined);
     const instruction = instructions[run.arm];
@@ -194,14 +227,14 @@ export async function runContinuation(args = process.argv.slice(2)) {
       body.messages[0].content = instruction;
       body.messages[1].content = JSON.stringify(sentInput);
     }
+    body = continuationSamplingBody(providerName, body, config.arms.find(arm => arm.id === run.arm));
     run.sentInput = structuredClone(sentInput);
     run.instructionSha256 = hash(instruction);
     run.referenceSha256 = referenceSha256[run.arm];
-    run.requestSettings = providerName === 'gemini' ? body.generationConfig
-      : { model: body.model, response_format: body.response_format, n: body.n, stream: body.stream, max_tokens: body.max_tokens };
+    run.requestSettings = continuationRequestSettings(providerName, body);
     options.signal?.throwIfAborted();
     run.callId = reserveContinuationCall(ledgerPath, { experimentId: config.experimentId,
-      label: `${run.caseId}-${run.arm}`, provider: providerName, model }, config.perProviderMaxCalls);
+      label: continuationCallLabel(run), provider: providerName, model }, config.perProviderMaxCalls);
     report.modelCalls++;
     run.callState = 'reserved-result-unknown';
     save();
@@ -279,6 +312,7 @@ export async function runContinuation(args = process.argv.slice(2)) {
       activeRun.state = 'finished'; activeRun.finishedAt = new Date().toISOString(); save();
       const errorCode = activeRun.response?.error?.code;
       console.log(JSON.stringify({ caseId: entry.caseId, arm: entry.arm, status: activeRun.status,
+        ...(entry.repetition === undefined ? {} : { repetition: entry.repetition }),
         error: errorCode ?? activeRun.transportError,
         withheld: activeRun.response?.explanations?.filter(item => 'error' in item).map(item => item.candidateId),
         modelCalls: report.modelCalls, elapsedMs: activeRun.elapsedMs }));
