@@ -60,6 +60,94 @@
       "status": "received",
       "httpStatus": 200,
       "finishedAt": "2026-11-21T04:37:11.336Z"
+    },
+    {
+      "id": "2d03e8c6-1368-4263-b94d-ee1b29568589",
+      "phase": "development",
+      "label": "stage3-E-03-baseline",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "reservedAt": "2026-11-21T06:32:54.734Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T06:32:56.716Z"
+    },
+    {
+      "id": "8be91217-e6b8-481f-a26c-012781730650",
+      "phase": "development",
+      "label": "stage3-E-03-revision",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "reservedAt": "2026-11-21T06:32:56.767Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T06:32:58.009Z"
+    },
+    {
+      "id": "30cb1168-2bc2-466c-bc13-737b3c6f482d",
+      "phase": "development",
+      "label": "stage3-R-03-baseline",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "reservedAt": "2026-11-21T06:32:58.051Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T06:32:59.417Z"
+    },
+    {
+      "id": "c0eaae4d-06b4-4e71-b98c-0f14151ba1ae",
+      "phase": "development",
+      "label": "stage3-R-03-revision",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "reservedAt": "2026-11-21T06:32:59.460Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T06:33:00.459Z"
+    },
+    {
+      "id": "7cff5a20-bfea-40e0-ace1-8ce77acb6b33",
+      "phase": "development",
+      "label": "stage3-E-03-baseline",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "reservedAt": "2026-11-21T06:33:13.899Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T06:33:16.195Z"
+    },
+    {
+      "id": "f3e0891f-2174-414e-8066-9d9240144bd3",
+      "phase": "development",
+      "label": "stage3-E-03-revision",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "reservedAt": "2026-11-21T06:33:16.262Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T06:33:18.643Z"
+    },
+    {
+      "id": "b5d8bd38-3021-44f2-9c33-8c2fbb35e5aa",
+      "phase": "development",
+      "label": "stage3-R-03-baseline",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "reservedAt": "2026-11-21T06:33:18.681Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T06:33:20.150Z"
+    },
+    {
+      "id": "8d6c5e51-4eef-4304-9a8b-23fd624e7e2f",
+      "phase": "development",
+      "label": "stage3-R-03-revision",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "reservedAt": "2026-11-21T06:33:20.184Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T06:33:22.316Z"
     }
   ]
 }
