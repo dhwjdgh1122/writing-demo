@@ -178,7 +178,7 @@ TASKS는 작업 안내·출처·링크를, Issue는 상세 작업 내용·완료
 | 교정 설명의 사용자 기대와 평가 기준 정리 | [#5](https://github.com/dhwjdgh1122/writing-demo/issues/5) |
 | 선택 유지·교정 대상·화면 안내의 역할 확인 | [#6](https://github.com/dhwjdgh1122/writing-demo/issues/6) — [FEEDBACK-04](사용자%20피드백.md#feedback-04)의 적용 후 안내 개선은 PR #24로 반영했다. 이후 선택·전송 범위와 읽기 전용 안내를 별도로 점검했으며 [SELECTION-SCOPE-01](검증%20기록.md#selection-scope-01)에 근거·한계를 연결한다. |
 | 같은 내용 붙여넣기의 선택 유지 동작 확인 | [#7](https://github.com/dhwjdgh1122/writing-demo/issues/7) |
-| 교정 히스토리의 필요성과 저장 범위 논의 | [#8](https://github.com/dhwjdgh1122/writing-demo/issues/8) |
+| 브라우저 교정 히스토리 저장·조회·삭제·내보내기 | [#8](https://github.com/dhwjdgh1122/writing-demo/issues/8) |
 | Gemini·엘리스 후보와 설명 품질 비교 계획 | [#9](https://github.com/dhwjdgh1122/writing-demo/issues/9) |
 
 #5의 설명 목적·명칭 검토·대표 사례·수동 평가 방법은 [교정 설명 평가 기준](교정%20설명%20평가%20기준.md)에 정리한다. 코드·프롬프트 개선 및 실제 사용자 효과 검증과 구분하며, 범위·완료 기준은 해당 Issue에서 확인한다.
@@ -231,3 +231,5 @@ TASKS는 작업 안내·출처·링크를, Issue는 상세 작업 내용·완료
 - 공동 버전의 검토·통합은 오정호가 담당한다. 팀원 PR의 승인·병합과 오정호 본인의 직접 반영 기준은 협업 안내를 따른다. 이 역할은 개별 기능의 담당 배정과 구분한다.
 - 담당·일정·진행 상태는 Projects, 작업 내용·완료 기준·논의는 Issue에서 관리하고 기능·설계 변경은 해당 명세에 반영한다.
 - 팀원 제보와 직접 재현, 개선 제안과 채택된 작업, 구현과 검증 완료를 구분한다. 피드백 접수만으로 제품 요구사항이나 완료 상태를 바꾸지 않는다.
+
+**11/21 #8 후속 채택:** 앞선 표의 히스토리 아이디어를 현재 브라우저 저장·조회·삭제·JSON 내보내기로 구체화했다. [기능 범위](FEATURE_SPEC.md#correction-history)를 따르며, 초기 미채택 기록을 과거 발표 당시의 구현으로 바꾸지 않는다. 전체 원문 복원·계정/DB·기기 동기화는 포함하지 않는다.

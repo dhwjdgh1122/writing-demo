@@ -14,7 +14,7 @@ test('real unconfigured server: selection persists on panel click and reports mi
   await page.getByRole('heading', { name: '원문 작업 공간' }).click();
   await expectSelected(page, '교정할 문장입니다.');
   await startCorrection(page);
-  await expect(page.getByRole('status')).toContainText('AI 연결 설정이 필요합니다');
+  await expect(page.locator('.correction-panel').getByRole('status')).toContainText('AI 연결 설정이 필요합니다');
   await expect(page.getByLabel('원문 입력')).toHaveValue('앞 문장. 교정할 문장입니다. 뒤 문장.');
 });
 test('test-only API response: compares and applies only the selected repeated occurrence', async ({ page }) => {
@@ -37,7 +37,7 @@ test('test-only API response: compares and applies only the selected repeated oc
   await page.screenshot({ path: 'test-results/candidates-test-response.png', fullPage: true });
   await page.getByRole('button', { name: '이 문장 적용', exact: true }).click();
   await expect(page.getByLabel('원문 입력')).toHaveValue(source.slice(0, start) + '목요일에 안내하겠습니다.' + source.slice(start + target.length));
-  await expect(page.getByRole('status')).toContainText('적용했습니다');
+  await expect(page.locator('.correction-panel').getByRole('status')).toContainText('적용했습니다');
   await expect(page.locator('.candidate-card')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: '적용한 내용을 확인해주세요' })).toBeVisible();
   await expect(page.locator('#selection-help')).toHaveText('원문에 반영된 내용을 확인해주세요.');
@@ -45,7 +45,7 @@ test('test-only API response: compares and applies only the selected repeated oc
   await page.screenshot({ path: 'test-results/applied-guidance.png', fullPage: true });
   await select(page, 0, 3);
   await expect(page.getByRole('heading', { name: '교정할 준비가 되었습니다' })).toBeVisible();
-  await expect(page.getByRole('status')).toHaveCount(0);
+  await expect(page.locator('.correction-panel').getByRole('status')).toHaveCount(0);
   await page.getByRole('button', { name: '선택 해제' }).click();
   await expect(page.getByRole('heading', { name: '문장을 선택하면 시작됩니다' })).toBeVisible();
 });

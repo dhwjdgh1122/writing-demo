@@ -1,12 +1,17 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { LIMITS, type CorrectionResult, type ExplanationResult, type Candidate } from '../../../shared/contracts';
 import { requestExplanations } from '../lib/api';
 import { CandidateCard } from './CandidateCard';
 import { Icon } from './Icon';
 
 // The parent keys this component by correction request ID. New results unmount
-// the old view, cancelling its request and discarding its in-memory explanations.
-export function CorrectionResults({ result, onApply }: { result: CorrectionResult; onApply: (id: string) => void }) {
+// the old view and cancelling its request. Completed explanations can be saved
+// by the parent without making history responsible for model requests.
+export function CorrectionResults({ result, onApply, onExplanationResults }: {
+  result: CorrectionResult;
+  onApply: (id: string) => void;
+  onExplanationResults?: (requestId: string, explanations: ExplanationResult[]) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -14,6 +19,12 @@ export function CorrectionResults({ result, onApply }: { result: CorrectionResul
   const [targets, setTargets] = useState<Candidate[]>(result.candidates);
   const [error, setError] = useState<string | null>(null);
   const panelId = useId();
+  const explanationCallback = useRef(onExplanationResults);
+
+  useEffect(() => { explanationCallback.current = onExplanationResults; }, [onExplanationResults]);
+  useEffect(() => {
+    if (explanations) explanationCallback.current?.(result.requestId, explanations);
+  }, [explanations, result.requestId]);
 
   useEffect(() => {
     if (!attempt) return;
@@ -26,7 +37,7 @@ export function CorrectionResults({ result, onApply }: { result: CorrectionResul
       .catch(reason => { if (active) setError(timedOut ? '설명 응답 시간이 초과되었습니다. 다시 시도해주세요.' : reason instanceof Error ? reason.message : '설명을 불러오지 못했습니다.'); })
       .finally(() => { clearTimeout(timer); if (active) setLoading(false); });
     return () => { active = false; clearTimeout(timer); controller.abort(); };
-  }, [attempt, result, targets]);
+  }, [attempt, result.sourceText, targets]);
 
   const failedIds = explanations?.filter(e => 'error' in e).map(e => e.candidateId) ?? [];
   const request = () => {
