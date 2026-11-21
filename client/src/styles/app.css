@@ -53,3 +53,44 @@ main{max-width:1488px;margin:0 auto;padding:38px 24px 20px}.page-intro{display:f
 .candidate-explanation { margin: 16px 0; padding: 14px 16px; border-radius: 10px; background: #f7f3ff; border: 1px solid #e7def6; overflow-wrap: anywhere; }
 .candidate-explanation h4 { margin: 0 0 7px; font-size: 13px; color: #6930c3; }
 .candidate-explanation p { margin: 0; font-size: 14px; line-height: 1.8; color: #4c435e; white-space: pre-wrap; }
+.history-panel { margin-top: 24px; min-width: 0; }
+.history-heading { padding: 20px 24px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.history-heading h2 { font-size: 16px; }
+.history-heading h2 span { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 8px; }
+.history-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.history-actions button { min-height: 40px; }
+.history-actions .secondary-button:disabled { color: #8d8696; border-color: var(--line); background: #f7f7fa; }
+.history-notice { margin: 0 24px 16px; color: #62566f; font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.history-storage-status { margin: 0 24px 16px; padding: 14px; border: 1px solid #e8b5aa; border-radius: 8px; background: #fff7f5; font-size: 13px; line-height: 1.8; color: #843d31; }
+.history-storage-status .history-actions { margin-top: 10px; }
+.history-storage-status .history-actions button { background: #fff; }
+.history-feedback { margin: 0 24px 12px; color: #367563; font-size: 12px; line-height: 1.7; }
+.history-empty { padding: 20px 24px 28px; color: var(--muted); font-size: 13px; line-height: 1.8; }
+.history-list { display: grid; gap: 12px; padding: 0 24px 24px; }
+.history-entry { min-width: 0; border: 1px solid var(--line); border-radius: 8px; }
+.history-entry > summary { cursor: pointer; padding: 14px 16px; color: #4c435e; border-radius: 8px; }
+.history-entry > summary:hover { background: #faf8fd; }
+.history-summary-title { font-size: 12px; line-height: 1.8; }
+.history-summary-title time { font-weight: 600; }
+.history-summary-count { margin-left: 12px; color: var(--muted); }
+.history-preview { display: block; margin-top: 8px; font-size: 14px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.history-apply-status { display: block; margin-top: 7px; color: #62566f; font-size: 12px; line-height: 1.7; }
+.history-entry-content { padding: 16px; border-top: 1px solid var(--line); }
+.history-entry-content h3 { font-size: 13px; color: #4c435e; }
+.history-source { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; overscroll-behavior: contain; border: 1px solid #e7e1ed; border-radius: 6px; background: #faf9fc; padding: 12px; margin: 10px 0 16px; font-size: 14px; line-height: 1.8; }
+.history-source:focus-visible { outline: 3px solid #9c76e8; outline-offset: 2px; }
+.history-explanation-note { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 0 0 14px; }
+.history-missing-explanation { margin: 8px 0 0; }
+.history-candidate-status { margin: 0 0 8px; color: #367563; font-size: 12px; line-height: 1.7; }
+.history-entry-footer { display: flex; justify-content: flex-end; margin-top: 14px; }
+.history-delete { min-height: 40px; color: #884536; border-color: #dfc5bd; }
+.history-delete:hover:not(:disabled) { background: #fff7f5; }
+@media(max-width:520px) {
+  .history-heading { padding: 16px 16px 12px; align-items: flex-start; }
+  .history-notice,.history-storage-status,.history-feedback { margin-left: 16px; margin-right: 16px; }
+  .history-list { padding: 0 12px 16px; }
+  .history-entry > summary,.history-entry-content { padding: 12px; }
+  .history-summary-count { margin-left: 8px; }
+  .history-heading > .history-actions { width: 100%; }
+  .history-heading > .history-actions button { flex: 1; padding-left: 8px; padding-right: 8px; }
+}

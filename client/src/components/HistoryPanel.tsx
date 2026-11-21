@@ -1,0 +1,121 @@
+import { useId, useRef, useState } from 'react';
+import type { HistoryRecord } from '../lib/history';
+import { CandidateCard } from './CandidateCard';
+
+type HistoryStatus = 'loading' | 'saved' | 'saving' | 'memory-only' | 'error' | 'corrupt';
+
+type HistoryPanelProps = {
+  records: HistoryRecord[];
+  status: HistoryStatus;
+  error: string | null;
+  remove: (id: string) => void;
+  clear: () => void;
+  retry: () => void;
+  reset: () => void;
+  exportJson: () => string;
+};
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '날짜 확인 불가' : new Intl.DateTimeFormat('ko-KR', {
+    dateStyle: 'medium', timeStyle: 'short',
+  }).format(date);
+}
+
+function HistoryEntry({ record, onRemove }: { record: HistoryRecord; onRemove: (id: string) => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const sourceId = useId();
+  const preview = Array.from(record.sourceText);
+  const appliedIndex = record.candidates.findIndex(candidate => candidate.id === record.appliedCandidateId);
+
+  return <details className="history-entry" onToggle={event => setExpanded(event.currentTarget.open)}>
+    <summary>
+      <span className="history-summary-title"><time dateTime={record.createdAt}>{formatDate(record.createdAt)}</time><span className="history-summary-count">후보 {record.candidates.length}개</span></span>
+      <span className="history-preview">{preview.slice(0, 100).join('')}{preview.length > 100 ? '…' : ''}</span>
+      <span className="history-apply-status">{appliedIndex >= 0 ? `당시 후보 ${appliedIndex + 1} 적용 기록 있음` : '적용 기록 없음'}</span>
+    </summary>
+    {expanded && <div className="history-entry-content">
+      <h3 id={sourceId}>교정 요청 당시 원문</h3>
+      <div className="history-source" role="region" aria-labelledby={sourceId} tabIndex={0}>{record.sourceText}</div>
+      <p className="history-explanation-note">당시 받아 둔 교정 이유만 표시합니다. 이력 조회로 새 설명을 요청하지 않습니다. 적용 표시는 당시 기록이며, 현재 글에 그대로 남아 있다는 뜻은 아닙니다.</p>
+      <div className="candidate-list">{record.candidates.map((candidate, index) => {
+        const explanation = record.explanations.find(value => value.candidateId === candidate.id);
+        return <div key={candidate.id}>
+          {candidate.id === record.appliedCandidateId && <p className="history-candidate-status">당시 적용한 후보{record.appliedAt && <> · <time dateTime={record.appliedAt}>{formatDate(record.appliedAt)}</time></>}</p>}
+          <CandidateCard candidate={candidate} source={record.sourceText} index={index} explanation={explanation} />
+          {!explanation && <p className="history-explanation-note history-missing-explanation">이 후보에 저장된 교정 이유가 없습니다.</p>}
+        </div>;
+      })}</div>
+      <div className="history-entry-footer"><button type="button" className="secondary-button history-delete" onClick={() => onRemove(record.id)}>이 기록 삭제</button></div>
+    </div>}
+  </details>;
+}
+
+export function HistoryPanel({ records, status, error, remove: onRemove, clear: onClear, retry: onRetry, reset: onReset, exportJson: onExport }: HistoryPanelProps) {
+  const headingId = useId();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const storageProblem = status === 'memory-only' || status === 'error' || status === 'corrupt';
+  const focusHeading = () => requestAnimationFrame(() => headingRef.current?.focus({ preventScroll: true }));
+  const remove = (id: string) => {
+    if (!window.confirm('이 교정 기록을 삭제할까요? 삭제한 기록은 되돌릴 수 없으며, 현재 작성 중인 글은 바뀌지 않습니다.')) return;
+    onRemove(id);
+    focusHeading();
+  };
+  const clear = () => {
+    if (!window.confirm(`교정 이력 ${records.length}개를 모두 삭제할까요? 삭제한 기록은 되돌릴 수 없으며, 현재 작성 중인 글은 바뀌지 않습니다.`)) return;
+    onClear();
+    focusHeading();
+  };
+  const reset = () => {
+    if (!window.confirm('읽지 못한 기존 저장 데이터와 현재 교정 이력을 초기화할까요? 삭제한 기록은 복구할 수 없습니다. 현재 목록이 필요하면 먼저 JSON으로 내보내세요.')) return;
+    onReset();
+    focusHeading();
+  };
+  const download = () => {
+    setExportError(null);
+    let url: string | null = null;
+    let link: HTMLAnchorElement | null = null;
+    try {
+      const json = onExport();
+      url = URL.createObjectURL(new Blob([json], { type: 'application/json;charset=utf-8' }));
+      link = document.createElement('a');
+      link.href = url;
+      link.download = `writing-demo-history-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+    } catch {
+      setExportError('교정 이력을 내보내지 못했습니다. 브라우저의 다운로드 설정을 확인하고 다시 시도해주세요.');
+    } finally {
+      link?.remove();
+      if (url) { const downloadUrl = url; setTimeout(() => URL.revokeObjectURL(downloadUrl), 1_000); }
+    }
+  };
+
+  return <section className="history-panel panel" aria-labelledby={headingId}>
+    <div className="history-heading">
+      <h2 id={headingId} ref={headingRef} tabIndex={-1}>교정 이력<span>{records.length}개</span></h2>
+      <div className="history-actions">
+        <button type="button" className="secondary-button" disabled={!records.length || status === 'loading'} onClick={download}>JSON 내보내기</button>
+        <button type="button" className="secondary-button history-delete" disabled={!records.length || status === 'loading'} onClick={clear}>전체 삭제</button>
+      </div>
+    </div>
+    <p className="history-notice">교정한 부분의 원문·후보·받아 둔 설명을 이 브라우저에 저장합니다. 다른 브라우저와 동기화되지 않으며 브라우저 데이터를 지우면 사라질 수 있습니다. 내보낸 JSON에도 문장 내용이 포함되니 공유 전에 확인해주세요.</p>
+    {storageProblem && <div className="history-storage-status" role="status" aria-live="polite">
+      <p>{status === 'corrupt'
+        ? '기존 교정 이력을 읽지 못해 자동 저장을 중단했습니다. 기존 저장 데이터는 그대로 두었습니다. 새 기록은 이 화면을 닫으면 사라질 수 있습니다.'
+        : status === 'memory-only'
+          ? '이 브라우저에서는 이력을 저장할 수 없어 현재 화면에서만 보관합니다. 화면을 닫기 전에 필요한 기록을 JSON으로 내보내세요.'
+          : '교정 이력의 변경 내용을 브라우저에 저장하지 못했습니다. 현재 화면에는 남아 있지만, 화면을 닫기 전에 JSON으로 내보내거나 다시 저장해주세요.'}</p>
+      {error && <p>{error}</p>}
+      <div className="history-actions">
+        {status !== 'corrupt' && <button type="button" className="secondary-button" onClick={onRetry}>저장 다시 시도</button>}
+        {status === 'corrupt' && <button type="button" className="secondary-button history-delete" onClick={reset}>이력 저장소 초기화</button>}
+      </div>
+    </div>}
+    <p className="history-feedback" role="status" aria-live="polite">{status === 'loading' ? '교정 이력을 불러오고 있습니다.' : status === 'saving' ? '교정 이력을 저장하고 있습니다.' : status === 'saved' && records.length ? '이 브라우저에 저장되었습니다.' : ''}</p>
+    {exportError && <p className="history-storage-status" role="alert">{exportError}</p>}
+    {records.length ? <div className="history-list">{records.map(record => <HistoryEntry key={record.id} record={record} onRemove={remove} />)}</div>
+      : status !== 'loading' && <p className="history-empty">아직 표시할 교정 이력이 없습니다. 교정 결과를 받으면 여기에 기록됩니다.</p>}
+  </section>;
+}

@@ -1,15 +1,38 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { countCharacters, LIMITS, selectionProblem } from '../../shared/contracts';
-import { editorReducer, initialState } from './state/editor';
+import { countCharacters, LIMITS, selectionProblem, type ExplanationResult } from '../../shared/contracts';
+import { editorReducer, initialState, type Action } from './state/editor';
 import { requestCorrection } from './lib/api';
 import { Icon } from './components/Icon';
 import { CorrectionResults } from './components/CorrectionResults';
 import { SelectionConfirm } from './components/SelectionConfirm';
 import { SelectionHighlight } from './components/SelectionHighlight';
 import { selectionAnchor } from './lib/selectionAnchor';
+import { useHistory } from './hooks/useHistory';
+import { HistoryPanel } from './components/HistoryPanel';
 
 export default function App() {
-  const [state, dispatch] = useReducer(editorReducer, initialState);
+  const [state, editorDispatch] = useReducer(editorReducer, initialState);
+  const history = useHistory();
+  const editorStateRef = useRef(initialState);
+  // Queue persistence only for actions accepted by the editor. Keep side effects
+  // outside React's reducer, which can run more than once in development.
+  const dispatch = useCallback((action: Action) => {
+    const previous = editorStateRef.current;
+    const next = editorReducer(previous, action);
+    editorStateRef.current = next;
+    editorDispatch(action);
+    if (action.type === 'success' && next.result && next.result !== previous.result) {
+      history.enqueue({ type: 'add', record: { id: next.result.value.requestId, createdAt: new Date().toISOString(),
+        sourceText: next.result.value.sourceText, candidates: next.result.value.candidates, explanations: [],
+        appliedCandidateId: null, appliedAt: null } });
+    }
+    if (action.type === 'apply' && previous.result && next.revision !== previous.revision) {
+      history.enqueue({ type: 'apply', id: previous.result.value.requestId, candidateId: action.candidateId, at: new Date().toISOString() });
+    }
+  }, [history.enqueue]);
+  const saveExplanations = useCallback((requestId: string, values: ExplanationResult[]) => {
+    history.enqueue({ type: 'explanations', id: requestId, values });
+  }, [history.enqueue]);
   const [connection, setConnection] = useState<'checking' | 'ready' | 'missing' | 'offline'>('checking');
   const [composing, setComposing] = useState(false);
   const compositionRef = useRef(false);
@@ -24,7 +47,7 @@ export default function App() {
     if (!editor || compositionRef.current) return;
     dispatch({ type: 'select', start: editor.selectionStart, end: editor.selectionEnd });
     if (draggingPointerRef.current === null) setAnchor(selectionAnchor(editor));
-  }, []);
+  }, [dispatch]);
 
   useEffect(() => {
     // Text selection may end outside the textarea without blurring it.
@@ -80,7 +103,7 @@ export default function App() {
         if (!controller.signal.aborted || timedOut) dispatch({ type: 'failure', requestId: request.requestId, message: timedOut ? '응답 시간이 초과되었습니다. 다시 시도해주세요.' : error instanceof Error ? error.message : '교정 요청에 실패했습니다.' });
       }).finally(() => clearTimeout(timer));
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [state.pending]);
+  }, [state.pending, dispatch]);
 
   const documentLength = countCharacters(state.text);
   const selectedLength = countCharacters(state.selection?.text ?? '');
@@ -149,17 +172,18 @@ export default function App() {
             {confirmation && state.selection && confirmation.revision === state.revision && confirmation.selectionRevision === state.selectionRevision && <SelectionHighlight editor={editorRef.current} text={state.text} start={state.selection.start} end={state.selection.end} />}
             <div className="editor-meta"><span id="editor-hint"><Icon name="select" size={16} />드래그한 부분만 교정합니다</span><span id="document-count" className={documentLength > LIMITS.document ? 'over-limit' : ''}>전체 글 {documentLength.toLocaleString()}자<span className="count-limit"> · 최대 20,000자 입력 가능</span></span></div>
           </div>
-          <div className="editor-footnote"><Icon name="info" size={16} /><span>작업 내용은 자동 저장되지 않습니다.</span></div>
+          <div className="editor-footnote"><Icon name="info" size={16} /><span>선택한 부분의 원문·후보를 이 브라우저에 보관합니다. 작성 중인 글 전체는 새로고침 후 복원하지 않습니다.</span></div>
         </section>
 
         <section className="correction-panel panel" aria-label="교정 패널">
           <div className="results-section" aria-busy={Boolean(state.pending)}><div className="section-heading"><h2>교정 문장</h2>{state.result && <span className="result-count">후보 {state.result.value.candidates.length}개</span>}</div>
             <div role="status" aria-live="polite" className="status-region">{state.pending && <p className="loading-message"><span className="spinner" />교정안을 만들고 있습니다.</p>}{state.error && <div className="error-message"><Icon name="info" size={18} /><p>{state.error}</p></div>}{state.notice && <p className="success-message"><Icon name="check" size={18} />{state.notice}</p>}</div>
-            {state.result ? <CorrectionResults key={state.result.value.requestId} result={state.result.value} onApply={apply} /> : !state.pending && <div className="empty-result"><div className="empty-icon"><Icon name="document" size={31} /></div><h3>{emptyHeading}</h3><p>{emptyDescription}</p></div>}
+            {state.result ? <CorrectionResults key={state.result.value.requestId} result={state.result.value} onApply={apply} onExplanationResults={saveExplanations} /> : !state.pending && <div className="empty-result"><div className="empty-icon"><Icon name="document" size={31} /></div><h3>{emptyHeading}</h3><p>{emptyDescription}</p></div>}
           </div>
           {connection === 'missing' && <div className="setup-note"><Icon name="info" size={16} /><p>현재는 화면·선택 기능을 확인할 수 있습니다.<br /><strong>실제 교정은 AI 연결 후 사용할 수 있습니다.</strong></p></div>}
         </section>
       </div>
+      <HistoryPanel {...history} />
       <footer className="page-footer"><span>센틴스파이 데스크톱 사용 흐름을 참고한 독립 웹 데모</span><span>선택한 문장만 요청에 포함됩니다.</span></footer>
     </main>
     {anchor && !disabled && !confirmation && <button className="floating-correction" style={anchor} aria-haspopup="dialog" onPointerDown={event => event.preventDefault()} onClick={openConfirmation}>교정하기 <Icon name="arrow" size={16} /></button>}
