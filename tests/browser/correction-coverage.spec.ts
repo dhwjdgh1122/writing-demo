@@ -46,11 +46,11 @@ for (const replay of replays) {
     await expect(card).toHaveCount(1);
     // textContent preserves LF and spaces; toHaveText(string) would normalize them.
     expect(await card.locator('.candidate-text').textContent()).toBe(replay.text);
+    await expect(card.locator('.candidate-text ins, .candidate-text del')).toHaveCount(0);
     await card.locator('summary').click();
-    const visible = (text: string) => text.replace(/ /g, '·').replace(/\t/g, '⇥').replace(/\n/g, '↵\n');
     const comparison = card.locator('.comparison-content > p');
-    expect(await comparison.nth(0).textContent()).toBe(visible(replay.sourceText));
-    expect(await comparison.nth(1).textContent()).toBe(visible(replay.text));
+    expect(await comparison.nth(0).textContent()).toBe(replay.sourceText);
+    expect(await comparison.nth(1).textContent()).toBe(replay.text);
     await card.getByRole('button', { name: '이 문장 적용', exact: true }).click();
     await expect(editor).toHaveValue(prefix + replay.text + suffix);
     await editor.focus();

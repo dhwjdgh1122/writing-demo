@@ -94,7 +94,6 @@ export function CorrectionResults({ result, onApply, onExplanationResults, activ
       {explanations?.some(e => 'explanation' in e) && <p>원문과 후보를 비교한 AI 설명입니다. 실제 차이와 함께 확인해주세요.</p>}
       {!error && failedIds.length > 0 && <div className="explanation-error"><p>{failedIds.length === result.candidates.length ? '교정 이유를 표시하지 못했습니다.' : '일부 후보의 교정 이유를 표시하지 못했습니다.'} 후보 비교와 적용은 계속할 수 있습니다.</p><button className="text-button" onClick={request} disabled={loading}>실패한 설명 다시 시도</button></div>}
     </div>
-    <p className="diff-legend">밑줄은 추가된 표현입니다. 삭제·교체된 내용은 ‘원문 비교’에서 확인하세요.</p>
     <div className="candidate-list">{result.candidates.map((candidate, index) => <CandidateCard key={candidate.id} candidate={candidate} index={index} source={result.sourceText}
       explanation={open ? explanations?.find(e => e.candidateId === candidate.id) : undefined} onApply={() => onApply(candidate.id)} />)}</div>
     <p className="result-disclaimer">데모 생성 결과입니다. 적용 전에 내용을 확인해주세요.</p>
