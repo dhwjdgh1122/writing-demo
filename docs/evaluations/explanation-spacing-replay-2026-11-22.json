@@ -1,0 +1,102 @@
+{
+  "method": "offline-reprocessing-of-preserved-model-output",
+  "actualModelCalls": 0,
+  "replayedAt": "2026-11-21T15:32:11.805Z",
+  "codeCommit": "aef8e429071002a6fd291517f470d2ad3ec2d98f",
+  "workingTreeStatus": "M client/src/components/CorrectionResults.tsx\n M docs/ARCHITECTURE.md\n M docs/DESIGN.md\n M docs/FEATURE_SPEC.md\n M docs/PRD.md\n M docs/TASKS.md\n M \"docs/\\352\\265\\220\\354\\240\\225 \\354\\204\\244\\353\\252\\205 \\355\\217\\211\\352\\260\\200 \\352\\270\\260\\354\\244\\200.md\"\n M package.json\n M server/llm/parse-explanations.ts\n?? docs/evaluations/explanation-spacing-reuse-plan-2026-11-22.md\n?? scripts/replay-explanation-spacing.mjs\n?? server/llm/explanation-spacing.ts\n?? tests/explanation-spacing-api.test.ts\n?? tests/explanation-spacing.test.ts",
+  "sourcePath": "docs/evaluations/explanation-freeform-contrast-2026-11-22-elice.json",
+  "sourceSha256": "c18c24ce6980a9bd3bc5bae2163b96754522739fb7752fed461bf94394ee48ba",
+  "implementationSha256": {
+    "scripts/replay-explanation-spacing.mjs": "41c545147f784ad155595f2b1f2aadadaf2783ba5dbc78f2bce8c6d0ad7eb734",
+    "server/llm/explanation-spacing.ts": "826868bc258864b71ca8b9a0e05e1a0fbf6e65509b373565a6060ed70f0bb221",
+    "server/llm/parse-explanations.ts": "8563c4392dad18375b154026bdf808461da8da2ed3aa7cbc7fa4760c7d60c9ce",
+    "server/llm/explanation-check.ts": "908d7e5bf1529240a3f0d1fb3d5e57c60632037136a7157e352b8468f0403522"
+  },
+  "results": [
+    {
+      "caseId": "M-01",
+      "arm": "contrast",
+      "originalCallId": "2fe59f62-123a-4658-8261-e981683a7576",
+      "before": [
+        {
+          "candidateId": "m01-c1",
+          "error": "EXPLANATION_QUOTE_MISMATCH"
+        },
+        {
+          "candidateId": "m01-c2",
+          "error": "EXPLANATION_QUOTE_MISMATCH"
+        },
+        {
+          "candidateId": "m01-c3",
+          "error": "EXPLANATION_QUOTE_MISMATCH"
+        }
+      ],
+      "after": [
+        {
+          "candidateId": "m01-c1",
+          "explanation": "공백 5개를 추가하고 4개를 삭제했습니다. 원문 비교에서 공백이 바뀐 위치가 의도에 맞는지 확인해 주세요."
+        },
+        {
+          "candidateId": "m01-c2",
+          "error": "EXPLANATION_QUOTE_MISMATCH"
+        },
+        {
+          "candidateId": "m01-c3",
+          "error": "EXPLANATION_QUOTE_MISMATCH"
+        }
+      ],
+      "changedCandidateIds": [
+        "m01-c1"
+      ],
+      "unchangedCandidateIds": [
+        "m01-c2",
+        "m01-c3"
+      ]
+    },
+    {
+      "caseId": "M-01",
+      "arm": "baseline",
+      "originalCallId": "af546b4d-f054-49eb-8276-954dd4b6c663",
+      "before": [
+        {
+          "candidateId": "m01-c1",
+          "error": "EXPLANATION_QUOTE_MISMATCH"
+        },
+        {
+          "candidateId": "m01-c2",
+          "explanation": "‘안녕 하세요’가 ‘안녕하세요’로 수정되어 더 자연스러운 인사말이 되었다. ‘수요일 까지’가 ‘수요일까지’로 수정되어 띄어쓰기가 올바르게 바뀌었다. ‘읽어보시고’는 '읽어보시고'로 변경되지 않아 원본과 동일하지만, ‘참석이 어려우신 분들에게는’이 ‘참석이 어려우신 분께는’으로 바뀌어 대상을 단수로 변경하여 의미가 변동되었다. 특히 '공유 하겠습니다'가 '공유해 드리겠습니다'로 변경되어 겸손한 어조가 추가되었다."
+        },
+        {
+          "candidateId": "m01-c3",
+          "explanation": "‘안녕 하세요’가 ‘안녕하세요’로 수정되어 자연스러운 인사말이 되었다. ‘다음주’가 ‘다음 주’로 수정되어 띄어쓰기가 올바르게 조정되었다. 마지막 문장의 '공유하겠습니다'는 원문과 동일하게 유지되었다. '회의 자료는 미리 읽어보시고'에서 '읽어보시고'는 띄어쓰기가 ‘읽어 보시고’로 바뀌어 자연스러워졌다. '궁금한 점은 따로 적어 주세요' 사이에 '미리'가 없어져 원문의 의미 전달이 강화되고 흐름이 원활해졌다."
+        }
+      ],
+      "after": [
+        {
+          "candidateId": "m01-c1",
+          "explanation": "공백 5개를 추가하고 4개를 삭제했습니다. 원문 비교에서 공백이 바뀐 위치가 의도에 맞는지 확인해 주세요."
+        },
+        {
+          "candidateId": "m01-c2",
+          "explanation": "‘안녕 하세요’가 ‘안녕하세요’로 수정되어 더 자연스러운 인사말이 되었다. ‘수요일 까지’가 ‘수요일까지’로 수정되어 띄어쓰기가 올바르게 바뀌었다. ‘읽어보시고’는 '읽어보시고'로 변경되지 않아 원본과 동일하지만, ‘참석이 어려우신 분들에게는’이 ‘참석이 어려우신 분께는’으로 바뀌어 대상을 단수로 변경하여 의미가 변동되었다. 특히 '공유 하겠습니다'가 '공유해 드리겠습니다'로 변경되어 겸손한 어조가 추가되었다."
+        },
+        {
+          "candidateId": "m01-c3",
+          "explanation": "‘안녕 하세요’가 ‘안녕하세요’로 수정되어 자연스러운 인사말이 되었다. ‘다음주’가 ‘다음 주’로 수정되어 띄어쓰기가 올바르게 조정되었다. 마지막 문장의 '공유하겠습니다'는 원문과 동일하게 유지되었다. '회의 자료는 미리 읽어보시고'에서 '읽어보시고'는 띄어쓰기가 ‘읽어 보시고’로 바뀌어 자연스러워졌다. '궁금한 점은 따로 적어 주세요' 사이에 '미리'가 없어져 원문의 의미 전달이 강화되고 흐름이 원활해졌다."
+        }
+      ],
+      "changedCandidateIds": [
+        "m01-c1"
+      ],
+      "unchangedCandidateIds": [
+        "m01-c2",
+        "m01-c3"
+      ]
+    }
+  ],
+  "limitations": [
+    "The original model failures remain failures; only the displayed spacing facts change.",
+    "Unchanged candidate 2/3 results still include semantic errors or quote rejection.",
+    "No new model generation, grammar/meaning validation or human-effectiveness test."
+  ]
+}

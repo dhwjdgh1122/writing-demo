@@ -7,7 +7,7 @@ import { createHash, randomUUID } from 'node:crypto';
 // @ts-expect-error Manual JavaScript helper intentionally has no declaration file.
 import { finishContinuationCall, inspectContinuationLedger, reserveContinuationCall } from '../scripts/lib/model-call-continuation.mjs';
 // @ts-expect-error Importing the runner exposes only pure helpers; main is guarded.
-import { buildContinuationPlan, continuationInput } from '../scripts/evaluate-explanation-continuation.mjs';
+import { buildContinuationPlan, continuationInput, continuationReferences, continuationModelInput } from '../scripts/evaluate-explanation-continuation.mjs';
 
 function fixture(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), 'writing-continuation-'));
@@ -145,4 +145,75 @@ test('continuation submitted input whitelists source and candidates, never fixtu
   assert.ok(!JSON.stringify(input).includes('THIS-IS-AN-ANSWER'));
   assert.ok(!JSON.stringify(input).includes('NEVER-SEND-THIS'));
   assert.ok(!JSON.stringify(input).includes('report-only'));
+});
+
+// Synthetic test definitions/URLs: they are not claimed to be dictionary sources.
+const lexicalReferences = [
+  { term: '결재', definition: '승인에 관한 시험용 정의.', sourceUrl: 'https://example.com/dictionary/approval' },
+  { term: '결제', definition: '대금 지불에 관한 시험용 정의.', sourceUrl: 'https://example.com/dictionary/payment' },
+];
+
+test('continuation plans permit only an optional fixed-reference export without changing paired order', () => {
+  const arms = [experimentConfig.arms[0], { ...experimentConfig.arms[1], referenceExport: 'lexicalReferences' }];
+  assert.deepEqual(buildContinuationPlan({ ...experimentConfig, arms }, experimentCases).plan,
+    buildContinuationPlan(experimentConfig, experimentCases).plan);
+  for (const invalid of [
+    { ...arms[1], referenceExport: null }, { ...arms[1], referenceExport: '' },
+    { ...arms[1], referenceExport: 'references[caseId]' }, { ...arms[1], caseReferences: {} },
+  ]) assert.throws(() => buildContinuationPlan({ ...experimentConfig, arms: [arms[0], invalid] }, experimentCases), /Invalid/);
+  assert.throws(() => buildContinuationPlan({ ...experimentConfig, arms: [...arms, { id: 'third', instructionExport: 'third' }] }, experimentCases), /Invalid/);
+});
+
+test('fixed lexical references reject answer metadata, case selectors, unbounded records and unsafe URLs', () => {
+  assert.deepEqual(continuationReferences(lexicalReferences), lexicalReferences);
+  for (const invalid of [
+    undefined, null, [], () => lexicalReferences, { E01: lexicalReferences },
+    [{ ...lexicalReferences[0], required: ['case answer'] }],
+    [{ ...lexicalReferences[0], correctLabel: 'wrong' }], [{ ...lexicalReferences[0], caseId: 'E01' }],
+    [{ ...lexicalReferences[0], definition: '' }], [{ ...lexicalReferences[0], definition: '가'.repeat(1001) }],
+    [{ ...lexicalReferences[0], term: '가'.repeat(81) }], [{ ...lexicalReferences[0], term: ' 결재' }],
+    [{ ...lexicalReferences[0], sourceUrl: 'http://example.com/source' }],
+    [{ ...lexicalReferences[0], sourceUrl: 'https://user:password@example.com/source' }],
+    [{ ...lexicalReferences[0], sourceUrl: 'https://example.com/\nsource' }],
+    [{ ...lexicalReferences[0], sourceUrl: 'https://example.com/' + 'a'.repeat(2048) }],
+    [lexicalReferences[0], lexicalReferences[0]],
+    Array.from({ length: 9 }, (_, i) => ({ ...lexicalReferences[0], term: `word${i}` })),
+  ]) assert.throws(() => continuationReferences(invalid), /Invalid fixed lexical references/);
+});
+
+test('model input mutation is rejected before adding references, including attempted fixture answer injection', () => {
+  const submitted = continuationInput(experimentCases[0], 'run-1');
+  const base = { sourceText: submitted.sourceText, candidates: submitted.candidates };
+  for (const invalid of [
+    null, { ...base, required: ['THIS-IS-AN-ANSWER'] }, { ...base, forbidden: ['NEVER-SEND-THIS'] },
+    { ...base, lexicalReferences }, { ...base, sourceText: '바뀐 원문' },
+    { ...base, candidates: [{ ...base.candidates[0], text: '바뀐 후보' }] },
+    { ...base, candidates: [{ ...base.candidates[0], correctLabel: 'wrong' }] },
+  ]) {
+    assert.throws(() => continuationModelInput(invalid, submitted, lexicalReferences), /Unexpected model input/);
+    // The original provider payload must be checked even if references are bad.
+    assert.throws(() => continuationModelInput(invalid, submitted, []), /Unexpected model input/);
+  }
+});
+
+test('data arms add the same fixed references while instruction-only arms and all original inputs stay unchanged', () => {
+  const referencesBefore = structuredClone(lexicalReferences);
+  for (const c of experimentCases) {
+    const submitted = continuationInput(c, `run-${c.id}`);
+    const base = { sourceText: submitted.sourceText, candidates: submitted.candidates };
+    const before = structuredClone({ submitted, base, c });
+    const instructionOnly = continuationModelInput(base, submitted);
+    const withReferences = continuationModelInput(base, submitted, lexicalReferences);
+    assert.deepEqual(instructionOnly, base);
+    assert.equal(Object.hasOwn(instructionOnly, 'lexicalReferences'), false);
+    assert.deepEqual(withReferences, { ...base, lexicalReferences });
+    assert.ok(!JSON.stringify(withReferences).includes('THIS-IS-AN-ANSWER'));
+    assert.ok(!JSON.stringify(withReferences).includes('NEVER-SEND-THIS'));
+    assert.ok(!JSON.stringify(withReferences).includes('report-only'));
+    withReferences.lexicalReferences[0].definition = 'changed returned copy';
+    withReferences.candidates[0].text = 'changed returned candidate';
+    instructionOnly.candidates[0].id = 'changed returned ID';
+    assert.deepEqual({ submitted, base, c }, before);
+  }
+  assert.deepEqual(lexicalReferences, referencesBefore);
 });

@@ -17,6 +17,7 @@ const modelNames = { gemini: 'gemini-3.5-flash-lite', elice: 'gpt-4o-mini' };
 const hash = value => createHash('sha256').update(value).digest('hex');
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const safeId = value => typeof value === 'string' && identifier.test(value);
+const exportName = value => typeof value === 'string' && /^[a-zA-Z_$][\w$]*$/.test(value);
 const hardFailures = ['MODEL_NOT_CONFIGURED', 'MODEL_CONFIGURATION_ERROR', 'MODEL_QUOTA_EXCEEDED',
   'MODEL_UNAVAILABLE', 'MODEL_TIMEOUT', 'MODEL_REQUEST_FAILED'];
 
@@ -34,8 +35,10 @@ export function buildContinuationPlan(config, fixture) {
   if (!isObject(config) || Object.keys(config).some(key => !allowed.includes(key)) || !safeId(config.experimentId)
     || !Array.isArray(config.caseIds) || config.caseIds.length === 0 || !config.caseIds.every(safeId)
     || new Set(config.caseIds).size !== config.caseIds.length || !Array.isArray(config.arms) || config.arms.length !== 2
-    || !config.arms.every(arm => isObject(arm) && Object.keys(arm).sort().join(',') === 'id,instructionExport'
-      && safeId(arm.id) && typeof arm.instructionExport === 'string' && /^[a-zA-Z_$][\w$]*$/.test(arm.instructionExport))
+    || !config.arms.every(arm => isObject(arm)
+      && ['id,instructionExport', 'id,instructionExport,referenceExport'].includes(Object.keys(arm).sort().join(','))
+      && safeId(arm.id) && exportName(arm.instructionExport)
+      && (!Object.hasOwn(arm, 'referenceExport') || exportName(arm.referenceExport)))
     || new Set(config.arms.map(arm => arm.id)).size !== config.arms.length
     || !Number.isSafeInteger(config.perProviderMaxCalls) || config.perProviderMaxCalls <= 0
     || !Array.isArray(fixture) || !fixture.every(c => isObject(c) && safeId(c.id))
@@ -59,6 +62,41 @@ export function buildContinuationPlan(config, fixture) {
 export function continuationInput(c, requestId) {
   return explanationInputSchema.parse({ requestId, sourceText: c.sourceText,
     candidates: c.candidates.map(candidate => ({ id: candidate.id, text: candidate.text })) });
+}
+
+// References come only from one fixed prompt-module export per arm, never from
+// case metadata or a case-dependent function. This checks shape and boundaries,
+// not the truth or official provenance of the definitions; those need review.
+export function continuationReferences(value) {
+  const boundedText = (text, limit) => typeof text === 'string' && text.trim().length > 0 && [...text].length <= limit;
+  const sourceUrl = value => {
+    if (!boundedText(value, 2048) || value !== value.trim() || /[\s\u0000-\u001f]/u.test(value)) return false;
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' && url.hostname.length > 0 && !url.username && !url.password;
+    } catch { return false; }
+  };
+  if (!Array.isArray(value) || value.length < 1 || value.length > 8
+    || !value.every(entry => isObject(entry) && Object.keys(entry).sort().join(',') === 'definition,sourceUrl,term'
+      && boundedText(entry.term, 80) && entry.term === entry.term.trim()
+      && boundedText(entry.definition, 1000) && sourceUrl(entry.sourceUrl))
+    || new Set(value.map(entry => entry.term)).size !== value.length) {
+    throw new Error('Invalid fixed lexical references: expected bounded term/definition/HTTPS sourceUrl records only.');
+  }
+  return value.map(({ term, definition, sourceUrl }) => ({ term, definition, sourceUrl }));
+}
+
+// Verify the product provider's untouched payload before adding the experiment's
+// fixed data. A new field must never become a loophole for fixture answers.
+export function continuationModelInput(input, submittedInput, lexicalReferences) {
+  const submitted = explanationInputSchema.parse(submittedInput);
+  const expected = { sourceText: submitted.sourceText, candidates: submitted.candidates };
+  if (!isObject(input) || Object.keys(input).sort().join(',') !== 'candidates,sourceText'
+    || JSON.stringify(input) !== JSON.stringify(expected)) {
+    throw new Error('Unexpected model input; experiment metadata or answers must never be sent.');
+  }
+  return lexicalReferences === undefined ? structuredClone(expected)
+    : { ...structuredClone(expected), lexicalReferences: continuationReferences(lexicalReferences) };
 }
 
 function saveReport(path, report) {
@@ -95,6 +133,11 @@ export async function runContinuation(args = process.argv.slice(2)) {
     return [arm.id, instruction];
   }));
   const promptSha256 = Object.fromEntries(Object.entries(instructions).map(([id, text]) => [id, hash(text)]));
+  // Snapshot once for the whole plan: no case-specific reference lookup/filtering.
+  const lexicalReferences = Object.fromEntries(config.arms.map(arm => [arm.id,
+    arm.referenceExport === undefined ? null : continuationReferences(promptModule[arm.referenceExport])]));
+  const referenceSha256 = Object.fromEntries(Object.entries(lexicalReferences).map(([id, value]) =>
+    [id, value === null ? null : hash(JSON.stringify(value))]));
   const model = modelNames[providerName];
   const reportPath = repositoryPath(`${config.reportPrefix}-${providerName}.json`);
   const ledgerPath = repositoryPath(config.ledgerPath);
@@ -102,6 +145,7 @@ export async function runContinuation(args = process.argv.slice(2)) {
     console.log(JSON.stringify({ dryRun: true, experimentId: config.experimentId, provider: providerName, model,
       plan, plannedCalls: plan.length, perProviderMaxCalls: config.perProviderMaxCalls, reportPath,
       fixtureSha256: hash(readFileSync(fixturePath)), planSha256: hash(readFileSync(planPath)), promptSha256,
+      lexicalReferences, referenceSha256,
       notes: 'No .env access, report writes or model calls. Required/forbidden fields are excluded from model input.' }));
     return;
   }
@@ -113,16 +157,16 @@ export async function runContinuation(args = process.argv.slice(2)) {
   const files = [planPath, fixturePath, promptPath, ledgerPath, ledger.previousLedger.path,
     'scripts/evaluate-explanation-continuation.mjs', 'scripts/lib/model-call-continuation.mjs',
     'server/llm/prompt.ts', 'server/llm/provider.ts', 'server/llm/gemini.ts', 'server/llm/elice.ts',
-    'server/llm/parse-explanations.ts', 'server/llm/explanation-check.ts', 'server/app.ts', 'shared/contracts.ts', 'package-lock.json'];
+    'server/llm/parse-explanations.ts', 'server/llm/explanation-spacing.ts', 'server/llm/explanation-check.ts', 'server/app.ts', 'shared/contracts.ts', 'package-lock.json'];
   const report = {
     experimentId: config.experimentId, startedAt: new Date().toISOString(),
     codeCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     workingTreeStatus: execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim(),
     implementationSha256: Object.fromEntries([...new Set(files.map(path => repositoryPath(path)))].map(path =>
       [relative(process.cwd(), path).replaceAll('\\', '/'), hash(readFileSync(path))])),
-    provider: providerName, model, config, cases, plan, instructions, promptSha256,
+    provider: providerName, model, config, cases, plan, instructions, promptSha256, lexicalReferences, referenceSha256,
     priorAuthorization: { previousLedger: ledger.previousLedger, authorization: ledger.authorization, callsAtStart: ledger.calls.length },
-    path: 'Fixed candidates -> loopback /api/explanations -> selected real provider -> unchanged parser and quotation check. No correction generation or browser.',
+    path: 'Fixed candidates -> loopback /api/explanations -> selected real provider -> current parser (including spacing-only factual notice) and quotation check. Raw model output is evaluated separately. No correction generation or browser.',
     notes: 'Paired arms alternate order by case. No retries, model switching, answer-field injection or discarded failures. Raw completion, parsed model JSON, adapter and API outputs are distinct. This is not a user-benefit evaluation.',
     modelCallCounting: 'Durable reservation immediately before upstream fetch; interrupted/failed attempts count even when delivery or billing is unknown.',
     modelCalls: 0, state: 'preflight', completed: false, runs: [], unexecuted: [...plan],
@@ -141,15 +185,18 @@ export async function runContinuation(args = process.argv.slice(2)) {
     }
     const body = JSON.parse(options.body);
     const input = JSON.parse(providerName === 'gemini' ? body.contents[0].parts[0].text : body.messages[1].content);
-    const expected = { sourceText: run.submittedInput.sourceText, candidates: run.submittedInput.candidates };
-    if (Object.keys(input).sort().join(',') !== 'candidates,sourceText' || JSON.stringify(input) !== JSON.stringify(expected)) {
-      throw new Error('Unexpected model input; experiment metadata or answers must never be sent.');
-    }
+    const sentInput = continuationModelInput(input, run.submittedInput, lexicalReferences[run.arm] ?? undefined);
     const instruction = instructions[run.arm];
-    if (providerName === 'gemini') body.systemInstruction = { parts: [{ text: instruction }] };
-    else body.messages[0].content = instruction;
-    run.sentInput = structuredClone(input);
+    if (providerName === 'gemini') {
+      body.systemInstruction = { parts: [{ text: instruction }] };
+      body.contents[0].parts[0].text = JSON.stringify(sentInput);
+    } else {
+      body.messages[0].content = instruction;
+      body.messages[1].content = JSON.stringify(sentInput);
+    }
+    run.sentInput = structuredClone(sentInput);
     run.instructionSha256 = hash(instruction);
+    run.referenceSha256 = referenceSha256[run.arm];
     run.requestSettings = providerName === 'gemini' ? body.generationConfig
       : { model: body.model, response_format: body.response_format, n: body.n, stream: body.stream, max_tokens: body.max_tokens };
     options.signal?.throwIfAborted();
