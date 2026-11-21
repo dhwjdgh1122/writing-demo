@@ -57,6 +57,9 @@ export function createApp(provider: CorrectionProvider = unavailableProvider, ti
           case 'configuration': fail(503, 'MODEL_CONFIGURATION_ERROR', 'AI 연결 설정을 확인해주세요. API 키·모델명·프로젝트 접근 권한을 확인한 뒤 다시 실행해주세요.', false); break;
           case 'quota': fail(429, 'MODEL_QUOTA_EXCEEDED', 'AI 사용량 또는 요청 횟수 제한에 도달했습니다. 사용 중인 AI 서비스의 한도·크레딧을 확인한 뒤 다시 실행해주세요.', true); break;
           case 'blocked': fail(422, 'MODEL_BLOCKED', `AI가 이 문장의 ${label} 결과를 제공하지 않았습니다. 입력 문장을 확인해주세요.`, false); break;
+          case 'truncated': fail(502, 'MODEL_OUTPUT_TRUNCATED', explaining
+            ? '설명 결과가 출력 한도에서 중단됐습니다. 교정 후보는 유지되며 원문 비교와 적용은 계속할 수 있습니다. 필요하면 설명을 다시 요청해주세요.'
+            : '교정 결과가 출력 한도에서 중단됐습니다. 원문은 유지됩니다. 선택 범위를 줄여 나누어 교정해주세요.', true); break;
           case 'invalid': fail(502, 'MODEL_RESPONSE_INVALID', `완전한 ${label} 결과를 받지 못했습니다. 원문은 유지됩니다. 다시 실행해주세요.`, true); break;
           case 'unavailable': fail(503, 'MODEL_UNAVAILABLE', 'AI 서비스가 일시적으로 요청을 처리하지 못했습니다. 잠시 기다린 뒤 다시 실행해주세요. 원문은 유지됩니다.', true); break;
         }

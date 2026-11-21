@@ -50,6 +50,7 @@ export function createGeminiProvider(config: { apiKey: string; model: string }, 
       if (!completions || completions.length !== 1) throw new ProviderError('invalid');
       const completion = completions[0];
       if (['SAFETY', 'RECITATION', 'BLOCKLIST', 'PROHIBITED_CONTENT', 'SPII'].includes(completion.finishReason ?? '')) throw new ProviderError('blocked');
+      if (completion.finishReason === 'MAX_TOKENS') throw new ProviderError('truncated');
       if (completion.finishReason !== 'STOP') throw new ProviderError('invalid');
       const text = completion.content?.parts.filter(part => !part.thought).map(part => part.text ?? '').join('');
       if (!text) throw new ProviderError('invalid');

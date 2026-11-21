@@ -103,6 +103,76 @@ test('floating action does not interrupt drag or copy; cancel and replace range 
   await expect(page.getByRole('button', { name: '교정 실행', exact: true })).toBeDisabled();
 });
 
+for (const direction of ['forward', 'backward'] as const) {
+  test(`floating action captures a ${direction} drag released outside the editor`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const requests: string[] = [];
+    await page.route('**/api/corrections', async route => {
+      const input = route.request().postDataJSON();
+      requests.push(input.sourceText);
+      await route.fulfill({ json: { ...input, candidates: [{ id: 'outside-drag', text: input.sourceText + ' 수정' }] } });
+    });
+    await page.goto('/');
+    const editor = page.getByLabel('원문 입력');
+    const source = '첫 번째 줄입니다.\n두 번째 줄입니다.\n세 번째 줄입니다.';
+    await editor.fill(source);
+    const box = (await editor.boundingBox())!;
+    const y = box.y + 30;
+    const start = direction === 'forward' ? { x: box.x + 18, y } : { x: box.x + 140, y: y + 32 };
+    const end = direction === 'forward' ? { x: box.x + box.width + 12, y: y + 32 } : { x: box.x - 12, y };
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 12 });
+    await expect(page.locator('.floating-correction')).toHaveCount(0);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.mouse.up();
+    const selected = await editor.evaluate((el: HTMLTextAreaElement) => el.value.slice(el.selectionStart, el.selectionEnd));
+    expect(selected.length).toBeGreaterThan(0);
+    const floating = page.getByRole('button', { name: '교정하기', exact: true });
+    await expect(floating).toBeVisible();
+    expect(requests).toHaveLength(0);
+    await floating.click();
+    expect(await page.getByTestId('selected-text').textContent()).toBe(selected);
+    await page.getByRole('button', { name: '교정 시작', exact: true }).click();
+    await expect(page.locator('.candidate-card')).toHaveCount(1);
+    expect(requests).toEqual([selected]);
+    await expect(editor).toHaveValue(source);
+  });
+}
+
+for (const interruption of ['pointercancel', 'blur'] as const) {
+  test(`interrupted drag ignores other pointers and allows keyboard selection after ${interruption}`, async ({ page }) => {
+    await page.goto('/');
+    const editor = page.getByLabel('원문 입력');
+    const source = '포인터 취소 뒤에도 키보드 선택이 동작합니다.';
+    await editor.fill(source);
+    // Inject lifecycle interruptions that normal Playwright mouse movement does not emit.
+    await editor.dispatchEvent('pointerdown', { pointerId: 41, isPrimary: true, button: 0 });
+    await editor.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(0, el.value.length));
+    await page.keyboard.press('Shift');
+    await expect(page.locator('.floating-correction')).toHaveCount(0);
+    await page.evaluate(() => {
+      window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 42 }));
+      window.dispatchEvent(new PointerEvent('pointercancel', { pointerId: 42 }));
+    });
+    await page.keyboard.press('Shift');
+    await expect(page.locator('.floating-correction')).toHaveCount(0);
+    await page.evaluate(type => {
+      window.dispatchEvent(type === 'blur' ? new Event('blur') : new PointerEvent('pointercancel', { pointerId: 41 }));
+      window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 41 }));
+    }, interruption);
+    await expect(page.locator('.floating-correction')).toHaveCount(0);
+    await page.keyboard.press('Shift');
+    const floating = page.getByRole('button', { name: '교정하기', exact: true });
+    await expect(floating).toBeVisible();
+    await floating.click();
+    expect(await page.getByTestId('selected-text').textContent()).toBe(source);
+    await page.keyboard.press('Escape');
+    await expect(editor).toBeFocused();
+    await expect(editor).toHaveValue(source);
+  });
+}
+
 test('preview snapshot cannot submit after source changes', async ({ page }) => {
   let calls = 0;
   page.on('request', req => { if (req.url().endsWith('/api/corrections')) calls++; });

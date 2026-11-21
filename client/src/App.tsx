@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { countCharacters, LIMITS, selectionProblem } from '../../shared/contracts';
 import { editorReducer, initialState } from './state/editor';
 import { requestCorrection } from './lib/api';
@@ -17,7 +17,37 @@ export default function App() {
   const runRef = useRef<HTMLButtonElement>(null);
   const [anchor, setAnchor] = useState<{ left: number; top: number } | null>(null);
   const [confirmation, setConfirmation] = useState<{ text: string; revision: number; selectionRevision: number } | null>(null);
-  const draggingRef = useRef(false);
+  const draggingPointerRef = useRef<number | null>(null);
+
+  const captureSelection = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor || compositionRef.current) return;
+    dispatch({ type: 'select', start: editor.selectionStart, end: editor.selectionEnd });
+    if (draggingPointerRef.current === null) setAnchor(selectionAnchor(editor));
+  }, []);
+
+  useEffect(() => {
+    // Text selection may end outside the textarea without blurring it.
+    const finishDrag = (event: PointerEvent) => {
+      if (event.pointerId !== draggingPointerRef.current) return;
+      draggingPointerRef.current = null;
+      captureSelection();
+    };
+    const cancelDrag = (event: PointerEvent) => {
+      if (event.pointerId !== draggingPointerRef.current) return;
+      draggingPointerRef.current = null;
+      setAnchor(null);
+    };
+    const blur = () => { draggingPointerRef.current = null; setAnchor(null); };
+    window.addEventListener('pointerup', finishDrag);
+    window.addEventListener('pointercancel', cancelDrag);
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('pointerup', finishDrag);
+      window.removeEventListener('pointercancel', cancelDrag);
+      window.removeEventListener('blur', blur);
+    };
+  }, [captureSelection]);
 
   useEffect(() => {
     const hide = () => setAnchor(null);
@@ -52,12 +82,6 @@ export default function App() {
     return () => { clearTimeout(timer); controller.abort(); };
   }, [state.pending]);
 
-  const captureSelection = () => {
-    const editor = editorRef.current;
-    if (!editor || compositionRef.current) return;
-    dispatch({ type: 'select', start: editor.selectionStart, end: editor.selectionEnd });
-    if (!draggingRef.current) setAnchor(selectionAnchor(editor));
-  };
   const documentLength = countCharacters(state.text);
   const selectedLength = countCharacters(state.selection?.text ?? '');
   const problem = documentLength > LIMITS.document ? '원문은 20,000자 이내로 줄여주세요.' : selectionProblem(state.selection?.text);
@@ -121,7 +145,7 @@ export default function App() {
               <p id="selection-help" className={problem && state.selection ? 'selection-help over-limit' : 'selection-help'}>{composing ? '문장 입력을 마치면 실행할 수 있습니다.' : problem ?? (state.notice ? '원문에 반영된 내용을 확인해주세요.' : '선택한 내용을 확인한 후 실행해주세요.')}</p>
             </div>
           </div>
-          <div className="editor-body"><label htmlFor="source-editor" className="sr-only">원문 입력</label><textarea id="source-editor" ref={editorRef} value={state.text} onChange={e => { setAnchor(null); dispatch({ type: 'edit', text: e.target.value }); }} onSelect={captureSelection} onPointerDown={() => { draggingRef.current = true; setAnchor(null); }} onPointerUp={() => { draggingRef.current = false; captureSelection(); }} onPointerCancel={() => { draggingRef.current = false; setAnchor(null); }} onBlur={() => { draggingRef.current = false; }} onKeyUp={captureSelection} onCompositionStart={() => { compositionRef.current = true; setComposing(true); setAnchor(null); }} onCompositionEnd={() => { compositionRef.current = false; setComposing(false); }} placeholder={'이곳에 원문을 입력하거나 붙여넣으세요.\n\n교정하고 싶은 문장을 드래그하면\n교정하기 버튼으로 선택한 내용을 확인하세요.'} aria-describedby="editor-hint document-count" spellCheck={false} />
+          <div className="editor-body"><label htmlFor="source-editor" className="sr-only">원문 입력</label><textarea id="source-editor" ref={editorRef} value={state.text} onChange={e => { setAnchor(null); dispatch({ type: 'edit', text: e.target.value }); }} onSelect={captureSelection} onPointerDown={event => { if (event.isPrimary && event.button === 0) { draggingPointerRef.current = event.pointerId; setAnchor(null); } }} onBlur={() => { draggingPointerRef.current = null; }} onKeyUp={captureSelection} onCompositionStart={() => { compositionRef.current = true; setComposing(true); setAnchor(null); }} onCompositionEnd={() => { compositionRef.current = false; setComposing(false); }} placeholder={'이곳에 원문을 입력하거나 붙여넣으세요.\n\n교정하고 싶은 문장을 드래그하면\n교정하기 버튼으로 선택한 내용을 확인하세요.'} aria-describedby="editor-hint document-count" spellCheck={false} />
             {confirmation && state.selection && confirmation.revision === state.revision && confirmation.selectionRevision === state.selectionRevision && <SelectionHighlight editor={editorRef.current} text={state.text} start={state.selection.start} end={state.selection.end} />}
             <div className="editor-meta"><span id="editor-hint"><Icon name="select" size={16} />드래그한 부분만 교정합니다</span><span id="document-count" className={documentLength > LIMITS.document ? 'over-limit' : ''}>전체 글 {documentLength.toLocaleString()}자<span className="count-limit"> · 최대 20,000자 입력 가능</span></span></div>
           </div>

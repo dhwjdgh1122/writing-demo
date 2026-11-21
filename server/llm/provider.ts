@@ -6,7 +6,7 @@ export interface CorrectionProvider {
   generateExplanations?(sourceText: string, candidates: Candidate[], signal: AbortSignal): Promise<unknown>;
 }
 
-export type ProviderFailure = 'configuration' | 'quota' | 'blocked' | 'invalid' | 'unavailable';
+export type ProviderFailure = 'configuration' | 'quota' | 'blocked' | 'truncated' | 'invalid' | 'unavailable';
 export class ProviderError extends Error {
   constructor(readonly kind: ProviderFailure) {
     super(`Model provider failure: ${kind}`);

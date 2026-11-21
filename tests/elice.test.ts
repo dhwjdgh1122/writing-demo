@@ -77,7 +77,8 @@ test('Elice rejects refusals, truncation, tool responses and malformed or oversi
   const fixtures: [unknown, ProviderFailure][] = [
     [completion({ candidates: ['후보'] }, 'content_filter'), 'blocked'],
     [{ choices: [{ finish_reason: 'stop', message: { content: null, refusal: 'refused' } }] }, 'blocked'],
-    [completion({ candidates: ['후보'] }, 'length'), 'invalid'],
+    [completion({ candidates: ['후보'] }, 'length'), 'truncated'],
+    [{ choices: [{ finish_reason: 'length', message: { content: '{"candidates":["잘린 후보' } }] }, 'truncated'],
     [completion({ candidates: ['후보'] }, 'tool_calls'), 'invalid'],
     [{ choices: [] }, 'invalid'],
     [{ choices: [{ finish_reason: 'stop', message: { content: '```json\n{}\n```' } }] }, 'invalid'],

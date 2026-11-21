@@ -115,7 +115,8 @@ test('rejects blocked, unfinished, missing, malformed and oversized results', as
   const fixtures: [unknown, ProviderFailure][] = [
     [{ promptFeedback: { blockReason: 'SAFETY' } }, 'blocked'],
     [{ candidates: [{ finishReason: 'SAFETY' }] }, 'blocked'],
-    [{ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: '{"candidates":["완성처럼 보이는 후보"]}' }] } }] }, 'invalid'],
+    [{ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: '{"candidates":["완성처럼 보이는 후보"]}' }] } }] }, 'truncated'],
+    [{ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: '{"candidates":["잘린 후보' }] } }] }, 'truncated'],
     [{ candidates: [] }, 'invalid'],
     [{ candidates: [{ finishReason: 'STOP' }] }, 'invalid'],
     [{ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: 'not JSON' }] } }] }, 'invalid'],

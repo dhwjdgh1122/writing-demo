@@ -66,6 +66,45 @@ for (const name of ['gemini', 'elice'] as const) {
       await assert.rejects(provider.generateExplanations!('원문', candidates, new AbortController().signal), error => error instanceof ProviderError && error.kind === 'invalid');
     }
   });
+
+  test(`${name}: output-limit responses never expose partial results and give correction-specific recovery guidance`, async t => {
+    for (const explaining of [false, true]) {
+      for (const validJson of [false, true]) {
+        let calls = 0;
+        const input = { requestId: `truncated-${name}`, sourceText: ' 원문\n',
+          ...(explaining ? { candidates: [{ id: 'one', text: '교정 후보' }] } : {}) };
+        const raw = validJson
+          ? JSON.stringify(explaining ? { explanations: [{ candidateId: 'one', explanation: '표시하면 안 되는 응답' }] }
+            : { candidates: ['표시하면 안 되는 응답'] })
+          : '{"incomplete":"표시하면 안 되는 응답';
+        const fetcher: typeof fetch = async (_url, options) => {
+          calls++;
+          const request = JSON.parse(String(options?.body));
+          const sent = JSON.parse(name === 'gemini' ? request.contents[0].parts[0].text : request.messages[1].content);
+          assert.deepEqual(sent, explaining ? { sourceText: input.sourceText, candidates: input.candidates } : { sourceText: input.sourceText });
+          return Response.json(name === 'gemini'
+            ? { candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: raw }] } }] }
+            : { choices: [{ finish_reason: 'length', message: { content: raw } }] });
+        };
+        const config = { apiKey: 'fake-test-key', model: 'gemini-test', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' };
+        const provider = name === 'gemini' ? createGeminiProvider(config, fetcher) : createEliceProvider(config, fetcher);
+        const { base } = await setup(t, provider);
+        const response = await fetch(`${base}/api/${explaining ? 'explanations' : 'corrections'}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+        });
+        assert.equal(response.status, 502);
+        const body = await response.json();
+        assert.equal(body.requestId, input.requestId);
+        assert.equal(body.error.code, 'MODEL_OUTPUT_TRUNCATED');
+        assert.equal(body.error.retryable, true);
+        assert.match(body.error.message, explaining ? /교정 후보는 유지.*원문 비교와 적용/ : /원문은 유지.*선택 범위를 줄여/);
+        assert.equal(body.candidates, undefined);
+        assert.equal(body.explanations, undefined);
+        assert.ok(!JSON.stringify(body).includes('표시하면 안 되는 응답'));
+        assert.equal(calls, 1);
+      }
+    }
+  });
 }
 
 async function setup(t: TestContext, provider?: CorrectionProvider, timeoutMs?: number) {
@@ -129,7 +168,7 @@ test('malformed JSON is a controlled error without leaking parser details', asyn
 test('provider failure kinds become actionable, safe application errors', async t => {
   for (const [kind, status, code] of [
     ['configuration', 503, 'MODEL_CONFIGURATION_ERROR'], ['quota', 429, 'MODEL_QUOTA_EXCEEDED'],
-    ['blocked', 422, 'MODEL_BLOCKED'], ['invalid', 502, 'MODEL_RESPONSE_INVALID'], ['unavailable', 503, 'MODEL_UNAVAILABLE'],
+    ['blocked', 422, 'MODEL_BLOCKED'], ['truncated', 502, 'MODEL_OUTPUT_TRUNCATED'], ['invalid', 502, 'MODEL_RESPONSE_INVALID'], ['unavailable', 503, 'MODEL_UNAVAILABLE'],
   ] as const) {
     const { post } = await setup(t, { configured: true, async generateCandidates() { throw new ProviderError(kind); } });
     const response = await post({ requestId: 'failure-test', sourceText: '원문' });
