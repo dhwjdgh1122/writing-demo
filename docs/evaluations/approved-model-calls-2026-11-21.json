@@ -148,6 +148,72 @@
       "status": "received",
       "httpStatus": 200,
       "finishedAt": "2026-11-21T06:33:22.316Z"
+    },
+    {
+      "id": "6bb0e171-3b1a-4869-8006-f0b3ada8175f",
+      "phase": "development",
+      "label": "stage5-alternative-correction",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "reservedAt": "2026-11-21T07:32:32.774Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T07:32:34.033Z"
+    },
+    {
+      "id": "2e1467f2-9711-4522-a8f9-ac419bb920da",
+      "phase": "development",
+      "label": "stage5-meaning-correction",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "reservedAt": "2026-11-21T07:32:34.135Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T07:32:36.390Z"
+    },
+    {
+      "id": "cf5eef05-45fd-49f7-9b06-9d97c5892c1b",
+      "phase": "development",
+      "label": "stage5-meaning-explanation",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "reservedAt": "2026-11-21T07:32:36.480Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T07:32:37.644Z"
+    },
+    {
+      "id": "00102ca2-245e-48d1-9654-0a1b5b21beef",
+      "phase": "development",
+      "label": "stage5-alternative-correction",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "reservedAt": "2026-11-21T07:32:58.102Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T07:33:00.196Z"
+    },
+    {
+      "id": "71c0cd0e-baf0-42e1-bef6-3b8c97d8591f",
+      "phase": "development",
+      "label": "stage5-meaning-correction",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "reservedAt": "2026-11-21T07:33:00.511Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T07:33:01.782Z"
+    },
+    {
+      "id": "166f47ac-1dee-4d87-92f3-f3fae45d2f00",
+      "phase": "development",
+      "label": "stage5-meaning-explanation",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "reservedAt": "2026-11-21T07:33:01.873Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T07:33:03.805Z"
     }
   ]
 }
