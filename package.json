@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch server/dev.ts",
     "check": "tsc --noEmit",
-    "test": "tsx --test tests/editor.test.ts tests/api.test.ts tests/provider.test.ts tests/elice.test.ts tests/numeric-evidence.test.ts tests/model-call-budget.test.ts tests/history.test.ts tests/api-rerun.test.ts tests/activity.test.ts tests/model-call-continuation.test.ts tests/explanation-spacing.test.ts tests/explanation-spacing-api.test.ts tests/explanation-cross-review.test.ts tests/explanation-isolated-conditions.test.ts tests/explanation-typed-reference.test.ts tests/explanation-typed-reference-runner.test.ts tests/explanation-sampling.test.ts",
+    "test": "tsx --test tests/editor.test.ts tests/api.test.ts tests/provider.test.ts tests/elice.test.ts tests/numeric-evidence.test.ts tests/model-call-budget.test.ts tests/history.test.ts tests/api-rerun.test.ts tests/activity.test.ts tests/model-call-continuation.test.ts tests/explanation-spacing.test.ts tests/explanation-spacing-api.test.ts tests/explanation-cross-review.test.ts tests/explanation-isolated-conditions.test.ts tests/explanation-typed-reference.test.ts tests/explanation-typed-reference-runner.test.ts tests/explanation-sampling.test.ts tests/explanation-propositions.test.ts tests/explanation-propositions-runner.test.ts",
     "test:browser": "playwright test",
     "build": "npm run check && node scripts/build.mjs",
     "start": "node dist/server/index.js"
