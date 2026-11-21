@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "previousLedger": {
+    "path": "docs/evaluations/approved-model-calls-2026-11-21.json",
+    "sha256": "8934d8278a40763dc1fb3e93c13f2fb23404f66bd610e9f18cf8e527e2772dbe",
+    "calls": 19
+  },
+  "authorization": {
+    "mode": "until-user-stop",
+    "numericCallLimit": null
+  },
+  "calls": []
+}
