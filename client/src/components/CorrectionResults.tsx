@@ -87,7 +87,7 @@ export function CorrectionResults({ result, onApply, onExplanationResults, activ
     if (!open && !explanations && !loading && !error) request();
   };
   return <>
-    <div className="explanation-toolbar"><button className="explanation-toggle" aria-expanded={open} aria-controls={panelId} onClick={toggle}><Icon name="info" size={16} />교정 이유<span>{open ? '접기' : '보기'}</span></button></div>
+    <div className="explanation-toolbar"><button type="button" className="panel-action explanation-toggle" aria-expanded={open} aria-controls={panelId} onClick={toggle}><Icon name="message" size={18} /><span>교정 이유</span></button></div>
     <div id={panelId} hidden={!open} className="explanation-status" role="status" aria-live="polite">
       {loading && <p className="loading-message"><span className="spinner" />교정 이유를 확인하고 있습니다.</p>}
       {error && <div className="explanation-error"><p>{error}</p><button className="text-button" onClick={request} disabled={loading}>설명 다시 시도</button></div>}
