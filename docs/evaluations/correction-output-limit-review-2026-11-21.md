@@ -28,3 +28,9 @@
 - 이5회는 새 승인 작업의 개발24회에 포함한다. 과거 PR #43의24회와 #22 최종평가84회는 별도다.
 
 자동 검증·Edge 재현 결과는 [CORRECTION-RECOVERY-01](../검증%20기록.md#correction-recovery-01)에 기록한다.
+
+## 후속 정책 변경
+
+같은 날 이후 사용자가 새 교정·재교정 후보를 정확히 3개로 고정하도록 요청했다. 이는 위 제한 실험의 결론을 변경하거나 3개 생성의 안정성을 입증한 결과가 아닌 별도 제품 결정이다. 당시 입력·원출력·1개 안 미채택 기록은 그대로 보존하며, 이후 구현·검증은 [CANDIDATE-COUNT-THREE-01](../검증%20기록.md#candidate-count-three-01)을 따른다.
+
+기존 `scripts/evaluate-correction-limit.mjs`는 당시 1~3개 지침의 정확한 문자열을 교체해 비교하도록 고정돼 있다. 이후 지침에서는 문자열이 일치하지 않아 `Baseline instruction changed; review this frozen experiment.` 가드가 모델 호출 전에 실행을 중단한다. 현재 지침에 맞춰 과거 실험을 재작성하지 않았으며, 새 실험은 별도 가설·입력·호출 범위를 정한 뒤 검토한다.

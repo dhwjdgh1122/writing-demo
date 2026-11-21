@@ -50,7 +50,7 @@ export function createApp(provider: CorrectionProvider = unavailableProvider, ti
         return;
       }
       const candidates = modelOutputSchema.safeParse(raw);
-      if (!candidates.success) { fail(502, 'MODEL_RESPONSE_INVALID', '교정 결과를 읽지 못했습니다. 다시 시도해주세요.', true); return; }
+      if (!candidates.success) { fail(502, 'MODEL_RESPONSE_INVALID', '교정 후보 3개를 완전하게 받지 못했습니다. 원문은 유지됩니다. 다시 실행해주세요.', true); return; }
       if (!res.destroyed) res.json({ ...parsed.data, candidates: candidates.data.map(text => ({ id: randomUUID(), text })) });
     } catch (error) {
       if (error === timedOut) fail(504, 'MODEL_TIMEOUT', `${label} 요청 시간이 초과되었습니다. 다시 시도해주세요.`, true);
@@ -62,7 +62,9 @@ export function createApp(provider: CorrectionProvider = unavailableProvider, ti
           case 'truncated': fail(502, 'MODEL_OUTPUT_TRUNCATED', explaining
             ? '설명 결과가 출력 한도에서 중단됐습니다. 교정 후보는 유지되며 원문 비교와 적용은 계속할 수 있습니다. 필요하면 설명을 다시 요청해주세요.'
             : '교정 결과가 출력 한도에서 중단됐습니다. 원문은 유지됩니다. 선택 범위를 줄여 나누어 교정해주세요.', true); break;
-          case 'invalid': fail(502, 'MODEL_RESPONSE_INVALID', `완전한 ${label} 결과를 받지 못했습니다. 원문은 유지됩니다. 다시 실행해주세요.`, true); break;
+          case 'invalid': fail(502, 'MODEL_RESPONSE_INVALID', explaining
+            ? '완전한 설명 결과를 받지 못했습니다. 원문은 유지됩니다. 다시 실행해주세요.'
+            : '교정 후보 3개를 완전하게 받지 못했습니다. 원문은 유지됩니다. 다시 실행해주세요.', true); break;
           case 'unavailable': fail(503, 'MODEL_UNAVAILABLE', 'AI 서비스가 일시적으로 요청을 처리하지 못했습니다. 잠시 기다린 뒤 다시 실행해주세요. 원문은 유지됩니다.', true); break;
         }
       }

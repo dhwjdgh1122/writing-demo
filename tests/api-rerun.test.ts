@@ -15,6 +15,9 @@ const sourceText = '목요일에 10명에게 안내합니다.\n\n확인을 기�
 const previousSourceText = '담당자가 승인하면 목요일에 8명에게 안내할 예정입니다.\n\n확인을 기다립니다.';
 const previousCandidates = [{ id: 'previous-one', text: sourceText }];
 const currentCandidates: Candidate[] = [{ id: 'new-one', text: '목요일에 8명에게 안내할 예정입니다.\n\n확인을 기다립니다.' }];
+const generatedCandidates = [currentCandidates[0].text,
+  '목요일에는 8명에게 안내할 예정입니다.\n\n확인을 기다립니다.',
+  '8명에게 목요일에 안내할 예정입니다.\n\n확인을 기다립니다.'];
 const makeContext = (requirement: RetryContext['requirement'] = 'meaning'): RetryContext => ({
   requirement, previousSourceText, previousCandidates,
 });
@@ -68,7 +71,7 @@ for (const name of ['gemini', 'elice'] as const) {
         assert.equal(sent.body.stream, false);
         assert.equal(sent.body.max_tokens, 2000);
       }
-      return Response.json(completion(name, { candidates: currentCandidates.map(candidate => candidate.text) }));
+      return Response.json(completion(name, { candidates: generatedCandidates }));
     });
     const post = await setup(t, provider);
     for (const requirement of retryRequirementSchema.options) {
@@ -79,7 +82,7 @@ for (const name of ['gemini', 'elice'] as const) {
       assert.equal(output.requestId, `rerun-${requirement}`);
       assert.equal(output.sourceText, sourceText);
       assert.deepEqual(output.retryContext, expected);
-      assert.equal(output.candidates[0].text, currentCandidates[0].text);
+      assert.deepEqual(output.candidates.map(candidate => candidate.text), generatedCandidates);
       assert.notEqual(output.candidates[0].id, previousCandidates[0].id);
     }
     assert.equal(calls, 5); // Fake completions only, no retry/fallback.
@@ -121,7 +124,7 @@ for (const name of ['gemini', 'elice'] as const) {
       assert.equal(sent.instruction, explaining ? explanationInstruction : correctionInstruction);
       return Response.json(completion(name, explaining
         ? { explanations: [{ candidateId: 'new-one', explanation: '안내 인원이 달라졌습니다.' }] }
-        : { candidates: [currentCandidates[0].text] }));
+        : { candidates: generatedCandidates }));
     });
     const post = await setup(t, provider);
     for (const retryContext of [undefined, skipped]) {
@@ -131,6 +134,7 @@ for (const name of ['gemini', 'elice'] as const) {
         assert.equal(response.status, 200);
         const output = await response.json();
         assert.deepEqual(output.retryContext, retryContext);
+        if (endpoint === 'corrections') assert.deepEqual(output.candidates.map((candidate: Candidate) => candidate.text), generatedCandidates);
         if (!retryContext) assert.equal(Object.hasOwn(output, 'retryContext'), false);
       }
     }
@@ -196,7 +200,7 @@ test('bounded maximum prior data survives validation without truncating Unicode 
     previousCandidates: Array.from({ length: 3 }, (_, i) => ({ id: `p${i}`, text: '😀'.repeat(1998) + '\n\n' })) };
   let calls = 0;
   const post = await setup(t, { configured: true, async generateCandidates(current, _signal, retryContext) {
-    calls++; assert.equal(current, sourceText); assert.deepEqual(retryContext, context); return ['새 후보'];
+    calls++; assert.equal(current, sourceText); assert.deepEqual(retryContext, context); return generatedCandidates;
   } });
   const response = await post('corrections', { requestId: 'boundary', sourceText, retryContext: context });
   assert.equal(response.status, 200);

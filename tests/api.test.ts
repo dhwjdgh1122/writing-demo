@@ -8,7 +8,35 @@ import { createEliceProvider } from '../server/llm/elice.js';
 import { explanationInstruction } from '../server/llm/prompt.js';
 import coverageCases from './fixtures/correction-coverage-cases.json';
 
+const generatedCandidates = ['금요일까지 자료를 보내주세요.', '금요일까지 자료를 보내 주세요.', '자료를 금요일까지 보내주시기 바랍니다.'];
+
 for (const name of ['gemini', 'elice'] as const) {
+  test(`${name}: correction API rejects zero, one, two or four candidates after a single upstream call`, async t => {
+    const possibleCandidates = [...generatedCandidates, '금요일까지 자료를 전달해 주세요.'];
+    for (const count of [0, 1, 2, 4]) {
+      let calls = 0;
+      const fetcher: typeof fetch = async () => {
+        calls++;
+        const text = JSON.stringify({ candidates: possibleCandidates.slice(0, count) });
+        return Response.json(name === 'gemini'
+          ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text }] } }] }
+          : { choices: [{ finish_reason: 'stop', message: { content: text } }] });
+      };
+      const config = { apiKey: 'fake-test-key', model: 'gemini-test', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' };
+      const provider = name === 'gemini' ? createGeminiProvider(config, fetcher) : createEliceProvider(config, fetcher);
+      const { post } = await setup(t, provider);
+      const response = await post({ requestId: `count-${count}`, sourceText: '금요일까지 자료를 보내 주세여.' });
+      assert.equal(response.status, 502);
+      const body = await response.json();
+      assert.equal(body.requestId, `count-${count}`);
+      assert.equal(body.error.code, 'MODEL_RESPONSE_INVALID');
+      assert.equal(body.error.retryable, true);
+      assert.match(body.error.message, /3개/);
+      assert.equal(body.candidates, undefined);
+      assert.equal(calls, 1);
+    }
+  });
+
   test(`${name}: existing model format isolates malformed and mismatched candidate explanations through HTTP`, async t => {
     const sourceText = '회의를\n시작합니다.';
     const candidates = [{ id: 'good', text: '회의를\n진행합니다.' }, { id: 'bad', text: '회의를\n엽니다.' }, { id: 'format', text: '회의가 시작됩니다.' }];
@@ -75,7 +103,7 @@ for (const name of ['gemini', 'elice'] as const) {
           ...(explaining ? { candidates: [{ id: 'one', text: '교정 후보' }] } : {}) };
         const raw = validJson
           ? JSON.stringify(explaining ? { explanations: [{ candidateId: 'one', explanation: '표시하면 안 되는 응답' }] }
-            : { candidates: ['표시하면 안 되는 응답'] })
+            : { candidates: ['표시하면 안 되는 응답', '표시하면 안 되는 두 번째 응답', '표시하면 안 되는 세 번째 응답'] })
           : '{"incomplete":"표시하면 안 되는 응답';
         const fetcher: typeof fetch = async (_url, options) => {
           calls++;
@@ -131,21 +159,29 @@ test('rejects unselected context, blank inputs, and length violations before mod
 });
 test('test provider receives only exact source text; server supplies distinct candidate IDs', async t => {
   let received = '';
-  const { post } = await setup(t, { configured: true, async generateCandidates(text) { received = text; return ['후보', '후보']; } });
+  const candidates = [generatedCandidates[0], generatedCandidates[0], generatedCandidates[2]];
+  const { post } = await setup(t, { configured: true, async generateCandidates(text) { received = text; return candidates; } });
   const response = await post({ requestId: 'r1', sourceText: ' 원문\n' });
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.equal(received, ' 원문\n');
   assert.equal(body.sourceText, received);
-  assert.equal(body.candidates.length, 2);
-  assert.notEqual(body.candidates[0].id, body.candidates[1].id);
+  assert.deepEqual(body.candidates.map((candidate: { text: string }) => candidate.text), candidates);
+  assert.equal(body.candidates.length, 3);
+  assert.equal(new Set(body.candidates.map((candidate: { id: string }) => candidate.id)).size, 3);
 });
 test('invalid model output and thrown provider errors preserve error contracts', async t => {
-  for (const output of [[], [''], ['a','b','c','d'], ['가'.repeat(2001)], 'not-an-array']) {
-    const { post } = await setup(t, { configured: true, async generateCandidates() { return output; } });
+  for (const output of [[], generatedCandidates.slice(0, 1), generatedCandidates.slice(0, 2),
+    [...generatedCandidates, '금요일까지 자료를 전달해 주세요.'], ['', ...generatedCandidates.slice(1)],
+    [42, ...generatedCandidates.slice(1)], ['가'.repeat(2001), ...generatedCandidates.slice(1)], 'not-an-array']) {
+    let calls = 0;
+    const { post } = await setup(t, { configured: true, async generateCandidates() { calls++; return output; } });
     const response = await post({ requestId: 'r1', sourceText: '원문' });
     assert.equal(response.status, 502);
-    assert.equal((await response.json()).error.code, 'MODEL_RESPONSE_INVALID');
+    const body = await response.json();
+    assert.equal(body.error.code, 'MODEL_RESPONSE_INVALID');
+    assert.equal(body.candidates, undefined);
+    assert.equal(calls, 1);
   }
   const { post } = await setup(t, { configured: true, async generateCandidates() { throw new Error('secret-provider-error'); } });
   const response = await post({ requestId: 'r1', sourceText: '원문' });
@@ -182,13 +218,13 @@ test('provider failure kinds become actionable, safe application errors', async 
 
 test('Gemini adapter and application contract work together with an explicitly simulated upstream', async t => {
   const provider = createGeminiProvider({ apiKey: 'test-only-key', model: 'gemini-test' }, async () => new Response(JSON.stringify({
-    candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify({ candidates: ['금요일까지 자료를 보내주세요.'] }) }] } }],
+    candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify({ candidates: generatedCandidates }) }] } }],
   })));
   const { post } = await setup(t, provider);
   const response = await post({ requestId: 'integration-test', sourceText: '금요일까지 자료를 보내 주세여.' });
   assert.equal(response.status, 200);
   const body = await response.json();
-  assert.equal(body.candidates[0].text, '금요일까지 자료를 보내주세요.');
+  assert.deepEqual(body.candidates.map((candidate: { text: string }) => candidate.text), generatedCandidates);
   assert.ok(body.candidates[0].id);
   assert.equal(body.sourceText, '금요일까지 자료를 보내 주세여.');
 });
