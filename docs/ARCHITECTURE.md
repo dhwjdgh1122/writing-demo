@@ -177,6 +177,7 @@ API는 모델 제공자와 독립적인 앱 내부 계약이다. health·correct
 | 429 / MODEL_QUOTA_EXCEEDED | 제공자의 사용량·요청 횟수 제한 | 한도 확인 및 기다린 뒤 수동 재시도 |
 | 422 / MODEL_BLOCKED | 제공자가 결과를 차단함 | 입력 확인 안내 |
 | 502 / MODEL_RESPONSE_INVALID | 모델 응답 형식 오류 | 원문 유지·수동 재시도 |
+| 502 / MODEL_OUTPUT_TRUNCATED | Elice `length`·Gemini `MAX_TOKENS` 출력 한도 중단 | 교정은 원문·선택 유지와 범위 축소 안내, 설명은 후보 비교·적용 유지 |
 | 502 / MODEL_REQUEST_FAILED | 모델 요청 실패 | 내부 오류 원문 대신 일반 안내 |
 | 503 / MODEL_UNAVAILABLE | 공급자가 일시적인 요청 실패 응답 반환 | 원문 유지·잠시 기다린 뒤 수동 재시도 |
 | 504 / MODEL_TIMEOUT | 제한 시간 초과 | 원문 유지·수동 재시도 |
@@ -204,6 +205,7 @@ API는 모델 제공자와 독립적인 앱 내부 계약이다. health·correct
 - HTTPS `mlapi.run/<모델 UUID>` 또는 그 뒤에 `/v1`을 붙인 주소를 받아 `/v1/chat/completions`로 POST한다. 자격정보·쿼리·프래그먼트가 붙은 URL, 다른 호스트, 리다이렉트는 거절한다.
 - `messages`의 system에 기존 지침, user에 선택 원문 또는 원문·현재 후보의 JSON을 넣는다. `response_format: { type: 'json_object' }`, `n: 1`, `stream: false`, `max_tokens: 2000`을 사용한다. 출력 상한은 엘리스 비스트리밍 요청 제한인 2,000토큰에 맞춘다. 긴 출력이 잘리면 오류 처리하며 스트리밍이나 자동 재요청으로 우회하지 않는다.
 - `choices[0].message.content`의 JSON을 파싱한 뒤 기존 후보·설명 스키마와 ID 대응을 검사한다. 정상 종료 `stop`만 수용하고 refusal·content_filter는 차단, 길이 초과·도구 호출·잘못된 JSON은 오류로 처리한다. HTTP 앱 계층의 기존 설명 인용 검사도 유지한다.
+- 출력 한도 중단은 JSON 파싱 전에 별도 `truncated` 오류로 변환한다. 유효한 JSON처럼 보여도 종료 사유가 `length`이면 사용하지 않는다. [11/21 제한 점검](evaluations/correction-output-limit-review-2026-11-21.md)에서 후보1개안은 출력량을 줄였지만 기존안의 중단이 재현되지 않아 제품에 채택하지 않았다. 기존 최대3개 정책·2,000토큰·자동 재시도 없음은 유지한다.
 - HTTP 400·401·403·404·422는 설정 오류, 402·429는 크레딧·사용량 제한, 나머지 요청 실패는 일시적 장애로 안내한다. 키와 외부 오류 본문을 일반 로그·화면에 노출하지 않는다.
 - `scripts/check-elice.mjs`는 명시적으로 실행할 때만 실제 교정 1회·설명 1회를 호출하는 점검 도구다. 임시 로컬 HTTP 앱을 통해 공통 검증까지 확인하며 실패하면 중단한다. `.env`의 제공자 선택과 실행 중인 서버는 바꾸지 않는다. 기존 Gemini 평가 스크립트는 그대로 유지한다.
 - 모델 목록 조회와 실제 교정 응답은 확인했다. 해당 실행에서 설명은 인용 검사에 차단됐으며 교정 후보에도 오류가 있었다. 자세한 결과는 [검증 기록의 ELICE-01](검증%20기록.md#elice-01)을 따른다. 교육 지원 잔액·한도·품질 전반을 검증한 것은 아니다.

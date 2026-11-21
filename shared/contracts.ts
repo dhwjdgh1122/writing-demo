@@ -32,7 +32,7 @@ export function explanationsMatch(candidates: Candidate[], explanations: { candi
   return candidates.length === explanations.length && new Set(explanations.map(e => e.candidateId)).size === candidates.length
     && explanations.every(e => candidates.some(c => c.id === e.candidateId));
 }
-export type ErrorCode = 'INVALID_INPUT' | 'MODEL_NOT_CONFIGURED' | 'MODEL_RESPONSE_INVALID' | 'EXPLANATION_QUOTE_MISMATCH' | 'MODEL_REQUEST_FAILED' | 'MODEL_TIMEOUT' | 'MODEL_CONFIGURATION_ERROR' | 'MODEL_QUOTA_EXCEEDED' | 'MODEL_BLOCKED' | 'MODEL_UNAVAILABLE' | 'NOT_FOUND';
+export type ErrorCode = 'INVALID_INPUT' | 'MODEL_NOT_CONFIGURED' | 'MODEL_RESPONSE_INVALID' | 'MODEL_OUTPUT_TRUNCATED' | 'EXPLANATION_QUOTE_MISMATCH' | 'MODEL_REQUEST_FAILED' | 'MODEL_TIMEOUT' | 'MODEL_CONFIGURATION_ERROR' | 'MODEL_QUOTA_EXCEEDED' | 'MODEL_BLOCKED' | 'MODEL_UNAVAILABLE' | 'NOT_FOUND';
 export type ApiErrorBody = { requestId: string | null; error: { code: ErrorCode; message: string; retryable: boolean } };
 
 export function selectionProblem(text: string | undefined): string | null {

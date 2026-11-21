@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "limits": {
+    "development": 24,
+    "final": 84,
+    "total": 108
+  },
+  "calls": [
+    {
+      "id": "2657cceb-2056-4ebd-ba43-73af0fd243c3",
+      "phase": "development",
+      "label": "stage1-L-01-baseline",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "reservedAt": "2026-11-21T04:36:18.158Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T04:36:36.335Z"
+    },
+    {
+      "id": "3bcf2228-6001-48f1-a6b8-b199e960fcbe",
+      "phase": "development",
+      "label": "stage1-L-01-single",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "reservedAt": "2026-11-21T04:36:36.389Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T04:36:43.424Z"
+    },
+    {
+      "id": "b95be258-78e4-42ee-927a-56e83a5d71b1",
+      "phase": "development",
+      "label": "stage1-L-02-single",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "reservedAt": "2026-11-21T04:36:43.459Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T04:36:51.599Z"
+    },
+    {
+      "id": "46f771c3-3f6e-41bc-963f-3b0a6d8f163b",
+      "phase": "development",
+      "label": "stage1-L-02-baseline",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "reservedAt": "2026-11-21T04:36:51.632Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T04:37:09.790Z"
+    },
+    {
+      "id": "ef0e9261-8b43-4c63-90ba-c1fd2af0d08b",
+      "phase": "development",
+      "label": "stage1-S-01-single",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "reservedAt": "2026-11-21T04:37:09.814Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T04:37:11.336Z"
+    }
+  ]
+}

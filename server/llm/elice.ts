@@ -59,6 +59,7 @@ export function createEliceProvider(config: { apiKey: string; model: string; bas
     if (!parsed.success) throw new ProviderError('invalid');
     const choice = parsed.data.choices[0];
     if (choice.finish_reason === 'content_filter' || choice.message.refusal) throw new ProviderError('blocked');
+    if (choice.finish_reason === 'length') throw new ProviderError('truncated');
     // Never display truncated JSON or tool calls as a complete correction.
     if (choice.finish_reason !== 'stop' || !choice.message.content) throw new ProviderError('invalid');
     try { return JSON.parse(choice.message.content); }
