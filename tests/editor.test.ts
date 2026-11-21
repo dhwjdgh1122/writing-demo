@@ -2,7 +2,8 @@ import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { editorReducer as reduce, initialState, type EditorState } from '../client/src/state/editor.js';
 import { diffText } from '../client/src/lib/diff.js';
-import { countCharacters, correctionInputSchema, type RetryContext } from '../shared/contracts.js';
+import { diffExpressions } from '../client/src/lib/expression-diff.js';
+import { countCharacters, correctionInputSchema, LIMITS, type RetryContext } from '../shared/contracts.js';
 import { requestCorrection, requestExplanations, requestFailureCode } from '../client/src/lib/api.js';
 
 function selected(text = '앞 문장. 같은 문장. 뒤 문장. 같은 문장.', start = 19, end = 25) {
@@ -241,3 +242,60 @@ for (const [source, candidate] of [['목요일에 안내', '이후에 안내'], 
     if (source === candidate) assert.ok(parts.every(p => p.kind === 'same'));
   });
 }
+
+function assertExpressionReconstruction(source: string, candidate: string) {
+  const parts = diffExpressions(source, candidate);
+  assert.equal(parts.filter(p => p.kind !== 'add').map(p => p.text).join(''), source);
+  assert.equal(parts.filter(p => p.kind !== 'remove').map(p => p.text).join(''), candidate);
+  return parts;
+}
+
+test('expression comparison highlights complete split or joined expressions without marking adjacent words', () => {
+  for (const [before, after] of [['안녕 하세요', '안녕하세요'], ['다음주', '다음 주']]) {
+    const parts = assertExpressionReconstruction(`앞 ${before} 목요일`, `앞 ${after} 목요일`);
+    assert.deepEqual(parts.filter(p => p.kind === 'remove').map(p => p.text), [before]);
+    assert.deepEqual(parts.filter(p => p.kind === 'add').map(p => p.text), [after]);
+    assert.equal(parts.filter(p => p.kind === 'same').map(p => p.text).join(''), '앞  목요일');
+  }
+});
+
+test('expression comparison keeps unchanged context plain while showing the whole replaced expression', () => {
+  const parts = assertExpressionReconstruction('금요일까지 자료를 보내 주세여.', '금요일까지 자료를 보내 주세요.');
+  assert.deepEqual(parts.filter(p => p.kind === 'remove').map(p => p.text), ['주세여.']);
+  assert.deepEqual(parts.filter(p => p.kind === 'add').map(p => p.text), ['주세요.']);
+  assert.equal(parts.filter(p => p.kind === 'same').map(p => p.text).join(''), '금요일까지 자료를 보내 ');
+});
+
+test('whitespace-only changes include readable word context and preserve the actual whitespace', () => {
+  for (const [source, candidate] of [['오늘  공지', '오늘 공지'], ['오늘\n공지', '오늘 공지'], ['오늘\t공지', '오늘 공지']]) {
+    const parts = assertExpressionReconstruction(source, candidate);
+    const removed = parts.filter(p => p.kind === 'remove').map(p => p.text).join('');
+    const added = parts.filter(p => p.kind === 'add').map(p => p.text).join('');
+    assert.match(removed, /오늘|공지/, 'a removed gap needs readable surrounding expression context');
+    assert.match(added, /오늘|공지/, 'the corresponding candidate expression must be visible too');
+    assert.ok(removed.includes(source.slice('오늘'.length, -'공지'.length)));
+    assert.ok(added.includes(' '));
+  }
+});
+
+test('expression comparison preserves literal symbols, emoji, line endings and empty or repeated text', () => {
+  const pairs = [
+    ['· ↵ ⇥ 😀\r\n안녕 하세요', '· ↵ ⇥ 😊\r\n안녕하세요'],
+    ['같은 문장 같은 문장 끝.', '같은 표현 같은 문장 끝.'],
+    ['  오늘 공지\n', '\t오늘 공지\r\n'],
+    [' \t\n', '  \r\n'],
+    ['', '새 문장'], ['삭제할 문장', ''], ['', ''],
+    ['그대로 · ↵ ⇥\r\n😀', '그대로 · ↵ ⇥\r\n😀'],
+  ];
+  for (const [source, candidate] of pairs) {
+    const parts = assertExpressionReconstruction(source, candidate);
+    assert.deepEqual(diffExpressions(source, candidate), parts, 'repeated words must have a stable comparison');
+    if (source === candidate) assert.ok(parts.every(p => p.kind === 'same'));
+  }
+});
+
+test('expression comparison enforces selection and candidate limits by code point', () => {
+  assertExpressionReconstruction('😀'.repeat(LIMITS.selection), '😊'.repeat(LIMITS.candidate));
+  assert.throws(() => diffExpressions('😀'.repeat(LIMITS.selection + 1), '후보'));
+  assert.throws(() => diffExpressions('원문', '😊'.repeat(LIMITS.candidate + 1)));
+});
