@@ -27,6 +27,7 @@ function HistoryEntry({ record, onRemove }: { record: HistoryRecord; onRemove: (
   const sourceId = useId();
   const preview = Array.from(record.sourceText);
   const appliedIndex = record.candidates.findIndex(candidate => candidate.id === record.appliedCandidateId);
+  const requirementLabels = { alternative: '다른 표현', polite: '더 정중하게', plain: '더 담백하게', meaning: '원래 뜻 유지', errors: '남은 오류 수정' };
 
   return <details className="history-entry" onToggle={event => setExpanded(event.currentTarget.open)}>
     <summary>
@@ -35,6 +36,7 @@ function HistoryEntry({ record, onRemove }: { record: HistoryRecord; onRemove: (
       <span className="history-apply-status">{appliedIndex >= 0 ? `당시 후보 ${appliedIndex + 1} 적용 기록 있음` : '적용 기록 없음'}</span>
     </summary>
     {expanded && <div className="history-entry-content">
+      {record.parentRecordId && <p className="history-explanation-note">이전 교정에 이어 {record.phase === 'after_apply' ? '적용 후' : '적용 전'} 재교정한 기록입니다. 요청한 점: {record.requirement ? requirementLabels[record.requirement] : '선택 없이 일반 재교정'}.</p>}
       <h3 id={sourceId}>교정 요청 당시 원문</h3>
       <div className="history-source" role="region" aria-labelledby={sourceId} tabIndex={0}>{record.sourceText}</div>
       <p className="history-explanation-note">당시 받아 둔 교정 이유만 표시합니다. 이력 조회로 새 설명을 요청하지 않습니다. 적용 표시는 당시 기록이며, 현재 글에 그대로 남아 있다는 뜻은 아닙니다.</p>

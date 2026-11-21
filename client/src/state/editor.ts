@@ -1,20 +1,22 @@
-import { LIMITS, countCharacters, selectionProblem, type CorrectionResult } from '../../../shared/contracts';
+import { LIMITS, countCharacters, selectionProblem, retryContextsMatch, type CorrectionResult, type Candidate, type RetryContext, type RetryRequirement } from '../../../shared/contracts';
 
 export type Selection = { start: number; end: number; text: string; revision: number };
-export type Snapshot = { requestId: string; documentRevision: number; selectionRevision: number; start: number; end: number; sourceText: string };
+export type Rerun = { parentRequestId: string; phase: 'before_apply' | 'after_apply'; previousSourceText: string; previousCandidates: Candidate[] };
+export type Snapshot = { requestId: string; documentRevision: number; selectionRevision: number; start: number; end: number; sourceText: string;
+  retryContext?: RetryContext; parentRequestId?: string; phase?: Rerun['phase'] };
 export type EditorState = {
   text: string; revision: number; selectionRevision: number; selection: Selection | null;
-  pending: Snapshot | null; result: { snapshot: Snapshot; value: CorrectionResult } | null;
+  pending: Snapshot | null; result: { snapshot: Snapshot; value: CorrectionResult } | null; rerun: Rerun | null;
   error: string | null; notice: string | null;
 };
-export const initialState: EditorState = { text: '', revision: 0, selectionRevision: 0, selection: null, pending: null, result: null, error: null, notice: null };
+export const initialState: EditorState = { text: '', revision: 0, selectionRevision: 0, selection: null, pending: null, result: null, rerun: null, error: null, notice: null };
 export type Action =
   | { type: 'edit'; text: string }
   | { type: 'select'; start: number; end: number }
   | { type: 'clear' }
-  | { type: 'start'; requestId: string }
+  | { type: 'start'; requestId: string; requirement?: RetryRequirement }
   | { type: 'success'; value: CorrectionResult }
-  | { type: 'failure'; requestId: string; message: string }
+  | { type: 'failure'; requestId: string; message: string; errorCode?: string }
   | { type: 'apply'; candidateId: string };
 
 export function isCurrent(state: EditorState, snapshot: Snapshot): boolean {
@@ -36,18 +38,24 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       if (action.start < 0 || action.end > state.text.length || action.start > action.end) return state;
       if (state.selection?.start === action.start && state.selection.end === action.end) return state;
       const revision = state.selectionRevision + 1;
-      return { ...state, selectionRevision: revision, selection: { start: action.start, end: action.end, text: state.text.slice(action.start, action.end), revision }, pending: null, result: null, error: null, notice: null };
+      return { ...state, selectionRevision: revision, selection: { start: action.start, end: action.end, text: state.text.slice(action.start, action.end), revision }, pending: null, result: null, rerun: null, error: null, notice: null };
     }
-    case 'clear': return { ...state, selection: null, selectionRevision: state.selectionRevision + 1, pending: null, result: null, error: null, notice: null };
+    case 'clear': return { ...state, selection: null, selectionRevision: state.selectionRevision + 1, pending: null, result: null, rerun: null, error: null, notice: null };
     case 'start': {
-      if (state.pending || !state.selection || selectionProblem(state.selection.text) || countCharacters(state.text) > LIMITS.document) return state;
+      if (state.pending || !state.selection || selectionProblem(state.selection.text) || countCharacters(state.text) > LIMITS.document || (action.requirement && !state.rerun)) return state;
       const { start, end, text, revision } = state.selection;
-      return { ...state, pending: { requestId: action.requestId, documentRevision: state.revision, selectionRevision: revision, start, end, sourceText: text }, result: null, error: null, notice: null };
+      const predecessor = state.rerun;
+      return { ...state, pending: { requestId: action.requestId, documentRevision: state.revision, selectionRevision: revision, start, end, sourceText: text,
+        ...(predecessor ? { parentRequestId: predecessor.parentRequestId, phase: predecessor.phase } : {}),
+        ...(predecessor && action.requirement ? { retryContext: { requirement: action.requirement,
+          previousSourceText: predecessor.previousSourceText, previousCandidates: predecessor.previousCandidates } } : {}),
+      }, result: null, error: null, notice: null };
     }
     case 'success': {
       if (!state.pending || state.pending.requestId !== action.value.requestId || !isCurrent(state, state.pending)) return state;
-      if (action.value.sourceText !== state.pending.sourceText) return { ...state, pending: null, error: '현재 선택과 일치하지 않는 결과입니다. 다시 실행해주세요.' };
-      return { ...state, result: { snapshot: state.pending, value: action.value }, pending: null, error: null };
+      if (action.value.sourceText !== state.pending.sourceText || !retryContextsMatch(action.value.retryContext, state.pending.retryContext)) return { ...state, pending: null, error: '현재 선택과 일치하지 않는 결과입니다. 다시 실행해주세요.' };
+      return { ...state, result: { snapshot: state.pending, value: action.value }, pending: null, error: null,
+        rerun: { parentRequestId: action.value.requestId, phase: 'before_apply', previousSourceText: action.value.sourceText, previousCandidates: action.value.candidates } };
     }
     case 'failure': {
       if (!state.pending || state.pending.requestId !== action.requestId || !isCurrent(state, state.pending)) return state;
@@ -62,7 +70,8 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       if (countCharacters(text) > LIMITS.document) return { ...state, error: '적용하면 원문이 20,000자를 초과합니다. 원문을 줄인 후 다시 교정해주세요.' };
       const revision = state.selectionRevision + 1;
       return { ...initialState, text, revision: state.revision + 1, selectionRevision: revision,
-        selection: { start, end: start + candidate.text.length, text: candidate.text, revision }, notice: '선택한 문장에 적용했습니다.' };
+        selection: { start, end: start + candidate.text.length, text: candidate.text, revision }, notice: '선택한 문장에 적용했습니다.',
+        rerun: { parentRequestId: state.result.value.requestId, phase: 'after_apply', previousSourceText: state.result.value.sourceText, previousCandidates: state.result.value.candidates } };
     }
   }
 }

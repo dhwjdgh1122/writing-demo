@@ -8,7 +8,9 @@ export function createApp(provider: CorrectionProvider = unavailableProvider, ti
   const app = express();
   app.disable('x-powered-by');
   app.use('/api', (_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
-  app.use(express.json({ limit: '64kb' }));
+  // Current + prior bounded selections/candidates can exceed 64 KiB when JSON
+  // uses Unicode escapes. Field lengths and candidate counts are still checked below.
+  app.use(express.json({ limit: '256kb' }));
   app.get('/api/health', (_req, res) => res.json({ status: 'ok', modelConfigured: provider.configured }));
   app.post(['/api/corrections', '/api/explanations'], async (req, res) => {
     const explaining = req.path === '/api/explanations';
@@ -29,8 +31,8 @@ export function createApp(provider: CorrectionProvider = unavailableProvider, ti
     try {
       const raw = await Promise.race([
         explanationInput?.success
-          ? provider.generateExplanations!(explanationInput.data.sourceText, explanationInput.data.candidates, controller.signal)
-          : provider.generateCandidates(parsed.data.sourceText, controller.signal),
+          ? provider.generateExplanations!(explanationInput.data.sourceText, explanationInput.data.candidates, controller.signal, explanationInput.data.retryContext)
+          : provider.generateCandidates(parsed.data.sourceText, controller.signal, parsed.data.retryContext),
         new Promise<never>((_, reject) => { timer = setTimeout(() => { reject(timedOut); controller.abort(); }, timeoutMs); }),
       ]);
       if (explanationInput?.success) {
@@ -49,7 +51,7 @@ export function createApp(provider: CorrectionProvider = unavailableProvider, ti
       }
       const candidates = modelOutputSchema.safeParse(raw);
       if (!candidates.success) { fail(502, 'MODEL_RESPONSE_INVALID', '교정 결과를 읽지 못했습니다. 다시 시도해주세요.', true); return; }
-      if (!res.destroyed) res.json({ requestId: parsed.data.requestId, sourceText: parsed.data.sourceText, candidates: candidates.data.map(text => ({ id: randomUUID(), text })) });
+      if (!res.destroyed) res.json({ ...parsed.data, candidates: candidates.data.map(text => ({ id: randomUUID(), text })) });
     } catch (error) {
       if (error === timedOut) fail(504, 'MODEL_TIMEOUT', `${label} 요청 시간이 초과되었습니다. 다시 시도해주세요.`, true);
       else if (error instanceof ProviderError) {

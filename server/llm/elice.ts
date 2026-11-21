@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { modelOutputSchema } from '../../shared/contracts.js';
 import { parseExplanations } from './parse-explanations.js';
 import { ProviderError, type CorrectionProvider } from './provider.js';
-import { correctionInstruction, explanationInstruction } from './prompt.js';
+import { activeRetryContext, correctionInstructionFor, explanationInstructionFor } from './prompt.js';
 
 const envelopeSchema = z.object({
   choices: z.array(z.object({
@@ -67,14 +67,16 @@ export function createEliceProvider(config: { apiKey: string; model: string; bas
   }
   return {
     configured: true,
-    async generateCandidates(sourceText, signal) {
-      const decoded = await generate(correctionInstruction, { sourceText }, signal);
+    async generateCandidates(sourceText, signal, retryContext) {
+      const context = activeRetryContext(retryContext);
+      const decoded = await generate(correctionInstructionFor(context), { sourceText, ...(context ? { retryContext: context } : {}) }, signal);
       const result = z.object({ candidates: modelOutputSchema }).strict().safeParse(decoded);
       if (!result.success) throw new ProviderError('invalid');
       return result.data.candidates;
     },
-    async generateExplanations(sourceText, candidates, signal) {
-      const decoded = await generate(explanationInstruction, { sourceText, candidates }, signal);
+    async generateExplanations(sourceText, candidates, signal, retryContext) {
+      const context = activeRetryContext(retryContext);
+      const decoded = await generate(explanationInstructionFor(context), { sourceText, candidates, ...(context ? { retryContext: context } : {}) }, signal);
       return parseExplanations(sourceText, candidates, decoded);
     },
   };

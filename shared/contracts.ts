@@ -4,11 +4,26 @@ export const LIMITS = { document: 20_000, selection: 1_000, candidate: 2_000, ti
 export const countCharacters = (text: string) => Array.from(text).length;
 const nonBlank = (limit: number) => z.string().refine(s => s.trim().length > 0, '빈 문장은 사용할 수 없습니다.').refine(s => countCharacters(s) <= limit, `최대 ${limit}자까지 사용할 수 있습니다.`);
 export const requestIdSchema = z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/);
-export const correctionInputSchema = z.object({ requestId: requestIdSchema, sourceText: nonBlank(LIMITS.selection) }).strict();
 export const candidateSchema = z.object({ id: requestIdSchema, text: nonBlank(LIMITS.candidate) }).strict();
-export const correctionOutputSchema = z.object({
-  requestId: requestIdSchema,
-  sourceText: nonBlank(LIMITS.selection),
+export const retryRequirementSchema = z.enum(['alternative', 'polite', 'plain', 'meaning', 'errors']);
+export const retryContextSchema = z.object({
+  requirement: retryRequirementSchema.optional(),
+  previousSourceText: nonBlank(LIMITS.selection),
+  previousCandidates: z.array(candidateSchema).min(1).max(3).refine(cs => new Set(cs.map(c => c.id)).size === cs.length),
+}).strict();
+export type RetryRequirement = z.infer<typeof retryRequirementSchema>;
+export type RetryContext = z.infer<typeof retryContextSchema>;
+export function retryContextsMatch(left?: RetryContext, right?: RetryContext): boolean {
+  if (!left || !right) return left === right;
+  return left.requirement === right.requirement && left.previousSourceText === right.previousSourceText
+    && left.previousCandidates.length === right.previousCandidates.length
+    && left.previousCandidates.every((candidate, index) => candidate.id === right.previousCandidates[index].id
+      && candidate.text === right.previousCandidates[index].text);
+}
+export const correctionInputSchema = z.object({
+  requestId: requestIdSchema, sourceText: nonBlank(LIMITS.selection), retryContext: retryContextSchema.optional(),
+}).strict();
+export const correctionOutputSchema = correctionInputSchema.extend({
   candidates: z.array(candidateSchema).min(1).max(3).refine(cs => new Set(cs.map(c => c.id)).size === cs.length),
 }).strict();
 export const modelOutputSchema = z.array(nonBlank(LIMITS.candidate)).min(1).max(3);
