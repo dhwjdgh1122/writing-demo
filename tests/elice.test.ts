@@ -9,6 +9,7 @@ const signal = () => new AbortController().signal;
 const completion = (value: unknown, finish = 'stop') => ({ choices: [{ finish_reason: finish, message: { content: JSON.stringify(value) } }] });
 const fakeFetch = (body: unknown): typeof fetch => async () => Response.json(body);
 const failure = (kind: ProviderFailure) => (error: unknown) => error instanceof ProviderError && error.kind === kind;
+const generatedCandidates = [' 금요일에 15명을 안내합니다.🌊\n', '금요일에는 15명을 안내합니다.🌊', '15명에게 금요일에 안내합니다.🌊'];
 
 test('Elice configuration requires its own settings and does not alter Gemini selection', () => {
   const complete = { LLM_PROVIDER: 'elice', ELICE_API_KEY: config.apiKey, ELICE_MODEL: config.model, ELICE_BASE_URL: config.baseUrl };
@@ -47,14 +48,28 @@ test('Elice sends one non-streamed request, only selected text and a header key;
       assert.equal(body.messages.length, 2);
       assert.equal(body.messages[0].role, 'system');
       assert.match(body.messages[0].content, /날짜, 숫자/);
+      assert.match(body.messages[0].content, /정확히 3개/);
       assert.deepEqual(JSON.parse(body.messages[1].content), { sourceText });
       assert.deepEqual(body.response_format, { type: 'json_object' });
       assert.equal(body.tools, undefined);
       assert.equal(body.generationConfig, undefined);
       assert.ok(!String(options?.body).includes(config.apiKey));
-      return Response.json(completion({ candidates: [' 후보🌊\n', '다른 후보'] }));
+      return Response.json(completion({ candidates: generatedCandidates }));
     });
-    assert.deepEqual(await provider.generateCandidates(sourceText, abort), [' 후보🌊\n', '다른 후보']);
+    assert.deepEqual(await provider.generateCandidates(sourceText, abort), generatedCandidates);
+    assert.equal(calls, 1);
+  }
+});
+
+test('Elice rejects zero, one, two or four generated candidates without padding, trimming or retrying', async () => {
+  const possibleCandidates = [...generatedCandidates, '금요일 안내 대상은 15명입니다.🌊'];
+  for (const count of [0, 1, 2, 4]) {
+    let calls = 0;
+    const provider = createEliceProvider(config, async () => {
+      calls++;
+      return Response.json(completion({ candidates: possibleCandidates.slice(0, count) }));
+    });
+    await assert.rejects(provider.generateCandidates('금요일에 15명을 안내합니다.🌊', signal()), failure('invalid'));
     assert.equal(calls, 1);
   }
 });
@@ -75,19 +90,18 @@ test('Elice maps access, credits, rate limits and outages without retrying or ex
 
 test('Elice rejects refusals, truncation, tool responses and malformed or oversized JSON', async () => {
   const fixtures: [unknown, ProviderFailure][] = [
-    [completion({ candidates: ['후보'] }, 'content_filter'), 'blocked'],
+    [completion({ candidates: generatedCandidates }, 'content_filter'), 'blocked'],
     [{ choices: [{ finish_reason: 'stop', message: { content: null, refusal: 'refused' } }] }, 'blocked'],
-    [completion({ candidates: ['후보'] }, 'length'), 'truncated'],
+    [completion({ candidates: generatedCandidates }, 'length'), 'truncated'],
     [{ choices: [{ finish_reason: 'length', message: { content: '{"candidates":["잘린 후보' } }] }, 'truncated'],
-    [completion({ candidates: ['후보'] }, 'tool_calls'), 'invalid'],
+    [completion({ candidates: generatedCandidates }, 'tool_calls'), 'invalid'],
     [{ choices: [] }, 'invalid'],
     [{ choices: [{ finish_reason: 'stop', message: { content: '```json\n{}\n```' } }] }, 'invalid'],
     [{ choices: [{ finish_reason: 'stop', message: { content: null } }] }, 'invalid'],
-    [completion({ candidates: [] }), 'invalid'],
-    [completion({ candidates: [' \n'] }), 'invalid'],
-    [completion({ candidates: ['1', '2', '3', '4'] }), 'invalid'],
-    [completion({ candidates: ['가'.repeat(2001)] }), 'invalid'],
-    [completion({ candidates: ['후보'], explanation: 'unexpected' }), 'invalid'],
+    [completion({ candidates: [' \n', ...generatedCandidates.slice(1)] }), 'invalid'],
+    [completion({ candidates: [42, ...generatedCandidates.slice(1)] }), 'invalid'],
+    [completion({ candidates: ['가'.repeat(2001), ...generatedCandidates.slice(1)] }), 'invalid'],
+    [completion({ candidates: generatedCandidates, explanation: 'unexpected' }), 'invalid'],
   ];
   for (const [body, kind] of fixtures) await assert.rejects(createEliceProvider(config, fakeFetch(body)).generateCandidates('원문', signal()), failure(kind));
   await assert.rejects(createEliceProvider(config, async () => new Response('not JSON')).generateCandidates('원문', signal()), failure('invalid'));

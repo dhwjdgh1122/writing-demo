@@ -53,6 +53,7 @@ const signal = () => new AbortController().signal;
 const completion = (value: unknown) => ({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(value) }] } }] });
 const fakeFetch = (body: unknown, status = 200): typeof fetch => async () => new Response(JSON.stringify(body), { status });
 const failure = (kind: ProviderFailure) => (error: unknown) => error instanceof ProviderError && error.kind === kind;
+const generatedCandidates = ['금요일에 15명을 안내합니다.', '금요일에는 15명을 안내합니다.', '15명에게 금요일에 안내합니다.'];
 
 test('configuration stays offline without key/model and rejects unknown providers and unsafe model paths', () => {
   for (const env of [{}, { LLM_PROVIDER: 'gemini' }, { LLM_PROVIDER: 'gemini', GEMINI_API_KEY: 'test' }, { LLM_PROVIDER: 'gemini', GEMINI_MODEL: 'gemini-test' }]) {
@@ -78,13 +79,29 @@ test('sends only selected text, separate instructions, and a server header key i
     assert.deepEqual(JSON.parse(body.contents[0].parts[0].text), { sourceText: source });
     assert.ok(!String(options?.body).includes(config.apiKey));
     assert.match(body.systemInstruction.parts[0].text, /날짜, 숫자/);
+    assert.match(body.systemInstruction.parts[0].text, /정확히 3개/);
     assert.equal(body.generationConfig.candidateCount, 1);
     assert.equal(body.generationConfig.responseMimeType, 'application/json');
+    assert.equal(body.generationConfig.responseJsonSchema.properties.candidates.minItems, 3);
+    assert.equal(body.generationConfig.responseJsonSchema.properties.candidates.maxItems, 3);
     assert.equal(body.tools, undefined);
-    return new Response(JSON.stringify(completion({ candidates: ['테스트 후보 하나', '테스트 후보 둘'] })));
+    return new Response(JSON.stringify(completion({ candidates: generatedCandidates })));
   };
-  assert.deepEqual(await createGeminiProvider(config, fetcher).generateCandidates(source, abort), ['테스트 후보 하나', '테스트 후보 둘']);
+  assert.deepEqual(await createGeminiProvider(config, fetcher).generateCandidates(source, abort), generatedCandidates);
   assert.equal(calls, 1);
+});
+
+test('rejects zero, one, two or four generated candidates without padding, trimming or retrying', async () => {
+  const possibleCandidates = [...generatedCandidates, '금요일 안내 대상은 15명입니다.'];
+  for (const count of [0, 1, 2, 4]) {
+    let calls = 0;
+    const provider = createGeminiProvider(config, async () => {
+      calls++;
+      return Response.json(completion({ candidates: possibleCandidates.slice(0, count) }));
+    });
+    await assert.rejects(provider.generateCandidates('금요일에 15명을 안내합니다.', signal()), failure('invalid'));
+    assert.equal(calls, 1);
+  }
 });
 
 test('never retries HTTP failures and never puts upstream error text into safe errors', async () => {
@@ -105,7 +122,7 @@ test('uses LOW thinking for Gemini 3 editing but does not send incompatible sett
     const provider = createGeminiProvider({ ...config, model }, async (_url, options) => {
       const body = JSON.parse(String(options?.body));
       assert.deepEqual(body.generationConfig.thinkingConfig, model.startsWith('gemini-3') ? { thinkingLevel: 'LOW' } : undefined);
-      return new Response(JSON.stringify(completion({ candidates: ['테스트 후보'] })));
+      return new Response(JSON.stringify(completion({ candidates: generatedCandidates })));
     });
     await provider.generateCandidates('원문', signal());
   }
@@ -115,16 +132,15 @@ test('rejects blocked, unfinished, missing, malformed and oversized results', as
   const fixtures: [unknown, ProviderFailure][] = [
     [{ promptFeedback: { blockReason: 'SAFETY' } }, 'blocked'],
     [{ candidates: [{ finishReason: 'SAFETY' }] }, 'blocked'],
-    [{ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: '{"candidates":["완성처럼 보이는 후보"]}' }] } }] }, 'truncated'],
+    [{ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: JSON.stringify({ candidates: generatedCandidates }) }] } }] }, 'truncated'],
     [{ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: '{"candidates":["잘린 후보' }] } }] }, 'truncated'],
     [{ candidates: [] }, 'invalid'],
     [{ candidates: [{ finishReason: 'STOP' }] }, 'invalid'],
     [{ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: 'not JSON' }] } }] }, 'invalid'],
-    [completion({ candidates: [] }), 'invalid'],
-    [completion({ candidates: [' \n'] }), 'invalid'],
-    [completion({ candidates: ['1', '2', '3', '4'] }), 'invalid'],
-    [completion({ candidates: ['가'.repeat(2001)] }), 'invalid'],
-    [completion({ candidates: ['후보'], explanation: '아직 요청하지 않은 설명' }), 'invalid'],
+    [completion({ candidates: [' \n', ...generatedCandidates.slice(1)] }), 'invalid'],
+    [completion({ candidates: [42, ...generatedCandidates.slice(1)] }), 'invalid'],
+    [completion({ candidates: ['가'.repeat(2001), ...generatedCandidates.slice(1)] }), 'invalid'],
+    [completion({ candidates: generatedCandidates, explanation: '아직 요청하지 않은 설명' }), 'invalid'],
   ];
   for (const [body, kind] of fixtures) await assert.rejects(createGeminiProvider(config, fakeFetch(body)).generateCandidates('원문', signal()), failure(kind));
   await assert.rejects(createGeminiProvider(config, async () => new Response('not JSON')).generateCandidates('원문', signal()), failure('invalid'));
@@ -132,9 +148,11 @@ test('rejects blocked, unfinished, missing, malformed and oversized results', as
 
 test('skips thought parts and joins split output text without changing candidate text', async () => {
   const body = { candidates: [{ finishReason: 'STOP', content: { parts: [
-    { thought: true, text: 'not the final answer' }, { text: '{"candidates":[' }, { text: '" 후보🌊\\n"]}' },
+    { thought: true, text: 'not the final answer' }, { text: '{"candidates":[' },
+    { text: '" 바다🌊 안내문을 보냅니다.\\n","바다🌊 안내문을 전달합니다.","바다🌊 안내문을 보내드립니다."]}' },
   ] } }] };
-  assert.deepEqual(await createGeminiProvider(config, fakeFetch(body)).generateCandidates('원문', signal()), [' 후보🌊\n']);
+  assert.deepEqual(await createGeminiProvider(config, fakeFetch(body)).generateCandidates('원문', signal()),
+    [' 바다🌊 안내문을 보냅니다.\n', '바다🌊 안내문을 전달합니다.', '바다🌊 안내문을 보내드립니다.']);
 });
 
 test('forwards cancellation to fetch and does not start a fallback request', async () => {

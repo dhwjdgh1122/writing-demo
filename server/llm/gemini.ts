@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { modelOutputSchema } from '../../shared/contracts.js';
+import { CORRECTION_CANDIDATE_COUNT, modelOutputSchema } from '../../shared/contracts.js';
 import { parseExplanations } from './parse-explanations.js';
 import { ProviderError, type CorrectionProvider } from './provider.js';
 import { activeRetryContext, correctionInstructionFor, explanationInstructionFor } from './prompt.js';
 
-// One Gemini completion contains our 1–3 alternatives, not three API calls.
+// One Gemini completion contains our three alternatives, not three API calls.
 const envelopeSchema = z.object({
   promptFeedback: z.object({ blockReason: z.string().optional() }).optional(),
   candidates: z.array(z.object({
@@ -63,7 +63,7 @@ export function createGeminiProvider(config: { apiKey: string; model: string }, 
     async generateCandidates(sourceText, signal, retryContext) {
       const context = activeRetryContext(retryContext);
       const decoded = await generate(correctionInstructionFor(context), { sourceText, ...(context ? { retryContext: context } : {}) }, {
-        type: 'object', properties: { candidates: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 3 } },
+        type: 'object', properties: { candidates: { type: 'array', items: { type: 'string' }, minItems: CORRECTION_CANDIDATE_COUNT, maxItems: CORRECTION_CANDIDATE_COUNT } },
         required: ['candidates'], additionalProperties: false,
       }, signal);
       const result = resultSchema.safeParse(decoded);

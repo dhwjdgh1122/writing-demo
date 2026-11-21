@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const LIMITS = { document: 20_000, selection: 1_000, candidate: 2_000, timeout: 45_000 } as const;
+export const CORRECTION_CANDIDATE_COUNT = 3;
 export const countCharacters = (text: string) => Array.from(text).length;
 const nonBlank = (limit: number) => z.string().refine(s => s.trim().length > 0, '빈 문장은 사용할 수 없습니다.').refine(s => countCharacters(s) <= limit, `최대 ${limit}자까지 사용할 수 있습니다.`);
 export const requestIdSchema = z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/);
@@ -23,10 +24,12 @@ export function retryContextsMatch(left?: RetryContext, right?: RetryContext): b
 export const correctionInputSchema = z.object({
   requestId: requestIdSchema, sourceText: nonBlank(LIMITS.selection), retryContext: retryContextSchema.optional(),
 }).strict();
+// Keep previous 1–3-candidate responses and stored history readable. Fresh
+// generation is checked separately by modelOutputSchema on the server.
 export const correctionOutputSchema = correctionInputSchema.extend({
   candidates: z.array(candidateSchema).min(1).max(3).refine(cs => new Set(cs.map(c => c.id)).size === cs.length),
 }).strict();
-export const modelOutputSchema = z.array(nonBlank(LIMITS.candidate)).min(1).max(3);
+export const modelOutputSchema = z.array(nonBlank(LIMITS.candidate)).length(CORRECTION_CANDIDATE_COUNT);
 export type CorrectionInput = z.infer<typeof correctionInputSchema>;
 export type CorrectionResult = z.infer<typeof correctionOutputSchema>;
 export type Candidate = z.infer<typeof candidateSchema>;
