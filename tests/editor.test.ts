@@ -1,8 +1,9 @@
-import { test } from 'node:test';
+import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { editorReducer as reduce, initialState, type EditorState } from '../client/src/state/editor.js';
 import { diffText } from '../client/src/lib/diff.js';
-import { countCharacters, correctionInputSchema } from '../shared/contracts.js';
+import { countCharacters, correctionInputSchema, type RetryContext } from '../shared/contracts.js';
+import { requestCorrection, requestExplanations, requestFailureCode } from '../client/src/lib/api.js';
 
 function selected(text = '앞 문장. 같은 문장. 뒤 문장. 같은 문장.', start = 19, end = 25) {
   return reduce(reduce(initialState, { type: 'edit', text }), { type: 'select', start, end });
@@ -10,6 +11,16 @@ function selected(text = '앞 문장. 같은 문장. 뒤 문장. 같은 문장.'
 function result(state: EditorState, text: string, requestId = 'r1') {
   return reduce(reduce(state, { type: 'start', requestId }), { type: 'success', value: { requestId, sourceText: state.selection!.text, candidates: [{ id: 'c1', text }] } });
 }
+function stubFetch(t: TestContext, implementation: typeof fetch) {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+  Object.defineProperty(globalThis, 'fetch', { configurable: true, writable: true, value: implementation });
+  t.after(() => {
+    if (descriptor) Object.defineProperty(globalThis, 'fetch', descriptor);
+    else Reflect.deleteProperty(globalThis, 'fetch');
+  });
+}
+const jsonResponse = (body: unknown, status = 200) => ({ ok: status >= 200 && status < 300, status,
+  json: async () => JSON.parse(JSON.stringify(body)) } as Response);
 test('applies to the selected occurrence only and preserves surrounding text', () => {
   const text = '앞. 같은 문장. 중간. 같은 문장. 끝.';
   const start = text.lastIndexOf('같은 문장.');
@@ -74,6 +85,153 @@ test('oversized documents remain visible but do not send a correction request', 
   state = reduce(state, { type: 'start', requestId: 'r1' });
   assert.equal(state.text.length, 20001);
   assert.equal(state.pending, null);
+});
+
+test('before-apply rerun keeps selected original and links the exact predecessor candidates', () => {
+  const text = '앞 문장. 오늘 8명에게 보냅니다. 뒤 문장.';
+  const source = '오늘 8명에게 보냅니다.';
+  const start = text.indexOf(source);
+  let state = result(selected(text, start, start + source.length), '오늘 8명에게 보내드립니다.');
+  const original = state.result!.value;
+  state = reduce(state, { type: 'start', requestId: 'r2', requirement: 'alternative' });
+  assert.equal(state.pending?.sourceText, source);
+  assert.equal(state.pending?.parentRequestId, 'r1');
+  assert.equal(state.pending?.phase, 'before_apply');
+  assert.deepEqual(state.pending?.retryContext, { requirement: 'alternative', previousSourceText: source, previousCandidates: original.candidates });
+  assert.equal(state.pending?.retryContext?.previousSourceText.includes('뒤 문장'), false);
+  assert.equal(reduce(state, { type: 'start', requestId: 'duplicate', requirement: 'plain' }), state);
+});
+
+test('after-apply rerun uses current applied selection while retaining its original context', () => {
+  const source = '오늘 8명에게 보냅니다.';
+  const candidate = '오늘 8명에게 보내드립니다.';
+  let state = result(selected(`앞 ${source} 뒤`, 2, 2 + source.length), candidate);
+  const previousCandidates = state.result!.value.candidates;
+  state = reduce(state, { type: 'apply', candidateId: 'c1' });
+  state = reduce(state, { type: 'start', requestId: 'r2', requirement: 'meaning' });
+  assert.equal(state.pending?.sourceText, candidate);
+  assert.equal(state.pending?.phase, 'after_apply');
+  assert.equal(state.pending?.parentRequestId, 'r1');
+  assert.deepEqual(state.pending?.retryContext, { requirement: 'meaning', previousSourceText: source, previousCandidates });
+});
+
+test('skipping requirement keeps the local link but omits model context', () => {
+  let state = result(selected('원문', 0, 2), '바꾼 문장');
+  state = reduce(state, { type: 'start', requestId: 'r2' });
+  assert.equal(state.pending?.parentRequestId, 'r1');
+  assert.equal(state.pending?.phase, 'before_apply');
+  assert.equal(Object.hasOwn(state.pending!, 'retryContext'), false);
+  state = reduce(state, { type: 'success', value: { requestId: 'r2', sourceText: '원문', candidates: [{ id: 'c2', text: '다른 문장' }] } });
+  assert.equal(state.rerun?.parentRequestId, 'r2');
+  assert.equal(state.result?.snapshot.parentRequestId, 'r1');
+});
+
+test('real edits, new selections and clearing invalidate rerun; no-op and caret events do not', () => {
+  const state = result(selected('원문 다른 문장', 0, 2), '후보');
+  assert.equal(reduce(state, { type: 'edit', text: state.text }), state);
+  assert.equal(reduce(state, { type: 'select', start: 0, end: 2 }), state);
+  assert.equal(reduce(state, { type: 'select', start: 1, end: 1 }), state);
+  for (const next of [reduce(state, { type: 'edit', text: state.text + '!' }),
+    reduce(state, { type: 'select', start: 3, end: 5 }), reduce(state, { type: 'clear' })]) {
+    assert.equal(next.rerun, null);
+    assert.equal(next.result, null);
+  }
+  const applied = reduce(state, { type: 'apply', candidateId: 'c1' });
+  assert.equal(reduce(applied, { type: 'edit', text: state.text }).rerun, null, 'Undo is a real edit');
+});
+
+test('failed rerun retains predecessor and ignores old results after a new retry', () => {
+  let state = result(selected('원문', 0, 2), '후보');
+  const predecessor = state.rerun;
+  state = reduce(state, { type: 'start', requestId: 'r2', requirement: 'polite' });
+  const context = state.pending!.retryContext;
+  state = reduce(state, { type: 'failure', requestId: 'r2', message: '다시 시도', errorCode: 'MODEL_TIMEOUT' });
+  assert.equal(state.rerun, predecessor);
+  state = reduce(state, { type: 'start', requestId: 'r3', requirement: 'plain' });
+  const expected = state;
+  assert.equal(reduce(state, { type: 'success', value: { requestId: 'r2', sourceText: '원문', retryContext: context, candidates: [{ id: 'old', text: '늦은 결과' }] } }), expected);
+  assert.equal(reduce(state, { type: 'failure', requestId: 'r2', message: '늦은 오류' }), expected);
+  assert.equal(state.pending?.parentRequestId, 'r1');
+  assert.equal(state.pending?.retryContext?.requirement, 'plain');
+});
+
+test('matching request and source cannot accept a changed or missing rerun context', () => {
+  const state = reduce(result(selected('원문', 0, 2), '후보'), { type: 'start', requestId: 'r2', requirement: 'errors' });
+  const context = state.pending!.retryContext!;
+  for (const retryContext of [undefined, { ...context, requirement: 'polite' as const },
+    { ...context, previousSourceText: '다른 원문' }, { ...context, previousCandidates: [{ id: 'c1', text: '다른 후보' }] }]) {
+    const next = reduce(state, { type: 'success', value: { requestId: 'r2', sourceText: '원문', candidates: [{ id: 'c2', text: '새 후보' }], retryContext } });
+    assert.equal(next.result, null);
+    assert.equal(next.pending, null);
+    assert.ok(next.error);
+    assert.equal(next.rerun, state.rerun);
+  }
+  const accepted = reduce(state, { type: 'success', value: { requestId: 'r2', sourceText: '원문', candidates: [{ id: 'c2', text: '새 후보' }], retryContext: context } });
+  assert.equal(accepted.result?.value.requestId, 'r2');
+  assert.equal(accepted.rerun?.previousSourceText, '원문');
+  assert.deepEqual(accepted.rerun?.previousCandidates, [{ id: 'c2', text: '새 후보' }]);
+});
+
+test('new selections cannot attach a requirement without a predecessor', () => {
+  const state = selected('원문', 0, 2);
+  assert.equal(reduce(state, { type: 'start', requestId: 'r1', requirement: 'polite' }), state);
+  const ordinary = reduce(state, { type: 'start', requestId: 'r1' });
+  assert.equal(Object.hasOwn(ordinary.pending!, 'parentRequestId'), false);
+  assert.equal(Object.hasOwn(ordinary.pending!, 'retryContext'), false);
+});
+
+test('an applied candidate over the selection limit cannot be rerun until a new range is selected', () => {
+  const applied = reduce(result(selected('원문', 0, 2), '가'.repeat(1001)), { type: 'apply', candidateId: 'c1' });
+  assert.equal(applied.rerun?.phase, 'after_apply');
+  assert.equal(reduce(applied, { type: 'start', requestId: 'r2', requirement: 'plain' }), applied);
+  const smaller = reduce(applied, { type: 'select', start: 0, end: 1000 });
+  assert.equal(smaller.rerun, null);
+  assert.ok(reduce(smaller, { type: 'start', requestId: 'r2' }).pending);
+});
+
+test('client accepts ordinary responses and exact rerun echoes but rejects altered context', async t => {
+  const context: RetryContext = { requirement: 'alternative', previousSourceText: '이전 원문', previousCandidates: [{ id: 'prior', text: '이전 후보' }] };
+  let payload: unknown;
+  let body: Record<string, unknown> = { requestId: 'r1', sourceText: '원문', candidates: [{ id: 'c1', text: '후보' }] };
+  stubFetch(t, async (_url, init) => {
+    payload = JSON.parse(init!.body as string);
+    return jsonResponse(body);
+  });
+  const signal = new AbortController().signal;
+  assert.equal((await requestCorrection({ requestId: 'r1', sourceText: '원문' }, signal)).requestId, 'r1');
+  assert.deepEqual(payload, { requestId: 'r1', sourceText: '원문' });
+  body = { ...body, retryContext: context };
+  assert.deepEqual((await requestCorrection({ requestId: 'r1', sourceText: '원문', retryContext: context }, signal)).retryContext, context);
+  for (const changed of [undefined, { ...context, requirement: 'polite' }, { ...context, previousCandidates: [{ id: 'other', text: '이전 후보' }] }]) {
+    body = { ...body, retryContext: changed };
+    await assert.rejects(requestCorrection({ requestId: 'r1', sourceText: '원문', retryContext: context }, signal), error => requestFailureCode(error) === 'CLIENT_RESPONSE_INVALID');
+  }
+});
+
+test('client explanation requests carry the current candidates and demand context with exact response matching', async t => {
+  const retryContext: RetryContext = { requirement: 'meaning', previousSourceText: '원래 8명', previousCandidates: [{ id: 'previous', text: '현재 10명' }] };
+  const input = { requestId: 'e1', sourceText: '현재 10명', candidates: [{ id: 'c2', text: '다시 8명' }], retryContext };
+  const explanations = [{ candidateId: 'c2', error: 'EXPLANATION_INVALID' as const }];
+  let changed = false;
+  stubFetch(t, async (_url, init) => {
+    assert.deepEqual(JSON.parse(init!.body as string), input);
+    return jsonResponse({ ...input, explanations, retryContext: changed ? { ...retryContext, previousSourceText: '다른 의도' } : retryContext });
+  });
+  const signal = new AbortController().signal;
+  assert.deepEqual(await requestExplanations(input, signal), explanations);
+  changed = true;
+  await assert.rejects(requestExplanations(input, signal), error => requestFailureCode(error) === 'CLIENT_RESPONSE_INVALID');
+});
+
+test('client failure codes never copy arbitrary server errors or network messages into activity metadata', async t => {
+  let code = 'MODEL_OUTPUT_TRUNCATED';
+  stubFetch(t, async () => jsonResponse({ error: { code, message: 'private sentence and url' } }, 503));
+  const input = { requestId: 'r1', sourceText: '원문' };
+  const signal = new AbortController().signal;
+  await assert.rejects(requestCorrection(input, signal), error => requestFailureCode(error) === 'MODEL_OUTPUT_TRUNCATED');
+  code = 'private server details';
+  await assert.rejects(requestCorrection(input, signal), error => requestFailureCode(error) === 'CLIENT_REQUEST_FAILED');
+  assert.equal(requestFailureCode(new Error('private network URL')), 'CLIENT_REQUEST_FAILED');
 });
 for (const [source, candidate] of [['목요일에 안내', '이후에 안내'], ['남아 있다', '남아있다'], ['가\n나😀', '가 나😊'], ['같음', '같음'], ['삭제만', '삭제']]) {
   test(`diff reconstructs both strings without changing content: ${JSON.stringify(source)}`, () => {

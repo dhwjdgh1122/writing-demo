@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { modelOutputSchema } from '../../shared/contracts.js';
 import { parseExplanations } from './parse-explanations.js';
 import { ProviderError, type CorrectionProvider } from './provider.js';
-import { correctionInstruction, explanationInstruction } from './prompt.js';
+import { activeRetryContext, correctionInstructionFor, explanationInstructionFor } from './prompt.js';
 
 // One Gemini completion contains our 1–3 alternatives, not three API calls.
 const envelopeSchema = z.object({
@@ -60,8 +60,9 @@ export function createGeminiProvider(config: { apiKey: string; model: string }, 
   }
   return {
     configured: true,
-    async generateCandidates(sourceText, signal) {
-      const decoded = await generate(correctionInstruction, { sourceText }, {
+    async generateCandidates(sourceText, signal, retryContext) {
+      const context = activeRetryContext(retryContext);
+      const decoded = await generate(correctionInstructionFor(context), { sourceText, ...(context ? { retryContext: context } : {}) }, {
         type: 'object', properties: { candidates: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 3 } },
         required: ['candidates'], additionalProperties: false,
       }, signal);
@@ -69,8 +70,9 @@ export function createGeminiProvider(config: { apiKey: string; model: string }, 
       if (!result.success) throw new ProviderError('invalid');
       return result.data.candidates;
     },
-    async generateExplanations(sourceText, candidates, signal) {
-      const decoded = await generate(explanationInstruction, { sourceText, candidates }, {
+    async generateExplanations(sourceText, candidates, signal, retryContext) {
+      const context = activeRetryContext(retryContext);
+      const decoded = await generate(explanationInstructionFor(context), { sourceText, candidates, ...(context ? { retryContext: context } : {}) }, {
         type: 'object', properties: { explanations: { type: 'array', minItems: 1, maxItems: 3,
           items: { type: 'object', properties: { candidateId: { type: 'string', enum: candidates.map(c => c.id) }, explanation: { type: 'string' } },
             required: ['candidateId', 'explanation'], additionalProperties: false } } },

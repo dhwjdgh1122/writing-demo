@@ -1,49 +1,86 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { LIMITS, type CorrectionResult, type ExplanationResult, type Candidate } from '../../../shared/contracts';
-import { requestExplanations } from '../lib/api';
+import { LIMITS, type CorrectionResult, type ExplanationResult, type ExplanationInput } from '../../../shared/contracts';
+import { requestExplanations, requestFailureCode } from '../lib/api';
+import { activityErrorCode, type ActivityInput } from '../lib/activity';
 import { CandidateCard } from './CandidateCard';
 import { Icon } from './Icon';
 
 // The parent keys this component by correction request ID. New results unmount
 // the old view and cancelling its request. Completed explanations can be saved
 // by the parent without making history responsible for model requests.
-export function CorrectionResults({ result, onApply, onExplanationResults }: {
+export type ExplanationActivity = Omit<ActivityInput, 'action'> & {
+  action: 'explanation_requested' | 'explanation_received' | 'explanation_failed' | 'explanation_cancelled';
+};
+type ActivityContext = Pick<ActivityInput, 'parentRequestId' | 'phase' | 'requirement'>;
+type ExplanationAttempt = { input: ExplanationInput; activity: Omit<ExplanationActivity, 'action'> };
+
+export function CorrectionResults({ result, onApply, onExplanationResults, activityContext, onActivity }: {
   result: CorrectionResult;
   onApply: (id: string) => void;
   onExplanationResults?: (requestId: string, explanations: ExplanationResult[]) => void;
+  activityContext?: ActivityContext;
+  onActivity?: (event: ExplanationActivity) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [attempt, setAttempt] = useState(0);
+  const [attempt, setAttempt] = useState<ExplanationAttempt | null>(null);
   const [loading, setLoading] = useState(false);
   const [explanations, setExplanations] = useState<ExplanationResult[] | null>(null);
-  const [targets, setTargets] = useState<Candidate[]>(result.candidates);
   const [error, setError] = useState<string | null>(null);
   const panelId = useId();
   const explanationCallback = useRef(onExplanationResults);
+  const activityCallback = useRef(onActivity);
+  const requesting = useRef(false);
 
   useEffect(() => { explanationCallback.current = onExplanationResults; }, [onExplanationResults]);
+  useEffect(() => { activityCallback.current = onActivity; }, [onActivity]);
   useEffect(() => {
     if (explanations) explanationCallback.current?.(result.requestId, explanations);
   }, [explanations, result.requestId]);
 
   useEffect(() => {
     if (!attempt) return;
+    requesting.current = true;
     const controller = new AbortController();
     let active = true;
     let timedOut = false;
+    let settled = false;
     const timer = setTimeout(() => { timedOut = true; controller.abort(); }, LIMITS.timeout + 5_000);
-    requestExplanations({ requestId: crypto.randomUUID(), sourceText: result.sourceText, candidates: targets }, controller.signal)
-      .then(value => { if (active) setExplanations(previous => [...(previous ?? []).filter(e => !value.some(v => v.candidateId === e.candidateId)), ...value]); })
-      .catch(reason => { if (active) setError(timedOut ? '설명 응답 시간이 초과되었습니다. 다시 시도해주세요.' : reason instanceof Error ? reason.message : '설명을 불러오지 못했습니다.'); })
-      .finally(() => { clearTimeout(timer); if (active) setLoading(false); });
-    return () => { active = false; clearTimeout(timer); controller.abort(); };
-  }, [attempt, result.sourceText, targets]);
+    requestExplanations(attempt.input, controller.signal)
+      .then(value => {
+        if (!active) return;
+        settled = true;
+        setExplanations(previous => [...(previous ?? []).filter(e => !value.some(v => v.candidateId === e.candidateId)), ...value]);
+        activityCallback.current?.({ ...attempt.activity, action: 'explanation_received' });
+        for (const explanation of value) {
+          if ('error' in explanation) activityCallback.current?.({ ...attempt.activity, action: 'explanation_failed',
+            candidateId: explanation.candidateId, errorCode: activityErrorCode(explanation.error) });
+        }
+      })
+      .catch(reason => {
+        if (!active) return;
+        settled = true;
+        setError(timedOut ? '설명 응답 시간이 초과되었습니다. 다시 시도해주세요.' : reason instanceof Error ? reason.message : '설명을 불러오지 못했습니다.');
+        activityCallback.current?.({ ...attempt.activity, action: 'explanation_failed',
+          errorCode: timedOut ? 'CLIENT_TIMEOUT' : requestFailureCode(reason) });
+      })
+      .finally(() => { clearTimeout(timer); if (active) { requesting.current = false; setLoading(false); } });
+    return () => {
+      active = false; clearTimeout(timer); controller.abort(); requesting.current = false;
+      if (!settled) activityCallback.current?.({ ...attempt.activity, action: 'explanation_cancelled' });
+    };
+  }, [attempt]);
 
   const failedIds = explanations?.filter(e => 'error' in e).map(e => e.candidateId) ?? [];
   const request = () => {
-    if (loading) return;
-    setTargets(failedIds.length ? result.candidates.filter(c => failedIds.includes(c.id)) : result.candidates);
-    setError(null); setLoading(true); setAttempt(n => n + 1);
+    if (requesting.current) return;
+    requesting.current = true;
+    const attemptId = crypto.randomUUID();
+    const activity = { ...activityContext, requestId: result.requestId, attemptId };
+    const input: ExplanationInput = { requestId: attemptId, sourceText: result.sourceText,
+      candidates: failedIds.length ? result.candidates.filter(c => failedIds.includes(c.id)) : result.candidates,
+      ...(result.retryContext ? { retryContext: result.retryContext } : {}) };
+    activityCallback.current?.({ ...activity, action: 'explanation_requested' });
+    setError(null); setLoading(true); setAttempt({ input, activity });
   };
   const toggle = () => {
     setOpen(!open);

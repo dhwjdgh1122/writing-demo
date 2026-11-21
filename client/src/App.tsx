@@ -1,18 +1,27 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { countCharacters, LIMITS, selectionProblem, type ExplanationResult } from '../../shared/contracts';
-import { editorReducer, initialState, type Action } from './state/editor';
-import { requestCorrection } from './lib/api';
+import { countCharacters, LIMITS, selectionProblem, type ExplanationResult, type RetryRequirement } from '../../shared/contracts';
+import { editorReducer, initialState, type Action, type Snapshot } from './state/editor';
+import { requestCorrection, requestFailureCode } from './lib/api';
 import { Icon } from './components/Icon';
-import { CorrectionResults } from './components/CorrectionResults';
+import { CorrectionResults, type ExplanationActivity } from './components/CorrectionResults';
 import { SelectionConfirm } from './components/SelectionConfirm';
 import { SelectionHighlight } from './components/SelectionHighlight';
 import { selectionAnchor } from './lib/selectionAnchor';
 import { useHistory } from './hooks/useHistory';
 import { HistoryPanel } from './components/HistoryPanel';
+import { RerunControls } from './components/RerunControls';
+import { useActivity } from './hooks/useActivity';
+import { ActivityPanel } from './components/ActivityPanel';
+import { activityErrorCode } from './lib/activity';
+
+const requestMetadata = (snapshot: Snapshot) => ({ requestId: snapshot.requestId,
+  ...(snapshot.parentRequestId ? { parentRequestId: snapshot.parentRequestId, phase: snapshot.phase } : {}),
+  ...(snapshot.retryContext?.requirement ? { requirement: snapshot.retryContext.requirement } : {}) });
 
 export default function App() {
   const [state, editorDispatch] = useReducer(editorReducer, initialState);
   const history = useHistory();
+  const activity = useActivity();
   const editorStateRef = useRef(initialState);
   // Queue persistence only for actions accepted by the editor. Keep side effects
   // outside React's reducer, which can run more than once in development.
@@ -21,21 +30,40 @@ export default function App() {
     const next = editorReducer(previous, action);
     editorStateRef.current = next;
     editorDispatch(action);
+    if (action.type === 'start' && next.pending && next.pending !== previous.pending) {
+      activity.record({ ...requestMetadata(next.pending), action: 'correction_requested' });
+    }
     if (action.type === 'success' && next.result && next.result !== previous.result) {
+      const snapshot = next.result.snapshot;
       history.enqueue({ type: 'add', record: { id: next.result.value.requestId, createdAt: new Date().toISOString(),
         sourceText: next.result.value.sourceText, candidates: next.result.value.candidates, explanations: [],
-        appliedCandidateId: null, appliedAt: null } });
+        appliedCandidateId: null, appliedAt: null,
+        ...(snapshot.parentRequestId ? { parentRecordId: snapshot.parentRequestId, phase: snapshot.phase } : {}),
+        ...(snapshot.retryContext?.requirement ? { requirement: snapshot.retryContext.requirement } : {}) } });
+      activity.record({ ...requestMetadata(snapshot), action: 'correction_received' });
+    }
+    if (previous.pending && !next.pending && next !== previous) {
+      if (action.type === 'failure' || (action.type === 'success' && !next.result)) {
+        activity.record({ ...requestMetadata(previous.pending), action: 'correction_failed',
+          errorCode: activityErrorCode(action.type === 'failure' ? action.errorCode : 'CLIENT_RESPONSE_INVALID') });
+      } else if (action.type !== 'success') {
+        activity.record({ ...requestMetadata(previous.pending), action: 'correction_cancelled' });
+      }
     }
     if (action.type === 'apply' && previous.result && next.revision !== previous.revision) {
       history.enqueue({ type: 'apply', id: previous.result.value.requestId, candidateId: action.candidateId, at: new Date().toISOString() });
+      activity.record({ ...requestMetadata(previous.result.snapshot), action: 'candidate_applied', candidateId: action.candidateId });
     }
-  }, [history.enqueue]);
+    return next;
+  }, [history.enqueue, activity.record]);
   const saveExplanations = useCallback((requestId: string, values: ExplanationResult[]) => {
     history.enqueue({ type: 'explanations', id: requestId, values });
   }, [history.enqueue]);
+  const recordExplanationActivity = useCallback((event: ExplanationActivity) => activity.record(event), [activity.record]);
   const [connection, setConnection] = useState<'checking' | 'ready' | 'missing' | 'offline'>('checking');
   const [composing, setComposing] = useState(false);
   const compositionRef = useRef(false);
+  const applyingRef = useRef(false);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const runRef = useRef<HTMLButtonElement>(null);
   const [anchor, setAnchor] = useState<{ left: number; top: number } | null>(null);
@@ -44,7 +72,7 @@ export default function App() {
 
   const captureSelection = useCallback(() => {
     const editor = editorRef.current;
-    if (!editor || compositionRef.current) return;
+    if (!editor || compositionRef.current || applyingRef.current) return;
     dispatch({ type: 'select', start: editor.selectionStart, end: editor.selectionEnd });
     if (draggingPointerRef.current === null) setAnchor(selectionAnchor(editor));
   }, [dispatch]);
@@ -97,10 +125,13 @@ export default function App() {
     const controller = new AbortController();
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; controller.abort(); }, LIMITS.timeout + 5_000);
-    requestCorrection({ requestId: request.requestId, sourceText: request.sourceText }, controller.signal)
+    requestCorrection({ requestId: request.requestId, sourceText: request.sourceText,
+      ...(request.retryContext ? { retryContext: request.retryContext } : {}) }, controller.signal)
       .then(value => dispatch({ type: 'success', value }))
       .catch(error => {
-        if (!controller.signal.aborted || timedOut) dispatch({ type: 'failure', requestId: request.requestId, message: timedOut ? '응답 시간이 초과되었습니다. 다시 시도해주세요.' : error instanceof Error ? error.message : '교정 요청에 실패했습니다.' });
+        if (!controller.signal.aborted || timedOut) dispatch({ type: 'failure', requestId: request.requestId,
+          errorCode: timedOut ? 'CLIENT_TIMEOUT' : requestFailureCode(error),
+          message: timedOut ? '응답 시간이 초과되었습니다. 다시 시도해주세요.' : error instanceof Error ? error.message : '교정 요청에 실패했습니다.' });
       }).finally(() => clearTimeout(timer));
     return () => { clearTimeout(timer); controller.abort(); };
   }, [state.pending, dispatch]);
@@ -141,15 +172,23 @@ export default function App() {
     ? '원문 작업 공간에서 바뀐 내용을 확인하세요.\n다른 문장을 다듬으려면 해당 부분을 선택해주세요.'
     : state.selection ? '교정 실행 버튼에서 선택한 문장을 확인하면\n교정을 시작할 수 있습니다.' : '원문에서 고치고 싶은 부분을 선택한 뒤\n교정 실행 버튼을 눌러주세요.';
   const connectionText = { checking: '연결 확인 중', ready: 'AI 설정 확인됨', missing: 'AI 연결 대기', offline: '서버 연결 확인 필요' }[connection];
+  const rerun = (requirement?: RetryRequirement) => {
+    if (disabled || !editorStateRef.current.rerun) return;
+    setAnchor(null);
+    dispatch({ type: 'start', requestId: crypto.randomUUID(), requirement });
+    requestAnimationFrame(() => editorRef.current?.focus({ preventScroll: true }));
+  };
   const apply = (candidateId: string) => {
-    dispatch({type: 'apply', candidateId});
-    const nextState = editorReducer(state, {type: 'apply', candidateId})
-    if (state.selectionRevision === nextState.selectionRevision)
-      return
-    editorRef.current?.focus();
-    editorRef.current?.setSelectionRange(state.result!.snapshot.start, state.result!.snapshot!.end);
-    const isSuccess = document.execCommand('insertText', false, nextState.selection!.text);
-    runRef.current?.focus();
+    const previous = editorStateRef.current;
+    applyingRef.current = true;
+    try {
+      const nextState = dispatch({ type: 'apply', candidateId });
+      if (previous.revision === nextState.revision || !previous.result || !nextState.selection) return;
+      editorRef.current?.focus({ preventScroll: true });
+      editorRef.current?.setSelectionRange(previous.result.snapshot.start, previous.result.snapshot.end);
+      document.execCommand('insertText', false, nextState.selection.text);
+      runRef.current?.focus();
+    } finally { applyingRef.current = false; }
   };
 
   return <div className="app-shell" onPointerDown={event => {
@@ -178,13 +217,17 @@ export default function App() {
         <section className="correction-panel panel" aria-label="교정 패널">
           <div className="results-section" aria-busy={Boolean(state.pending)}><div className="section-heading"><h2>교정 문장</h2>{state.result && <span className="result-count">후보 {state.result.value.candidates.length}개</span>}</div>
             <div role="status" aria-live="polite" className="status-region">{state.pending && <p className="loading-message"><span className="spinner" />교정안을 만들고 있습니다.</p>}{state.error && <div className="error-message"><Icon name="info" size={18} /><p>{state.error}</p></div>}{state.notice && <p className="success-message"><Icon name="check" size={18} />{state.notice}</p>}</div>
-            {state.result ? <CorrectionResults key={state.result.value.requestId} result={state.result.value} onApply={apply} onExplanationResults={saveExplanations} /> : !state.pending && <div className="empty-result"><div className="empty-icon"><Icon name="document" size={31} /></div><h3>{emptyHeading}</h3><p>{emptyDescription}</p></div>}
+            {state.result ? <CorrectionResults key={state.result.value.requestId} result={state.result.value} onApply={apply} onExplanationResults={saveExplanations}
+              activityContext={requestMetadata(state.result.snapshot)} onActivity={recordExplanationActivity} /> : !state.pending && <div className="empty-result"><div className="empty-icon"><Icon name="document" size={31} /></div><h3>{emptyHeading}</h3><p>{emptyDescription}</p></div>}
           </div>
+          {state.rerun && <RerunControls key={`${state.rerun.parentRequestId}-${state.rerun.phase}`} phase={state.rerun.phase}
+            disabled={disabled} pending={Boolean(state.pending)} problem={problem} onRun={rerun} />}
           {connection === 'missing' && <div className="setup-note"><Icon name="info" size={16} /><p>현재는 화면·선택 기능을 확인할 수 있습니다.<br /><strong>실제 교정은 AI 연결 후 사용할 수 있습니다.</strong></p></div>}
         </section>
       </div>
       <HistoryPanel {...history} />
-      <footer className="page-footer"><span>센틴스파이 데스크톱 사용 흐름을 참고한 독립 웹 데모</span><span>선택한 문장만 요청에 포함됩니다.</span></footer>
+      <ActivityPanel activity={activity} historyRecords={history.records} />
+      <footer className="page-footer"><span>센틴스파이 데스크톱 사용 흐름을 참고한 독립 웹 데모</span><span>교정에는 선택한 문장만 사용하며, 요구를 선택한 재교정에는 이전 선택 원문·후보도 전달합니다.</span></footer>
     </main>
     {anchor && !disabled && !confirmation && <button className="floating-correction" style={anchor} aria-haspopup="dialog" onPointerDown={event => event.preventDefault()} onClick={openConfirmation}>교정하기 <Icon name="arrow" size={16} /></button>}
     {confirmation && <SelectionConfirm text={confirmation.text} count={countCharacters(confirmation.text)} onCancel={cancelConfirmation} onConfirm={confirmCorrection} />}

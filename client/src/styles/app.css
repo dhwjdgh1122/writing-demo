@@ -54,6 +54,24 @@ main{max-width:1488px;margin:0 auto;padding:38px 24px 20px}.page-intro{display:f
 .candidate-explanation h4 { margin: 0 0 7px; font-size: 13px; color: #6930c3; }
 .candidate-explanation p { margin: 0; font-size: 14px; line-height: 1.8; color: #4c435e; white-space: pre-wrap; }
 .history-panel { margin-top: 24px; min-width: 0; }
+.activity-panel { margin-top: 24px; min-width: 0; }
+.activity-panel > .history-explanation-note,.activity-content-option,.activity-participant,.activity-panel > .history-actions { margin: 0 24px 16px; }
+.activity-participant { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 13px; }
+.activity-participant input { flex: 1 1 160px; min-width: 0; max-width: 280px; border: 1px solid var(--line); border-radius: 6px; padding: 10px; font: inherit; }
+.activity-participant p { flex-basis: 100%; margin: 0; overflow-wrap: anywhere; }
+.activity-content-option { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.activity-content-option input { width: 16px; height: 16px; accent-color: #7027e8; }
+.rerun-controls { margin: 20px 0 0; padding: 16px; background: #faf8fd; border: 1px solid #e7def6; border-radius: 9px; min-width: 0; }
+.rerun-controls h3 { margin: 0 0 10px; font-size: 15px; }
+.rerun-controls p { margin: 8px 0 12px; font-size: 12px; line-height: 1.7; color: #62566f; }
+.rerun-controls label { display: block; margin: 10px 0 8px; font-size: 13px; }
+.rerun-controls select { width: 100%; max-width: 100%; min-width: 0; padding: 10px; border: 1px solid #d8c9e8; border-radius: 6px; background: #fff; color: #4c435e; font: inherit; font-size: 13px; }
+.rerun-controls button { min-height: 40px; }
+.rerun-controls select:focus-visible,.activity-participant input:focus-visible { outline: 3px solid #9c76e8; outline-offset: 2px; }
+.activity-stats-scroll { margin: 0 24px 16px; overflow-x: auto; }
+.activity-stats-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.activity-stats-table th,.activity-stats-table td { padding: 8px; border-bottom: 1px solid var(--line); text-align: left; }
+.activity-stats-table caption { text-align: left; margin-bottom: 8px; color: #62566f; }
 .history-heading { padding: 20px 24px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .history-heading h2 { font-size: 16px; }
 .history-heading h2 span { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 8px; }
@@ -86,6 +104,8 @@ main{max-width:1488px;margin:0 auto;padding:38px 24px 20px}.page-intro{display:f
 .history-delete { min-height: 40px; color: #884536; border-color: #dfc5bd; }
 .history-delete:hover:not(:disabled) { background: #fff7f5; }
 @media(max-width:520px) {
+  .activity-panel > .history-explanation-note,.activity-content-option,.activity-participant,.activity-panel > .history-actions,.activity-stats-scroll { margin-left: 16px; margin-right: 16px; }
+  .activity-panel > .history-actions button { flex: 1 1 130px; }
   .history-heading { padding: 16px 16px 12px; align-items: flex-start; }
   .history-notice,.history-storage-status,.history-feedback { margin-left: 16px; margin-right: 16px; }
   .history-list { padding: 0 12px 16px; }
