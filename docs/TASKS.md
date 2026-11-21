@@ -1,6 +1,6 @@
 # 공동 작업 안내와 중간발표 진행 기록
 
-> 역할: 공동 작업 보드·Issue의 위치와 운영 기준, 중간발표 준비 계획과 실제 진행 기록을 안내한다. 작업 내용·완료 기준·논의는 Issue, 최신 상태·담당·목표일은 Projects에서 관리한다. 최신화: 2026-11-21.
+> 역할: 공동 작업 보드·Issue의 위치와 운영 기준, 중간발표 준비 계획과 실제 진행 기록을 안내한다. 작업 내용·완료 기준·논의는 Issue, 최신 상태·담당·목표일은 Projects에서 관리한다. 최신화: 2026-11-22.
 
 ## 현재 확인한 상태
 
@@ -223,6 +223,10 @@ TASKS는 작업 안내·출처·링크를, Issue는 상세 작업 내용·완료
 ### 기록과 상태 관리
 
 **11/21 #22 후속:** [별도 설명 재검토 실험](검증%20기록.md#explanation-review-01) 8회에서도 조건·선택 기준·잔존 단어 누락이 남아 미채택했다. 제품에 자동 두 번째 요청을 추가하지 않는다. 기존 완료 기준과 Draft #23·#34는 보존하며 #22는 미완료다. 히스토리·재교정 요구 기능의 동작 검증과 구분한다.
+
+**11/22 #22 후속 — [Draft PR #55](https://github.com/dhwjdgh1122/writing-demo/pull/55):** [원래 gate와 이번 수동 사례](evaluations/explanation-continuation-plan-2026-11-22.md)를 재사용한 대조 예시, [사전 정의 전달 위치](evaluations/explanation-lexical-reference-result-2026-11-22.md), [다른 제공자 재검토](evaluations/explanation-cross-review-result-2026-11-22.md), [문장별 독립 조건 추출](evaluations/explanation-isolated-conditions-result-2026-11-22.md), [인용·사전 참조 구분](evaluations/explanation-typed-reference-result-2026-11-22.md), [엘리스 응답 설정](evaluations/explanation-sampling-result-2026-11-22.md) 실험의 실패·부분 개선·미실행을 보존했다. [공백 변경 사실 안내의 독립 재사용](evaluations/explanation-spacing-reuse-result-2026-11-22.md)은 PR #34의 제한된 계산 기능을 현재 계약에 연결한 것으로 전체 설명 품질 완료와 구분한다. 현재 진행·병합 여부는 #22·PR #55에서 관리한다.
+
+사용자 요청으로 후속 진행을 일시 중단한다. [명제 생성 진단 준비](evaluations/explanation-propositions-plan-2026-11-22.md)는 실행기·오프라인 검증까지만 보존하며 실제 모델 0회·계획 6회 미실행이다. #22의 미완료 범위와 기존 평가 결과는 유지한다.
 
 **11/21 후속 — [#49 요구 재교정·최소 행동 기록](https://github.com/dhwjdgh1122/writing-demo/issues/49):** 사용자의 확정 범위에 따라 적용 전/후 요구 선택을 실제 후보 생성에 반영하고 요청·결과·적용을 연결한다. 기존 동일 목적 이슈가 없어 독립 과제로 등록했다. #8의 브라우저 이력과 연결하고 #22의 설명 품질·#9의 모델 비교와 구분한다. [F-07 명세](FEATURE_SPEC.md#demand-rerun)를 기준으로 구현·검증하며, 사용자 만족과 설명 효과는 별도 검증 대상이다.
 

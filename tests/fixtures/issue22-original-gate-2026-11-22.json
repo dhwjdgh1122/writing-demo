@@ -1,0 +1,338 @@
+{
+  "schemaVersion": 1,
+  "provenance": {
+    "restoredOn": "2026-11-22",
+    "purpose": "#22의 기존 고정 병합 평가 범위 복원. 새 모델 실행이나 품질 통과 결과가 아니다.",
+    "sourceCommit": "0e4df1deb069f02022c811a1759938364472681c",
+    "hashMethod": "SHA-256 of original Git blob bytes returned by git show <commit>:<path>; no checkout newline conversion or JSON reserialization.",
+    "sourceFiles": [
+      {
+        "path": "tests/fixtures/explanation-criteria-cases.json",
+        "commit": "0e4df1deb069f02022c811a1759938364472681c",
+        "sha256": "f0191b479a7d5089f04aaeda007ef1e46fee9dcf9e42339180ce91f394529ee1",
+        "gitBlobId": "7542f758ffdd801c8547c3cc6545aa7b98cf392c",
+        "selectedCaseIds": [
+          "E-01",
+          "E-02",
+          "E-03",
+          "E-04",
+          "E-05",
+          "E-07"
+        ],
+        "excludedCaseIds": []
+      },
+      {
+        "path": "tests/fixtures/explanation-condition-scope-cases.json",
+        "commit": "0e4df1deb069f02022c811a1759938364472681c",
+        "sha256": "2f964a9757b0d1bc20855a97d220e14e3109f042345936e510a8c04268db5c97",
+        "gitBlobId": "d528e1e30fedf23a849d21ea298ec6736ff179b1",
+        "selectedCaseIds": [
+          "CT-01",
+          "CT-02",
+          "CT-03",
+          "CS-02"
+        ],
+        "excludedCaseIds": [
+          "CS-01",
+          "E-07"
+        ]
+      },
+      {
+        "path": "tests/fixtures/explanation-usage-boundary-cases.json",
+        "commit": "0e4df1deb069f02022c811a1759938364472681c",
+        "sha256": "0145ff40dd35ee0e3a2a87906adc734ae958f1db2a4bd3077f63ac9e15ae46dd",
+        "gitBlobId": "f66815046753bfa0dd69772b5a9ff9a0d8236373",
+        "selectedCaseIds": [
+          "L-01",
+          "R-02",
+          "R-03",
+          "R-05"
+        ],
+        "excludedCaseIds": [
+          "L-04-p2",
+          "L-02"
+        ]
+      }
+    ],
+    "gateDefinition": {
+      "path": "docs/교정 설명 평가 기준.md",
+      "commit": "8d4b5b37cacf2fa3025d466d0e8115cd0dbff2d0",
+      "sha256": "1d10db88ce1ff2e28895c3257bcbb6723cf584d2ef67e756defb8b964c3f1b30",
+      "anchor": "issue22-merge-gate"
+    },
+    "selectedCaseObjectsPreserved": true
+  },
+  "gate": {
+    "casesPerProviderPerRepetition": 14,
+    "candidateResultsPerProviderPerRepetition": 15,
+    "repetitionsPerProvider": 3,
+    "providers": [
+      {
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite"
+      },
+      {
+        "provider": "elice",
+        "model": "gpt-4o-mini"
+      }
+    ],
+    "plannedAppRequests": 84,
+    "plannedCandidateResults": 90,
+    "fixedNoticeCaseIds": [
+      "E-05"
+    ],
+    "fixedNoticeCandidateResults": 6,
+    "candidateAddenda": [
+      {
+        "caseId": "E-04",
+        "candidateId": "e04-p2",
+        "requirement": "남은 결재의 납부 문맥 부적합을 설명해야 한다. 이전 notes 계약의 내용 요구를 보존하며 현재 출력에 notes 필드 자체를 강제하지 않는다.",
+        "source": "gateDefinition의 단어 경계 4사례 행 및 통과 조건 2"
+      }
+    ],
+    "criteria": [
+      "모델별 3회의 모든 평가 가능한 설명에서 사실 오류·없는 의미 변화·근거 없는 단정이 0건이어야 한다.",
+      "각 후보의 원본 required와 E-04-p2 보완 조건을 모두 충족해야 한다. 필수 변경·영향·선택 정보 누락과 읽기 어려운 설명은 보완 필요이며 통과가 아니다.",
+      "고정된 정상 입력의 설명이 각 회에 제공돼야 한다. 형식·인용 검사 차단은 설명 미제공이며 해당 회는 미충족이다.",
+      "서비스 장애·사용량 제한·미실행은 판정 보류로 남긴다. 자동 재시도하거나 첫 실패를 성공 응답으로 덮어쓰지 않는다.",
+      "E-05의 동일 후보 고정 안내는 별도 집계하고 모델 품질에 포함하지 않는다.",
+      "평균 점수나 다른 모델의 성공으로 실패를 상쇄하지 않는다. 원자료·필수 항목별 판정·검토자·자동 검사 결과와 미검증 범위를 함께 보존한다."
+    ],
+    "modelInputBoundary": "sourceText와 candidates만 설명 입력 데이터로 사용한다. origin, required, expectedNotes, provenance, gate 및 검토자 판정은 모델에 전송하지 않는다.",
+    "notesCompatibility": "expectedNotes와 required의 notes 언급은 원본 그대로 보존한다. 현재 자유문 설명에서 같은 내용의 제공 여부를 판정하며 notes 필드 부재 자체로 실패시키지 않는다."
+  },
+  "cases": [
+    {
+      "id": "E-01",
+      "origin": "평가 기준 문서의 작성 사례. 실제 서비스 생성 후보가 아님.",
+      "sourceText": "금요일까지 자료를 보내 주세여.",
+      "candidates": [
+        {
+          "id": "e01-c1",
+          "text": "금요일까지 자료를 보내 주세요."
+        }
+      ],
+      "required": [
+        "주세여→주세요 수정",
+        "날짜·요청 내용에 없는 변화 주장 없음"
+      ]
+    },
+    {
+      "id": "E-02",
+      "origin": "평가 기준 문서의 작성 사례. 실제 서비스 관찰 원문을 재현한 기록이 아님.",
+      "sourceText": "목요일에 다시 안내하겠습니다.",
+      "candidates": [
+        {
+          "id": "e02-c1",
+          "text": "이후에 다시 안내하겠습니다."
+        }
+      ],
+      "required": [
+        "목요일이라는 구체적 날짜 소실",
+        "원문의 일정 전달 의도에 따른 선택 기준"
+      ]
+    },
+    {
+      "id": "E-03",
+      "origin": "기존 explanation-cases.json NEW-meaning/m2의 개발자 작성 고정 문장 쌍.",
+      "sourceText": "담당자의 확인을 받은 경우에만 화요일까지 8명에게 자료를 보낼 예정이며, 발송은 확정되지 않았습니다.",
+      "candidates": [
+        {
+          "id": "e03-c1",
+          "text": "화요일까지 10명에게 자료를 발송합니다."
+        }
+      ],
+      "required": [
+        "담당자 확인 조건 삭제",
+        "8명→10명",
+        "예정·미확정 표현 소실",
+        "원문의 정보 유지 시 선택 기준"
+      ]
+    },
+    {
+      "id": "E-04",
+      "origin": "기존 explanation-cases.json NEW-payment/p1,p2의 개발자 작성 고정 문장 쌍.",
+      "sourceText": "참가자 8명중 2명은 등록비를 아직 결재하지 않앗습니다.",
+      "candidates": [
+        {
+          "id": "e04-p1",
+          "text": "참가자 8명 중 2명은 등록비를 아직 결제하지 않았습니다."
+        },
+        {
+          "id": "e04-p2",
+          "text": "참가자 8명 중 2명은 등록비를 아직 결재하지 않았습니다."
+        }
+      ],
+      "required": [
+        "p1의 결재→결제와 p2의 유지 구분",
+        "8명·2명·미납 상태 왜곡 없음",
+        "없는 규칙·출처 발명 없음"
+      ]
+    },
+    {
+      "id": "E-05",
+      "origin": "기존 explanation-cases.json NEW-meaning/m3. 동일 후보 안내는 코드가 고정하며 모델 품질 집계에서 제외.",
+      "sourceText": "담당자의 확인을 받은 경우에만 화요일까지 8명에게 자료를 보낼 예정이며, 발송은 확정되지 않았습니다.",
+      "candidates": [
+        {
+          "id": "e05-c1",
+          "text": "담당자의 확인을 받은 경우에만 화요일까지 8명에게 자료를 보낼 예정이며, 발송은 확정되지 않았습니다."
+        }
+      ],
+      "required": [
+        "고정 안내 문구 확인",
+        "새 변경이나 개선 효과 주장 없음"
+      ]
+    },
+    {
+      "id": "E-07",
+      "origin": "평가 기준 문서의 작성 사례. 실제 실행 결과가 아님.",
+      "sourceText": "신청자는 운영진에게 자료를 보내지 않습니다.",
+      "candidates": [
+        {
+          "id": "e07-c1",
+          "text": "운영진은 신청자에게 자료를 보냅니다."
+        }
+      ],
+      "required": [
+        "부정 소실",
+        "보내는 주체 변경",
+        "받는 대상 변경",
+        "원문 전달 관계·부정 유지 시 선택 기준"
+      ]
+    },
+    {
+      "id": "CT-01",
+      "origin": "기존 조건 교체 대조 사례. 합성 문장.",
+      "sourceText": "담당자가 동의하면 일정을 변경합니다.",
+      "candidates": [
+        {
+          "id": "ct01-c1",
+          "text": "예산이 확보되면 일정을 변경합니다."
+        }
+      ],
+      "required": [
+        "담당자 동의에서 예산 확보로 전제가 교체됨",
+        "조건 변화로 분류하고 행동 주체 교체로 단정하지 않음"
+      ]
+    },
+    {
+      "id": "CT-02",
+      "origin": "기존 실패 사례 재검증. 합성 문장, 프롬프트 예시에 포함하지 않음.",
+      "sourceText": "허가가 없으면 출입할 수 없습니다.",
+      "candidates": [
+        {
+          "id": "ct02-c1",
+          "text": "출입할 수 없습니다."
+        }
+      ],
+      "required": [
+        "허가가 없는 경우라는 조건 삭제",
+        "특정 경우의 출입 불가에서 조건 없는 출입 불가로 표현 범위가 달라짐",
+        "실제로 출입이 허용된다고 단정하지 않음",
+        "부정은 유지되므로 negation 변화로 중복하지 않음"
+      ]
+    },
+    {
+      "id": "CT-03",
+      "origin": "기존 의미 유지 대조 사례. 합성 문장.",
+      "sourceText": "회원인 경우에만 자료를 받을 수 있습니다.",
+      "candidates": [
+        {
+          "id": "ct03-c1",
+          "text": "회원만 자료를 받을 수 있습니다."
+        }
+      ],
+      "required": [
+        "회원만 받을 수 있다는 제한 유지",
+        "표현 다듬기로 분류하고 조건 삭제로 지적하지 않음"
+      ]
+    },
+    {
+      "id": "CS-02",
+      "origin": "새 부정문 조건 추가 대조 사례. 합성 문장, 프롬프트 예시에 포함하지 않음.",
+      "sourceText": "환불하지 않습니다.",
+      "candidates": [
+        {
+          "id": "cs02-c1",
+          "text": "상품을 사용한 경우에는 환불하지 않습니다."
+        }
+      ],
+      "required": [
+        "상품 사용 시라는 조건 추가",
+        "조건 없는 환불 불가에서 상품 사용 시 환불 불가로 표현 범위가 달라짐",
+        "미사용 상품은 반드시 환불된다고 추론하지 않음",
+        "부정 유지와 조건 변화를 구분"
+      ]
+    },
+    {
+      "id": "L-01",
+      "origin": "기존 정상 결재 사례 재사용. 새 독립 사례가 아님.",
+      "sourceText": "팀장 결재가 끝난 문서를 정리햇습니다.",
+      "candidates": [
+        {
+          "id": "l01-c1",
+          "text": "팀장 결재가 끝난 문서를 정리했습니다."
+        }
+      ],
+      "expectedNotes": "empty",
+      "required": [
+        "정리햇습니다→정리했습니다 오타 설명",
+        "승인 맥락의 결재를 오류로 지적하지 않음",
+        "없는 의미 변화 발명 없음"
+      ]
+    },
+    {
+      "id": "R-02",
+      "origin": "직접 작성한 모호한 문맥 사례. 기업 데이터나 실제 사용자 기록이 아님.",
+      "sourceText": "결재를 완료햇습니다.",
+      "candidates": [
+        {
+          "id": "r02-c1",
+          "text": "결재를 완료했습니다."
+        }
+      ],
+      "expectedNotes": "empty",
+      "required": [
+        "완료햇습니다→완료했습니다 오타 설명",
+        "결재를 결제로 바꿔야 한다고 지적하지 않음",
+        "승인 또는 지불 상황을 추측하지 않음"
+      ]
+    },
+    {
+      "id": "R-03",
+      "origin": "직접 작성한 명백한 지불 문맥 사례. 기업 데이터나 실제 사용자 기록이 아님.",
+      "sourceText": "카드로 상품 대금을 결재햇습니다.",
+      "candidates": [
+        {
+          "id": "r03-c1",
+          "text": "카드로 상품 대금을 결재했습니다."
+        }
+      ],
+      "expectedNotes": "payment-word-misuse",
+      "required": [
+        "오타 수정 설명",
+        "양쪽에 남은 결재를 notes에서 지불 문맥에 맞지 않는 단어로 설명",
+        "결제로 이미 고쳤다고 설명하지 않음",
+        "결재를 그대로 둔 것을 의미 변화로 꾸미지 않음"
+      ]
+    },
+    {
+      "id": "R-05",
+      "origin": "직접 작성한 정상 지불 표현 대조 사례. 기업 데이터나 실제 사용자 기록이 아님.",
+      "sourceText": "카드로 상품 대금을 결제햇습니다.",
+      "candidates": [
+        {
+          "id": "r05-c1",
+          "text": "카드로 상품 대금을 결제했습니다."
+        }
+      ],
+      "expectedNotes": "empty",
+      "required": [
+        "오타 수정 설명",
+        "정상 결제를 오류로 지적하지 않음",
+        "없는 의미 변화 발명 없음"
+      ]
+    }
+  ]
+}
