@@ -1,11 +1,23 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect, type Page } from '@playwright/test';
 import type { HistoryRecord } from '../../client/src/lib/history';
-import { startCorrection } from './selection-helpers';
+import { expectSelected, startCorrection } from './selection-helpers';
 
 const storageKey = 'writing-demo.correction-history.v1';
 const history = (page: Page) => page.locator('.history-panel');
-const correction = (page: Page) => page.locator('.correction-panel');
+const correction = (page: Page) => page.locator('.correction-view');
+
+async function openHistory(page: Page) {
+  await page.getByRole('button', { name: '교정 이력', exact: true }).click();
+  await expect(history(page)).toBeVisible();
+  await expect(correction(page)).toBeHidden();
+}
+
+async function returnToCorrection(page: Page) {
+  await history(page).getByRole('button', { name: '교정 문장으로 돌아가기', exact: true }).click();
+  await expect(correction(page)).toBeVisible();
+  await expect(history(page)).toBeHidden();
+}
 
 function gate() {
   let resolve!: () => void;
@@ -33,13 +45,17 @@ async function savedCount(page: Page, count: number) {
 }
 
 async function exportRecords(page: Page): Promise<{ version: number; records: HistoryRecord[] }> {
+  const wasOpen = await history(page).isVisible();
+  if (!wasOpen) await openHistory(page);
   const downloadEvent = page.waitForEvent('download');
   await history(page).getByRole('button', { name: 'JSON 내보내기', exact: true }).click();
   const download = await downloadEvent;
   expect(download.suggestedFilename()).toMatch(/^writing-demo-history-\d{4}-\d{2}-\d{2}\.json$/);
   const file = await download.path();
   if (!file) throw new Error('Downloaded history is unavailable');
-  return JSON.parse(await readFile(file, 'utf8'));
+  const exported = JSON.parse(await readFile(file, 'utf8'));
+  if (!wasOpen) await returnToCorrection(page);
+  return exported;
 }
 
 test.beforeEach(async ({ context }) => {
@@ -83,6 +99,7 @@ test('accepted selection, generated explanation and past application survive ref
   await page.reload();
   await savedCount(page, 1);
   await expect(page.getByLabel('원문 입력')).toHaveValue('');
+  await openHistory(page);
   await history(page).locator('.history-entry > summary').click();
   await expect(history(page).getByRole('region', { name: '교정 요청 당시 원문' })).toHaveText(source);
   await expect(history(page).locator('.candidate-explanation')).toContainText(explanation);
@@ -128,6 +145,7 @@ for (const action of ['edit', 'select'] as const) {
     await expect(history(page).locator('.history-entry')).toHaveCount(0);
     await page.reload();
     await expect(history(page).locator('.history-entry')).toHaveCount(0);
+    await openHistory(page);
     await expect(history(page).getByRole('button', { name: 'JSON 내보내기' })).toBeDisabled();
   });
 }
@@ -154,13 +172,17 @@ test('failed-only explanation retries preserve the successful explanation in sav
   await expect(correction(page).getByText('먼저 받은 정상 설명입니다.', { exact: true })).toBeVisible();
   await correction(page).getByRole('button', { name: '실패한 설명 다시 시도' }).click();
   await expect(correction(page).getByText('테스트용 일시 오류', { exact: true })).toBeVisible();
+  await openHistory(page);
   await history(page).locator('.history-entry > summary').click();
   await expect(history(page).getByText('먼저 받은 정상 설명입니다.', { exact: true })).toBeVisible();
+  await returnToCorrection(page);
   await correction(page).getByRole('button', { name: '설명 다시 시도', exact: true }).click();
   await expect(correction(page).getByText('재시도하여 받은 설명입니다.', { exact: true })).toBeVisible();
+  await openHistory(page);
   await expect(history(page).getByText('재시도하여 받은 설명입니다.', { exact: true })).toBeVisible();
   await savedCount(page, 1);
   await page.reload();
+  await openHistory(page);
   await history(page).locator('.history-entry > summary').click();
   await expect(history(page).locator('.candidate-explanation')).toHaveCount(2);
   await expect(history(page).getByText('먼저 받은 정상 설명입니다.', { exact: true })).toBeVisible();
@@ -186,6 +208,7 @@ test('deleting a record while its explanation is pending does not resurrect it',
   await savedCount(page, 1);
   await correction(page).getByRole('button', { name: /교정 이유/ }).click();
   await requested.promise;
+  await openHistory(page);
   await history(page).locator('.history-entry > summary').click();
   page.once('dialog', dialog => dialog.dismiss());
   await history(page).getByRole('button', { name: '이 기록 삭제' }).click();
@@ -195,6 +218,7 @@ test('deleting a record while its explanation is pending does not resurrect it',
   await expect(history(page).locator('.history-entry')).toHaveCount(0);
   await expect(history(page).getByRole('heading', { name: /교정 이력/ })).toBeFocused();
   release.resolve();
+  await returnToCorrection(page);
   await expect(correction(page).getByText('삭제 후 도착한 설명입니다.', { exact: true })).toBeVisible();
   await expect(history(page).locator('.history-entry')).toHaveCount(0);
   await page.reload();
@@ -215,6 +239,7 @@ test('two tabs share new records and explicit single/all deletions without repla
   await runCorrection(other, '둘째 탭에서 보낸 문장.');
   await savedCount(other, 2);
   await savedCount(page, 2);
+  await openHistory(page);
   const firstRecord = history(page).locator('.history-entry').filter({ hasText: '첫 탭에서 보낸 문장.' });
   await firstRecord.locator(':scope > summary').click();
   page.once('dialog', dialog => dialog.accept());
@@ -222,6 +247,7 @@ test('two tabs share new records and explicit single/all deletions without repla
   await savedCount(page, 1);
   await savedCount(other, 1);
   await expect(history(other).locator('.history-preview')).toHaveText('둘째 탭에서 보낸 문장.');
+  await openHistory(other);
   other.once('dialog', dialog => dialog.dismiss());
   await history(other).getByRole('button', { name: '전체 삭제' }).click();
   await expect(history(other).locator('.history-entry')).toHaveCount(1);
@@ -252,6 +278,8 @@ test('a storage quota error preserves existing and new records for export and a 
     };
   }, storageKey);
   await runCorrection(page, '저장에 실패한 새 문장.');
+  await expect(correction(page).locator('.history-save-warning')).toBeVisible();
+  await openHistory(page);
   await expect(history(page).getByText(/변경 내용을 브라우저에 저장하지 못했습니다/)).toBeVisible();
   await expect(history(page).locator('.history-entry')).toHaveCount(2);
   const downloaded = await exportRecords(page);
@@ -263,6 +291,7 @@ test('a storage quota error preserves existing and new records for export and a 
   await expect(history(page).locator('.history-storage-status')).toHaveCount(0);
   await page.reload();
   await savedCount(page, 2);
+  await expect(correction(page).locator('.history-save-warning')).toHaveCount(0);
   await expect(history(page).locator('.history-preview')).toHaveText(['저장에 실패한 새 문장.', '먼저 저장한 문장.']);
 });
 
@@ -279,8 +308,11 @@ test('corrupt saved data stays untouched until confirmed reset and new memory re
     await route.fulfill({ json: { ...input, candidates: [{ id: 'recovered', text: `${input.sourceText} 수정` }] } });
   });
   await page.goto('/');
+  await openHistory(page);
   await expect(history(page).getByText(/기존 교정 이력을 읽지 못해 자동 저장을 중단했습니다/)).toBeVisible();
+  await returnToCorrection(page);
   await runCorrection(page, '현재 화면에만 남은 문장.');
+  await openHistory(page);
   await expect(history(page).locator('.history-entry')).toHaveCount(1);
   expect(await page.evaluate(key => localStorage.getItem(key), storageKey)).toBe(invalid);
   const downloaded = await exportRecords(page);
@@ -294,6 +326,7 @@ test('corrupt saved data stays untouched until confirmed reset and new memory re
   await expect(history(page).locator('.history-entry')).toHaveCount(0);
   await expect(history(page).locator('.history-storage-status')).toHaveCount(0);
   expect(await page.evaluate(key => localStorage.getItem(key), storageKey)).toBeNull();
+  await returnToCorrection(page);
   await runCorrection(page, '초기화 후 새로 저장한 문장.');
   await savedCount(page, 1);
   await page.reload();
@@ -309,7 +342,8 @@ test('unsupported safe storage is reported as memory-only and offers content exp
   });
   await page.goto('/');
   await runCorrection(page, '입력한 문장.');
-  await expect(history(page).getByText(/현재 화면에서만 보관합니다/)).toBeVisible();
+  await openHistory(page);
+  await expect(history(page).getByText(/현재 페이지에서만 보관합니다/)).toBeVisible();
   expect((await exportRecords(page)).records[0].sourceText).toBe('입력한 문장.');
   expect(await page.evaluate(key => localStorage.getItem(key), storageKey)).toBeNull();
   await page.reload();
@@ -327,6 +361,7 @@ test('history remains keyboard operable without horizontal overflow on a narrow 
   page.on('request', request => { if (/\/api\/(corrections|explanations)$/.test(request.url())) modelRequests++; });
   await page.goto('/');
   await savedCount(page, 1);
+  await openHistory(page);
   const summary = history(page).locator('.history-entry > summary');
   await summary.focus();
   await summary.press('Enter');
@@ -352,3 +387,157 @@ test('history remains keyboard operable without horizontal overflow on a narrow 
   expect(modelRequests).toBe(0);
   await page.screenshot({ path: 'test-results/history-keyboard-mobile.png', fullPage: true });
 });
+
+test('history navigation preserves the current selection, candidates, comparison and cached explanation', async ({ page }) => {
+  const source = '목요일에 안내하겠습니다.';
+  const candidate = '이후에 안내하겠습니다.';
+  const explanation = '목요일이 이후로 바뀌어 안내 날짜가 불분명해졌습니다.';
+  let corrections = 0;
+  let explanations = 0;
+  await page.route('**/api/corrections', async route => {
+    corrections++;
+    const input = route.request().postDataJSON();
+    await route.fulfill({ json: { ...input, candidates: [{ id: 'preserved', text: candidate }] } });
+  });
+  await page.route('**/api/explanations', async route => {
+    explanations++;
+    const input = route.request().postDataJSON();
+    await route.fulfill({ json: { ...input, explanations: [{ candidateId: 'preserved', explanation }] } });
+  });
+  await page.goto('/');
+  const document = `앞 문장은 바꾸지 않습니다.\n${source}\n뒤 문장도 바꾸지 않습니다.`;
+  const start = document.indexOf(source);
+  await page.getByLabel('원문 입력').fill(document);
+  await selectRange(page, start, start + source.length);
+  await startCorrection(page);
+  await expect(correction(page).locator('.candidate-text')).toHaveText(candidate);
+  await correction(page).locator('.comparison > summary').click();
+  const explanationButton = correction(page).getByRole('button', { name: '교정 이유', exact: true });
+  await expect(explanationButton).toHaveAttribute('aria-expanded', 'false');
+  const closedColor = await explanationButton.evaluate(element => getComputedStyle(element).backgroundColor);
+  await explanationButton.click();
+  await expect(correction(page).locator('.candidate-explanation')).toContainText(explanation);
+  await expect(explanationButton).toHaveAttribute('aria-expanded', 'true');
+  expect(await explanationButton.evaluate(element => getComputedStyle(element).backgroundColor)).not.toBe(closedColor);
+  await savedCount(page, 1);
+  await openHistory(page);
+  await history(page).locator('.history-entry > summary').click();
+  await expect(history(page).locator('.candidate-explanation')).toContainText(explanation);
+  await expect(page.getByLabel('원문 입력')).toHaveValue(document);
+  await returnToCorrection(page);
+  await expect(page.getByRole('button', { name: '교정 이력', exact: true })).toBeFocused();
+  await expect(correction(page).locator('.candidate-text')).toHaveText(candidate);
+  await expect(correction(page).locator('.comparison')).toHaveAttribute('open', '');
+  await expect(explanationButton).toHaveAttribute('aria-expanded', 'true');
+  await expect(correction(page).locator('.candidate-explanation')).toBeVisible();
+  await expectSelected(page, source);
+  expect(await page.getByLabel('원문 입력').evaluate((element: HTMLTextAreaElement) => [element.selectionStart, element.selectionEnd]))
+    .toEqual([start, start + source.length]);
+  await explanationButton.click();
+  await expect(explanationButton).toHaveAttribute('aria-expanded', 'false');
+  await explanationButton.click();
+  await expect(correction(page).locator('.candidate-explanation')).toContainText(explanation);
+  await correction(page).getByRole('button', { name: '이 문장 적용', exact: true }).click();
+  await expect(page.getByLabel('원문 입력')).toHaveValue(document.replace(source, candidate));
+  expect(corrections).toBe(1);
+  expect(explanations).toBe(1);
+});
+
+test('an explanation finishes while history is open and returning does not request it again', async ({ page }) => {
+  const requested = gate();
+  const release = gate();
+  let explanationCalls = 0;
+  await page.route('**/api/corrections', async route => {
+    const input = route.request().postDataJSON();
+    await route.fulfill({ json: { ...input, candidates: [{ id: 'pending-navigation', text: '자료를 보내 주세요.' }] } });
+  });
+  await page.route('**/api/explanations', async route => {
+    const input = route.request().postDataJSON();
+    explanationCalls++;
+    requested.resolve();
+    await release.promise;
+    await route.fulfill({ json: { ...input, explanations: [{ candidateId: 'pending-navigation', explanation: '주세여를 주세요로 고쳤습니다.' }] } });
+  });
+  await page.goto('/');
+  await runCorrection(page, '자료를 보내 주세여.');
+  await correction(page).getByRole('button', { name: '교정 이유', exact: true }).click();
+  await requested.promise;
+  await openHistory(page);
+  await history(page).locator('.history-entry > summary').click();
+  release.resolve();
+  await expect(history(page).locator('.candidate-explanation')).toContainText('주세여를 주세요로 고쳤습니다.');
+  await returnToCorrection(page);
+  await expect(correction(page).getByRole('button', { name: '교정 이유', exact: true })).toHaveAttribute('aria-expanded', 'true');
+  await expect(correction(page).locator('.candidate-explanation')).toBeVisible();
+  await expect(correction(page).locator('.candidate-explanation')).toContainText('주세여를 주세요로 고쳤습니다.');
+  expect(explanationCalls).toBe(1);
+});
+
+test('history is keyboard accessible before any correction and returning preserves the draft', async ({ page }) => {
+  let requests = 0;
+  page.on('request', request => { if (/\/api\/(corrections|explanations)$/.test(request.url())) requests++; });
+  await page.goto('/');
+  await page.getByLabel('원문 입력').fill('아직 교정하지 않은 작성 중인 글입니다.');
+  await expect(history(page)).toBeHidden();
+  await expect(correction(page).getByRole('button', { name: '교정 이유', exact: true })).toHaveCount(0);
+  const entry = page.getByRole('button', { name: '교정 이력', exact: true });
+  await entry.focus();
+  await entry.press('Enter');
+  await expect(history(page)).toBeVisible();
+  await expect(history(page).getByRole('button', { name: '교정 문장으로 돌아가기', exact: true })).toBeFocused();
+  await expect(history(page).locator('.history-empty')).toBeVisible();
+  await expect(history(page).getByRole('button', { name: 'JSON 내보내기', exact: true })).toBeDisabled();
+  await history(page).getByRole('button', { name: '교정 문장으로 돌아가기', exact: true }).press('Enter');
+  await expect(entry).toBeFocused();
+  await expect(page.getByLabel('원문 입력')).toHaveValue('아직 교정하지 않은 작성 중인 글입니다.');
+  expect(requests).toBe(0);
+});
+
+for (const width of [1440, 390]) {
+  test(`history uses the result panel, equal action buttons and its own scroll area at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const records: HistoryRecord[] = Array.from({ length: 12 }, (_, index) => ({
+      id: `layout-record-${index}`, createdAt: '2026-11-21T01:00:00.000Z',
+      sourceText: `${index + 1}번째 저장된 원문입니다. 긴주소${'a'.repeat(100)}`,
+      candidates: [{ id: `layout-candidate-${index}`, text: `${index + 1}번째 저장된 후보입니다.` }],
+      explanations: [], appliedCandidateId: null, appliedAt: null,
+    }));
+    await page.addInitScript(({ key, records }) => localStorage.setItem(key, JSON.stringify({ version: 1, records })), { key: storageKey, records });
+    await page.route('**/api/corrections', async route => {
+      const input = route.request().postDataJSON();
+      await route.fulfill({ json: { ...input, candidates: [{ id: 'layout-current', text: '지금 교정한 후보입니다.' }] } });
+    });
+    await page.goto('/');
+    await runCorrection(page, '현재 교정할 원문입니다.');
+    const buttons = correction(page).locator('.panel-action');
+    await expect(buttons).toHaveText(['교정 이력', '교정 이유']);
+    await expect(correction(page).locator('.result-count')).toHaveCount(0);
+    const sizes = await buttons.evaluateAll(elements => elements.map(element => {
+      const rect = element.getBoundingClientRect();
+      const icon = element.querySelector('svg')!.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, iconWidth: icon.width, iconHeight: icon.height };
+    }));
+    for (const size of sizes) expect(size).toMatchObject({ width: 160, height: 40, iconWidth: 18, iconHeight: 18 });
+    expect(sizes[0].x).toBe(sizes[1].x);
+    expect(sizes[1].y).toBeGreaterThan(sizes[0].y);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `test-results/history-entry-buttons-${width}.png`, fullPage: true });
+    await openHistory(page);
+    await expect(page.locator('.correction-panel > .history-panel')).toHaveCount(1);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    const scrollArea = history(page).locator('.history-scroll');
+    await expect(scrollArea).toBeVisible();
+    expect(await scrollArea.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+    const header = history(page).locator('.history-heading');
+    const before = await header.boundingBox();
+    await scrollArea.evaluate(element => { element.scrollTop = element.scrollHeight; });
+    await expect.poll(() => scrollArea.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+    const after = await header.boundingBox();
+    expect(after?.y).toBeCloseTo(before!.y, 1);
+    const panelBox = await page.locator('.correction-panel').boundingBox();
+    const historyBox = await history(page).boundingBox();
+    expect(historyBox!.width).toBeLessThanOrEqual(panelBox!.width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `test-results/history-panel-layout-${width}.png`, fullPage: true });
+  });
+}

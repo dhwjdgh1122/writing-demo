@@ -21,6 +21,8 @@ const requestMetadata = (snapshot: Snapshot) => ({ requestId: snapshot.requestId
 export default function App() {
   const [state, editorDispatch] = useReducer(editorReducer, initialState);
   const history = useHistory();
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const historyButtonRef = useRef<HTMLButtonElement>(null);
   const activity = useActivity();
   const editorStateRef = useRef(initialState);
   // Queue persistence only for actions accepted by the editor. Keep side effects
@@ -178,6 +180,10 @@ export default function App() {
     dispatch({ type: 'start', requestId: crypto.randomUUID(), requirement });
     requestAnimationFrame(() => editorRef.current?.focus({ preventScroll: true }));
   };
+  const closeHistory = () => {
+    setHistoryOpen(false);
+    requestAnimationFrame(() => historyButtonRef.current?.focus({ preventScroll: true }));
+  };
   const apply = (candidateId: string) => {
     const previous = editorStateRef.current;
     applyingRef.current = true;
@@ -215,7 +221,10 @@ export default function App() {
         </section>
 
         <section className="correction-panel panel" aria-label="교정 패널">
-          <div className="results-section" aria-busy={Boolean(state.pending)}><div className="section-heading"><h2>교정 문장</h2>{state.result && <span className="result-count">후보 {state.result.value.candidates.length}개</span>}</div>
+          {/* Keep both views mounted so navigation preserves comparisons, explanations and in-flight requests. */}
+          <div className="correction-view" hidden={historyOpen}>
+          <div className="results-section" aria-busy={Boolean(state.pending)}><div className="section-heading"><h2>교정 문장</h2><button ref={historyButtonRef} type="button" className="panel-action history-toggle" aria-controls="correction-history" onClick={() => setHistoryOpen(true)}><Icon name="history" size={18} /><span>교정 이력</span></button></div>
+            {(['memory-only', 'error', 'corrupt'] as const).some(status => status === history.status) && <p className="history-save-warning" role="status">교정 이력 자동 저장에 문제가 있습니다. 교정 이력에서 저장 상태를 확인해주세요.</p>}
             <div role="status" aria-live="polite" className="status-region">{state.pending && <p className="loading-message"><span className="spinner" />교정안을 만들고 있습니다.</p>}{state.error && <div className="error-message"><Icon name="info" size={18} /><p>{state.error}</p></div>}{state.notice && <p className="success-message"><Icon name="check" size={18} />{state.notice}</p>}</div>
             {state.result ? <CorrectionResults key={state.result.value.requestId} result={state.result.value} onApply={apply} onExplanationResults={saveExplanations}
               activityContext={requestMetadata(state.result.snapshot)} onActivity={recordExplanationActivity} /> : !state.pending && <div className="empty-result"><div className="empty-icon"><Icon name="document" size={31} /></div><h3>{emptyHeading}</h3><p>{emptyDescription}</p></div>}
@@ -223,9 +232,10 @@ export default function App() {
           {state.rerun && <RerunControls key={`${state.rerun.parentRequestId}-${state.rerun.phase}`} phase={state.rerun.phase}
             disabled={disabled} pending={Boolean(state.pending)} problem={problem} onRun={rerun} />}
           {connection === 'missing' && <div className="setup-note"><Icon name="info" size={16} /><p>현재는 화면·선택 기능을 확인할 수 있습니다.<br /><strong>실제 교정은 AI 연결 후 사용할 수 있습니다.</strong></p></div>}
+          </div>
+          <HistoryPanel {...history} hidden={!historyOpen} onBack={closeHistory} />
         </section>
       </div>
-      <HistoryPanel {...history} />
       <ActivityPanel activity={activity} historyRecords={history.records} />
       <footer className="page-footer"><span>센틴스파이 데스크톱 사용 흐름을 참고한 독립 웹 데모</span><span>교정에는 선택한 문장만 사용하며, 요구를 선택한 재교정에는 이전 선택 원문·후보도 전달합니다.</span></footer>
     </main>

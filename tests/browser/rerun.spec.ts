@@ -5,7 +5,7 @@ import type { HistoryRecord } from '../../client/src/lib/history';
 import type { ActivityEvent } from '../../client/src/lib/activity';
 import { startCorrection } from './selection-helpers';
 
-const results = (page: Page) => page.locator('.correction-panel');
+const results = (page: Page) => page.locator('.correction-view');
 const history = (page: Page) => page.locator('.history-panel:not(.activity-panel)');
 const activity = (page: Page) => page.locator('.activity-panel');
 const rerun = (page: Page) => page.getByRole('region', { name: '재교정 요청', exact: true });
@@ -79,7 +79,11 @@ async function downloadText(page: Page, panel: Locator, button: string) {
 }
 
 async function historyRecords(page: Page): Promise<HistoryRecord[]> {
-  return JSON.parse(await downloadText(page, history(page), 'JSON 내보내기')).records;
+  const wasOpen = await history(page).isVisible();
+  if (!wasOpen) await page.getByRole('button', { name: '교정 이력', exact: true }).click();
+  const records = JSON.parse(await downloadText(page, history(page), 'JSON 내보내기')).records;
+  if (!wasOpen) await history(page).getByRole('button', { name: '교정 문장으로 돌아가기', exact: true }).click();
+  return records;
 }
 
 async function activityRecords(page: Page): Promise<ExportedActivity> {
@@ -315,6 +319,7 @@ test('activity JSON/CSV omit all text by default and opt-in content joins only h
   const withContentRows = parseCsv(await downloadText(page, activity(page), '행동 CSV 내보내기'));
   expect(withContentRows.find(row => row.requestId === calls.corrections[1].requestId)?.sourceText).toBe(first);
   expect(JSON.parse(withContentRows.find(row => row.requestId === calls.corrections[1].requestId)!.candidates)).toEqual(calls.candidates[1]);
+  await page.getByRole('button', { name: '교정 이력', exact: true }).click();
   const oldRecord = history(page).locator('.history-entry').filter({ has: page.locator('.history-preview', { hasText: '비공개 예시 원문' }) });
   await oldRecord.locator(':scope > summary').click();
   page.once('dialog', dialog => dialog.accept());

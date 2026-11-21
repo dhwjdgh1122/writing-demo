@@ -47,7 +47,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A["현재 후보에서 최초 교정 이유 보기 클릭"] --> B["선택 원문 + 현재 후보의 ID·텍스트로 explanations 요청"]
+    A["현재 후보에서 최초 교정 이유 클릭"] --> B["선택 원문 + 현재 후보의 ID·텍스트로 explanations 요청"]
     B --> C["서버 입력 검사 → 제공자 어댑터 → 모델에 비교 설명 요청"]
     C --> D["종료·JSON·전체 구조·후보 ID 집합 확인"]
     D --> E["후보별 설명 형식 검사 → HTTP 계층의 정확 인용 검사"]
@@ -264,6 +264,8 @@ writing-demo/
 ### 교정 이력의 저장 경계
 
 `App`은 순수 편집 reducer가 수용한 성공·적용 동작만 저장 큐에 전달한다. React reducer 실행 안에서 저장 부작용을 일으키지 않으며, 원문/선택이 달라진 늦은 응답은 기록하지 않는다. `CorrectionResults`는 실제 받은 후보별 설명만 요청 ID로 전달한다. `HistoryPanel`은 저장 자료만 읽고 모델 요청·원문 적용을 제공하지 않는다.
+
+오른쪽 패널의 현재 교정 화면과 `HistoryPanel`은 마운트를 유지한 채 `hidden`으로 전환한다. 이력 왕복으로 비교 펼침·설명 상태를 초기화하거나 진행 중 설명 요청을 취소하지 않는다. 원문 편집·선택 변경·새 교정 결과에 의한 기존 무효화 및 요청 취소는 유지한다.
 
 [저장 모듈](../client/src/lib/history.ts)은 버전1 JSON을 `writing-demo.correction-history.v1`에 보관한다. Web Locks의 같은 이름 잠금 안에서 최신 저장값을 읽고 추가/설명/적용/삭제 연산을 반영해 다른 탭의 변경을 덮어쓰지 않는다. [훅](../client/src/hooks/useHistory.ts)은 storage/focus 이벤트로 다시 읽는다. 삭제한 기록의 설명/적용 갱신은 무시한다.
 

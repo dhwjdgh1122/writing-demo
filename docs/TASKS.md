@@ -178,7 +178,7 @@ TASKS는 작업 안내·출처·링크를, Issue는 상세 작업 내용·완료
 | 교정 설명의 사용자 기대와 평가 기준 정리 | [#5](https://github.com/dhwjdgh1122/writing-demo/issues/5) |
 | 선택 유지·교정 대상·화면 안내의 역할 확인 | [#6](https://github.com/dhwjdgh1122/writing-demo/issues/6) — [FEEDBACK-04](사용자%20피드백.md#feedback-04)의 적용 후 안내 개선은 PR #24로 반영했다. 이후 선택·전송 범위와 읽기 전용 안내를 별도로 점검했으며 [SELECTION-SCOPE-01](검증%20기록.md#selection-scope-01)에 근거·한계를 연결한다. |
 | 같은 내용 붙여넣기의 선택 유지 동작 확인 | [#7](https://github.com/dhwjdgh1122/writing-demo/issues/7) |
-| 브라우저 교정 히스토리 저장·조회·삭제·내보내기 | [#8](https://github.com/dhwjdgh1122/writing-demo/issues/8) |
+| 브라우저 교정 히스토리 저장·조회·삭제·내보내기 | [#8](https://github.com/dhwjdgh1122/writing-demo/issues/8) — 기존 보관 기능과 오른쪽 패널의 이력 진입·복귀 개선을 연결한다. [화면 전환 검증](검증%20기록.md#history-panel-navigation-01) 참고. |
 | Gemini·엘리스 후보와 설명 품질 비교 계획 | [#9](https://github.com/dhwjdgh1122/writing-demo/issues/9) |
 
 #5의 설명 목적·명칭 검토·대표 사례·수동 평가 방법은 [교정 설명 평가 기준](교정%20설명%20평가%20기준.md)에 정리한다. 코드·프롬프트 개선 및 실제 사용자 효과 검증과 구분하며, 범위·완료 기준은 해당 Issue에서 확인한다.
