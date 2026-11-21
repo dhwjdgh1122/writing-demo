@@ -83,7 +83,10 @@ if (!args.includes('--live')) {
     state: 'preflight', completed: false, runs: [], unexecuted: [...plan],
   };
   writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n', { flag: 'wx' });
-  const save = () => writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n');
+  const save = () => {
+    report.unexecuted = plan.filter(entry => !report.runs.some(run => run.caseId === entry.caseId && run.arm === entry.arm && run.callId));
+    writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n');
+  };
   let activeRun = null;
   let server = null;
   const observedFetch = async (url, options) => {
