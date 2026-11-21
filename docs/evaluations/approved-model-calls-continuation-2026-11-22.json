@@ -681,6 +681,42 @@
       "status": "received",
       "httpStatus": 200,
       "finishedAt": "2026-11-21T16:06:35.523Z"
+    },
+    {
+      "id": "bd6f3b31-4e96-4013-a3a5-736b4ceac135",
+      "experimentId": "issue22-typed-reference-20261122",
+      "label": "R-03",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "perProviderMaxCalls": 2,
+      "reservedAt": "2026-11-21T16:25:14.430Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T16:25:17.411Z"
+    },
+    {
+      "id": "565216c4-f438-4428-b3ee-6b8e84b4a23b",
+      "experimentId": "issue22-typed-reference-20261122",
+      "label": "E-04",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "perProviderMaxCalls": 2,
+      "reservedAt": "2026-11-21T16:25:17.459Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-21T16:25:21.700Z"
+    },
+    {
+      "id": "bfab2140-7e73-40d0-b77a-cf42c0730d5b",
+      "experimentId": "issue22-typed-reference-20261122",
+      "label": "R-03",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "perProviderMaxCalls": 2,
+      "reservedAt": "2026-11-21T16:25:33.179Z",
+      "status": "received",
+      "httpStatus": 400,
+      "finishedAt": "2026-11-21T16:25:34.545Z"
     }
   ]
 }
