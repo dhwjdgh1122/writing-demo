@@ -89,6 +89,16 @@ export function continuationRequestSettings(provider, body) {
       max_tokens: body.max_tokens, ...Object.fromEntries(samplingKeys.filter(key => Object.hasOwn(body, key)).map(key => [key, body[key]])) };
 }
 
+// Preserve the captured raw completion separately. Missing/non-string/blank text
+// cannot be evaluated and must stop paid requests; malformed JSON with nonblank
+// text remains an ordinary format failure with available evidence.
+export function continuationCompletionText(text) {
+  if (typeof text !== 'string' || !text.trim()) return { rawCompletionTextAvailable: false,
+    rawParseError: 'no-completion-text', captureError: 'completion-text-unavailable' };
+  try { return { rawCompletionTextAvailable: true, parsedModelOutput: JSON.parse(text) }; }
+  catch { return { rawCompletionTextAvailable: true, rawParseError: 'completion-is-not-valid-json' }; }
+}
+
 // Whitelist the request payload. Fixture required/forbidden/origin fields remain report-only.
 export function continuationInput(c, requestId) {
   return explanationInputSchema.parse({ requestId, sourceText: c.sourceText,
@@ -256,11 +266,7 @@ export async function runContinuation(args = process.argv.slice(2)) {
           ? { finishReason: envelope.candidates?.[0]?.finishReason,
             text: envelope.candidates?.[0]?.content?.parts?.filter(part => !part.thought && typeof part.text === 'string').map(part => part.text).join('') ?? null }
           : { finishReason: envelope.choices?.[0]?.finish_reason, text: envelope.choices?.[0]?.message?.content ?? null };
-        run.rawCompletionTextAvailable = typeof run.rawCompletion.text === 'string';
-        if (run.rawCompletionTextAvailable) {
-          try { run.parsedModelOutput = JSON.parse(run.rawCompletion.text); }
-          catch { run.rawParseError = 'completion-is-not-valid-json'; }
-        } else run.rawParseError = 'no-completion-text';
+        Object.assign(run, continuationCompletionText(run.rawCompletion.text));
         const usage = providerName === 'gemini' ? envelope.usageMetadata : envelope.usage;
         const keys = providerName === 'gemini' ? ['promptTokenCount', 'candidatesTokenCount', 'thoughtsTokenCount', 'totalTokenCount']
           : ['prompt_tokens', 'completion_tokens', 'total_tokens'];

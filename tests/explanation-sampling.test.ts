@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 // @ts-expect-error Manual JavaScript runner has a guarded entry point and no declaration file.
-import { buildContinuationPlan, continuationCallLabel, continuationInput, continuationModelInput, continuationSamplingBody, continuationRequestSettings, runContinuation } from '../scripts/evaluate-explanation-continuation.mjs';
+import { buildContinuationPlan, continuationCallLabel, continuationInput, continuationModelInput, continuationSamplingBody, continuationRequestSettings, continuationCompletionText, runContinuation } from '../scripts/evaluate-explanation-continuation.mjs';
 
 const cases = ['A', 'B'].map(id => ({ id, sourceText: '자료를 보내 주세여.', candidates: [{ id: `${id}-c`, text: '자료를 보내 주세요.' }],
   required: ['PRIVATE-ANSWER'], repetition: 99, verdict: 'PRIVATE-VERDICT' }));
@@ -82,4 +82,22 @@ test('Gemini sampling plans are rejected before prompt loading, report writes, l
   await assert.rejects(runContinuation([`--plan=${relative(process.cwd(), planPath)}`, '--provider=gemini', '--live']), /only for elice/);
   assert.deepEqual(readdirSync(directory).sort(), before);
   assert.equal(existsSync(reportPrefix + '-gemini.json'), false);
+});
+
+test('unavailable completion text activates the capture stop while nonblank malformed JSON preserves evaluable raw evidence', () => {
+  for (const text of [undefined, null, 0, {}, [], '', ' \r\n\t ']) {
+    const run = { rawCompletion: { text }, ...continuationCompletionText(text) };
+    assert.equal(run.rawCompletionTextAvailable, false);
+    // The live loop stops when captureError is present, before another model request.
+    assert.equal(run.captureError, 'completion-text-unavailable');
+    assert.equal(run.rawParseError, 'no-completion-text');
+    assert.equal(run.rawCompletion.text, text);
+  }
+  const text = '  {broken JSON  ', run = { rawCompletion: { text }, ...continuationCompletionText(text) };
+  assert.equal(run.rawCompletionTextAvailable, true);
+  assert.equal(run.captureError, undefined);
+  assert.equal(run.rawParseError, 'completion-is-not-valid-json');
+  assert.equal(run.rawCompletion.text, text);
+  assert.deepEqual(continuationCompletionText(' {"explanations":[]} '),
+    { rawCompletionTextAvailable: true, parsedModelOutput: { explanations: [] } });
 });
