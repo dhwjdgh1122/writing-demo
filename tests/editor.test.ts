@@ -156,6 +156,115 @@ test('failed rerun retains predecessor and ignores old results after a new retry
   assert.equal(state.pending?.retryContext?.requirement, 'plain');
 });
 
+test('explicit rerun retains the previous batch through loading and failure, then replaces it on valid success', () => {
+  const original = result(selected('원문', 0, 2), '기존 후보');
+  let state = reduce(original, { type: 'startRerun', requestId: 'r2', requirement: 'polite' });
+  assert.equal(state.result, original.result, 'preserve the exact batch so its comparison and explanation state stays mounted');
+  assert.equal(state.rerun, original.rerun);
+  assert.equal(state.pending?.sourceText, '원문');
+  assert.equal(state.pending?.retryContext?.requirement, 'polite');
+  assert.equal(reduce(state, { type: 'apply', candidateId: 'c1' }), state, 'old candidates cannot be applied during a rerun');
+  assert.equal(reduce(state, { type: 'startRerun', requestId: 'duplicate', requirement: 'plain' }), state);
+  assert.equal(reduce(state, { type: 'start', requestId: 'ordinary-duplicate' }), state);
+
+  state = reduce(state, { type: 'failure', requestId: 'r2', message: '잠시 후 다시 시도해주세요.', errorCode: 'MODEL_TIMEOUT' });
+  assert.equal(state.pending, null);
+  assert.equal(state.result, original.result);
+  assert.equal(state.rerun, original.rerun, 'a failed attempt never becomes the next parent');
+  assert.equal(state.text, original.text);
+  assert.equal(reduce(state, { type: 'apply', candidateId: 'c1' }).selection?.text, '기존 후보', 'retained candidates remain usable after failure');
+
+  state = reduce(state, { type: 'startRerun', requestId: 'r3', requirement: 'polite' });
+  assert.equal(state.error, null);
+  assert.equal(state.pending?.parentRequestId, 'r1');
+  assert.deepEqual(state.pending?.retryContext?.previousCandidates, original.result!.value.candidates);
+  const pending = state.pending!;
+  state = reduce(state, { type: 'success', value: { requestId: 'r3', sourceText: '원문',
+    retryContext: pending.retryContext, candidates: [{ id: 'new', text: '새 후보' }] } });
+  assert.notEqual(state.result, original.result);
+  assert.equal(state.result?.snapshot, pending);
+  assert.equal(state.result?.value.candidates[0].text, '새 후보');
+  assert.equal(state.result?.snapshot.retryContext?.requirement, 'polite', 'executed requirement remains attached to its successful result');
+  assert.equal(state.rerun?.parentRequestId, 'r3');
+  assert.equal(state.error, null);
+});
+
+test('an invalid rerun response keeps the last valid batch and parent for the next retry', () => {
+  const original = result(selected('원문', 0, 2), '기존 후보');
+  const pending = reduce(original, { type: 'startRerun', requestId: 'r2', requirement: 'meaning' });
+  for (const change of [{ sourceText: '다른 원문', retryContext: pending.pending!.retryContext },
+    { sourceText: '원문', retryContext: undefined },
+    { sourceText: '원문', retryContext: { ...pending.pending!.retryContext!, requirement: 'plain' as const } }]) {
+    const rejected = reduce(pending, { type: 'success', value: { requestId: 'r2', ...change, candidates: [{ id: 'bad', text: '잘못 연결된 후보' }] } });
+    assert.equal(rejected.pending, null);
+    assert.equal(rejected.result, original.result);
+    assert.equal(rejected.rerun, original.rerun);
+    assert.ok(rejected.error);
+    const retry = reduce(rejected, { type: 'startRerun', requestId: 'r3', requirement: 'meaning' });
+    assert.equal(retry.pending?.parentRequestId, 'r1');
+    assert.equal(retry.pending?.retryContext?.previousCandidates, original.result!.value.candidates);
+  }
+});
+
+test('after-apply rerun preserves the applied notice and current text until a valid result arrives', () => {
+  const original = result(selected('원문', 0, 2), '적용한 문장');
+  const applied = reduce(original, { type: 'apply', candidateId: 'c1' });
+  let state = reduce(applied, { type: 'startRerun', requestId: 'r2', requirement: 'alternative' });
+  assert.equal(state.notice, applied.notice);
+  assert.equal(state.result, null);
+  assert.equal(state.text, '적용한 문장');
+  assert.equal(state.pending?.sourceText, '적용한 문장');
+  assert.equal(state.pending?.phase, 'after_apply');
+  assert.equal(state.pending?.retryContext?.previousSourceText, '원문');
+  state = reduce(state, { type: 'failure', requestId: 'r2', message: '실패' });
+  assert.equal(state.notice, applied.notice);
+  assert.equal(state.rerun, applied.rerun);
+  assert.equal(state.selection, applied.selection);
+  state = reduce(state, { type: 'startRerun', requestId: 'r3', requirement: 'alternative' });
+  const pending = state.pending!;
+  state = reduce(state, { type: 'success', value: { requestId: 'r3', sourceText: pending.sourceText,
+    retryContext: pending.retryContext, candidates: [{ id: 'new', text: '다시 만든 문장' }] } });
+  assert.equal(state.notice, null, 'new results replace the applied-state view');
+  assert.equal(state.text, '적용한 문장', 'receiving a rerun result never edits the current document');
+  assert.equal(state.result?.snapshot.phase, 'after_apply');
+  assert.equal(state.result?.snapshot.parentRequestId, 'r1');
+  assert.equal(state.rerun?.phase, 'before_apply');
+});
+
+test('plain rerun preserves results without adding demand context; ordinary correction still clears its view', () => {
+  const original = result(selected('원문', 0, 2), '후보');
+  const rerun = reduce(original, { type: 'startRerun', requestId: 'r2' });
+  assert.equal(rerun.result, original.result);
+  assert.equal(rerun.pending?.parentRequestId, 'r1');
+  assert.equal(Object.hasOwn(rerun.pending!, 'retryContext'), false);
+  const ordinary = reduce(original, { type: 'start', requestId: 'r2' });
+  assert.equal(ordinary.result, null);
+  assert.equal(ordinary.notice, null);
+  const applied = reduce(original, { type: 'apply', candidateId: 'c1' });
+  assert.equal(reduce(applied, { type: 'start', requestId: 'r2' }).notice, null);
+  const noPredecessor = selected('원문', 0, 2);
+  assert.equal(reduce(noPredecessor, { type: 'startRerun', requestId: 'r2' }), noPredecessor);
+  assert.equal(reduce(noPredecessor, { type: 'startRerun', requestId: 'r2', requirement: 'polite' }), noPredecessor);
+});
+
+test('edits, new selections and clear take priority over retained rerun output and late responses', () => {
+  const pending = reduce(result(selected('원문 다른 문장', 0, 2), '기존 후보'), { type: 'startRerun', requestId: 'r2', requirement: 'errors' });
+  const lateResult = { requestId: 'r2', sourceText: '원문', retryContext: pending.pending!.retryContext, candidates: [{ id: 'late', text: '늦은 후보' }] };
+  for (const invalidated of [reduce(pending, { type: 'edit', text: '편집한 원문' }),
+    reduce(pending, { type: 'select', start: 3, end: 5 }), reduce(pending, { type: 'clear' })]) {
+    assert.equal(invalidated.pending, null);
+    assert.equal(invalidated.result, null);
+    assert.equal(invalidated.rerun, null);
+    assert.equal(reduce(invalidated, { type: 'success', value: lateResult }), invalidated);
+    assert.equal(reduce(invalidated, { type: 'failure', requestId: 'r2', message: '늦은 실패' }), invalidated);
+  }
+  const failed = reduce(pending, { type: 'failure', requestId: 'r2', message: '실패' });
+  const retry = reduce(failed, { type: 'startRerun', requestId: 'r3', requirement: 'errors' });
+  assert.equal(reduce(retry, { type: 'success', value: lateResult }), retry);
+  assert.equal(reduce(retry, { type: 'failure', requestId: 'r2', message: '늦은 실패' }), retry);
+  assert.equal(retry.result, pending.result);
+});
+
 test('matching request and source cannot accept a changed or missing rerun context', () => {
   const state = reduce(result(selected('원문', 0, 2), '후보'), { type: 'start', requestId: 'r2', requirement: 'errors' });
   const context = state.pending!.retryContext!;

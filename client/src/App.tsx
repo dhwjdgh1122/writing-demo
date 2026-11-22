@@ -9,7 +9,7 @@ import { SelectionHighlight } from './components/SelectionHighlight';
 import { selectionAnchor } from './lib/selectionAnchor';
 import { useHistory } from './hooks/useHistory';
 import { HistoryPanel } from './components/HistoryPanel';
-import { RerunControls } from './components/RerunControls';
+import { RerunControls, type RerunSelection } from './components/RerunControls';
 import { useActivity } from './hooks/useActivity';
 import { ActivityPanel } from './components/ActivityPanel';
 import { activityErrorCode } from './lib/activity';
@@ -17,6 +17,8 @@ import { activityErrorCode } from './lib/activity';
 const requestMetadata = (snapshot: Snapshot) => ({ requestId: snapshot.requestId,
   ...(snapshot.parentRequestId ? { parentRequestId: snapshot.parentRequestId, phase: snapshot.phase } : {}),
   ...(snapshot.retryContext?.requirement ? { requirement: snapshot.retryContext.requirement } : {}) });
+type RerunUI = { openId: string | null; requirement: RerunSelection; error: string | null };
+const emptyRerunUI: RerunUI = { openId: null, requirement: '', error: null };
 
 export default function App() {
   const [state, editorDispatch] = useReducer(editorReducer, initialState);
@@ -25,14 +27,26 @@ export default function App() {
   const historyButtonRef = useRef<HTMLButtonElement>(null);
   const activity = useActivity();
   const editorStateRef = useRef(initialState);
+  const [rerunUI, setRerunUI] = useState<RerunUI>(emptyRerunUI);
+  const rerunRequestRef = useRef<string | null>(null);
+  const correctionPanelRef = useRef<HTMLElement>(null);
   // Queue persistence only for actions accepted by the editor. Keep side effects
   // outside React's reducer, which can run more than once in development.
   const dispatch = useCallback((action: Action) => {
     const previous = editorStateRef.current;
     const next = editorReducer(previous, action);
+    const wasRerun = Boolean(previous.pending && previous.pending.requestId === rerunRequestRef.current);
     editorStateRef.current = next;
     editorDispatch(action);
-    if (action.type === 'start' && next.pending && next.pending !== previous.pending) {
+    if (next.rerun !== previous.rerun || (action.type === 'start' && next.pending !== previous.pending)) {
+      setRerunUI(emptyRerunUI);
+      rerunRequestRef.current = null;
+    }
+    if ((action.type === 'start' || action.type === 'startRerun') && next.pending && next.pending !== previous.pending) {
+      if (action.type === 'startRerun') {
+        rerunRequestRef.current = next.pending.requestId;
+        setRerunUI(current => ({ ...current, error: null }));
+      }
       activity.record({ ...requestMetadata(next.pending), action: 'correction_requested' });
     }
     if (action.type === 'success' && next.result && next.result !== previous.result) {
@@ -43,9 +57,11 @@ export default function App() {
         ...(snapshot.parentRequestId ? { parentRecordId: snapshot.parentRequestId, phase: snapshot.phase } : {}),
         ...(snapshot.retryContext?.requirement ? { requirement: snapshot.retryContext.requirement } : {}) } });
       activity.record({ ...requestMetadata(snapshot), action: 'correction_received' });
+      if (wasRerun) requestAnimationFrame(() => correctionPanelRef.current?.querySelector<HTMLButtonElement>('.correction-view:not([hidden]) .candidate-card .rerun-toggle')?.focus());
     }
     if (previous.pending && !next.pending && next !== previous) {
-      if (action.type === 'failure' || (action.type === 'success' && !next.result)) {
+      if (action.type === 'failure' || (action.type === 'success' && next.result === previous.result)) {
+        if (wasRerun) setRerunUI(current => ({ ...current, error: next.error }));
         activity.record({ ...requestMetadata(previous.pending), action: 'correction_failed',
           errorCode: activityErrorCode(action.type === 'failure' ? action.errorCode : 'CLIENT_RESPONSE_INVALID') });
       } else if (action.type !== 'success') {
@@ -177,9 +193,14 @@ export default function App() {
   const rerun = (requirement?: RetryRequirement) => {
     if (disabled || !editorStateRef.current.rerun) return;
     setAnchor(null);
-    dispatch({ type: 'start', requestId: crypto.randomUUID(), requirement });
-    requestAnimationFrame(() => editorRef.current?.focus({ preventScroll: true }));
+    dispatch({ type: 'startRerun', requestId: crypto.randomUUID(), requirement });
   };
+  const renderRerun = (id: string) => state.rerun && <RerunControls phase={state.rerun.phase}
+    open={rerunUI.openId === id} requirement={rerunUI.requirement} disabled={disabled} pending={Boolean(state.pending)}
+    problem={problem} error={rerunUI.error}
+    onToggle={() => setRerunUI(current => ({ ...current, openId: current.openId === id ? null : id }))}
+    onChange={requirement => setRerunUI(current => ({ ...current, requirement }))}
+    onRun={() => rerun(rerunUI.requirement || undefined)} />;
   const closeHistory = () => {
     setHistoryOpen(false);
     requestAnimationFrame(() => historyButtonRef.current?.focus({ preventScroll: true }));
@@ -220,17 +241,16 @@ export default function App() {
           <div className="editor-footnote"><Icon name="info" size={16} /><span>선택한 부분의 원문·후보를 이 브라우저에 보관합니다. 작성 중인 글 전체는 새로고침 후 복원하지 않습니다.</span></div>
         </section>
 
-        <section className="correction-panel panel" aria-label="교정 패널">
+        <section ref={correctionPanelRef} className="correction-panel panel" aria-label="교정 패널">
           {/* Keep both views mounted so navigation preserves comparisons, explanations and in-flight requests. */}
           <div className="correction-view" hidden={historyOpen}>
           <div className="results-section" aria-busy={Boolean(state.pending)}><div className="section-heading"><h2>교정 문장</h2><button ref={historyButtonRef} type="button" className="panel-action history-toggle" aria-controls="correction-history" onClick={() => setHistoryOpen(true)}><Icon name="history" size={18} /><span>교정 이력</span></button></div>
             {(['memory-only', 'error', 'corrupt'] as const).some(status => status === history.status) && <p className="history-save-warning" role="status">교정 이력 자동 저장에 문제가 있습니다. 교정 이력에서 저장 상태를 확인해주세요.</p>}
-            <div role="status" aria-live="polite" className="status-region">{state.pending && <p className="loading-message"><span className="spinner" />교정안을 만들고 있습니다.</p>}{state.error && <div className="error-message"><Icon name="info" size={18} /><p>{state.error}</p></div>}{state.notice && <p className="success-message"><Icon name="check" size={18} />{state.notice}</p>}</div>
+            <div role="status" aria-live="polite" className="status-region">{state.pending && <p className="loading-message"><span className="spinner" />{state.result ? '새 교정안을 만들고 있습니다. 아래 후보는 이전 결과입니다.' : '교정안을 만들고 있습니다.'}</p>}{state.error && state.error !== rerunUI.error && <div className="error-message"><Icon name="info" size={18} /><p>{state.error}</p></div>}</div>
+            {state.notice && <div className="applied-state"><p className="success-message" role="status"><Icon name="check" size={18} />{state.notice}</p>{renderRerun('applied')}</div>}
             {state.result ? <CorrectionResults key={state.result.value.requestId} result={state.result.value} onApply={apply} onExplanationResults={saveExplanations}
-              activityContext={requestMetadata(state.result.snapshot)} onActivity={recordExplanationActivity} /> : !state.pending && <div className="empty-result"><div className="empty-icon"><Icon name="document" size={31} /></div><h3>{emptyHeading}</h3><p>{emptyDescription}</p></div>}
+              activityContext={requestMetadata(state.result.snapshot)} onActivity={recordExplanationActivity} disabled={Boolean(state.pending)} renderRerun={renderRerun} /> : !state.pending && <div className="empty-result"><div className="empty-icon"><Icon name="document" size={31} /></div><h3>{emptyHeading}</h3><p>{emptyDescription}</p></div>}
           </div>
-          {state.rerun && <RerunControls key={`${state.rerun.parentRequestId}-${state.rerun.phase}`} phase={state.rerun.phase}
-            disabled={disabled} pending={Boolean(state.pending)} problem={problem} onRun={rerun} />}
           {connection === 'missing' && <div className="setup-note"><Icon name="info" size={16} /><p>현재는 화면·선택 기능을 확인할 수 있습니다.<br /><strong>실제 교정은 AI 연결 후 사용할 수 있습니다.</strong></p></div>}
           </div>
           <HistoryPanel {...history} hidden={!historyOpen} onBack={closeHistory} />

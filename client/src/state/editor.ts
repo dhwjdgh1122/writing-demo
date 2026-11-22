@@ -15,6 +15,7 @@ export type Action =
   | { type: 'select'; start: number; end: number }
   | { type: 'clear' }
   | { type: 'start'; requestId: string; requirement?: RetryRequirement }
+  | { type: 'startRerun'; requestId: string; requirement?: RetryRequirement }
   | { type: 'success'; value: CorrectionResult }
   | { type: 'failure'; requestId: string; message: string; errorCode?: string }
   | { type: 'apply'; candidateId: string };
@@ -41,20 +42,25 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       return { ...state, selectionRevision: revision, selection: { start: action.start, end: action.end, text: state.text.slice(action.start, action.end), revision }, pending: null, result: null, rerun: null, error: null, notice: null };
     }
     case 'clear': return { ...state, selection: null, selectionRevision: state.selectionRevision + 1, pending: null, result: null, rerun: null, error: null, notice: null };
-    case 'start': {
-      if (state.pending || !state.selection || selectionProblem(state.selection.text) || countCharacters(state.text) > LIMITS.document || (action.requirement && !state.rerun)) return state;
+    case 'start':
+    case 'startRerun': {
+      if (state.pending || !state.selection || selectionProblem(state.selection.text) || countCharacters(state.text) > LIMITS.document
+        || ((action.type === 'startRerun' || action.requirement) && !state.rerun)) return state;
       const { start, end, text, revision } = state.selection;
       const predecessor = state.rerun;
+      // A rerun keeps the last successful batch mounted until a valid replacement arrives.
+      // Starting an ordinary correction retains its existing clear-before-loading behavior.
+      const retainResult = action.type === 'startRerun' && state.result && isCurrent(state, state.result.snapshot);
       return { ...state, pending: { requestId: action.requestId, documentRevision: state.revision, selectionRevision: revision, start, end, sourceText: text,
         ...(predecessor ? { parentRequestId: predecessor.parentRequestId, phase: predecessor.phase } : {}),
         ...(predecessor && action.requirement ? { retryContext: { requirement: action.requirement,
           previousSourceText: predecessor.previousSourceText, previousCandidates: predecessor.previousCandidates } } : {}),
-      }, result: null, error: null, notice: null };
+      }, result: retainResult ? state.result : null, error: null, notice: action.type === 'startRerun' ? state.notice : null };
     }
     case 'success': {
       if (!state.pending || state.pending.requestId !== action.value.requestId || !isCurrent(state, state.pending)) return state;
       if (action.value.sourceText !== state.pending.sourceText || !retryContextsMatch(action.value.retryContext, state.pending.retryContext)) return { ...state, pending: null, error: '현재 선택과 일치하지 않는 결과입니다. 다시 실행해주세요.' };
-      return { ...state, result: { snapshot: state.pending, value: action.value }, pending: null, error: null,
+      return { ...state, result: { snapshot: state.pending, value: action.value }, pending: null, error: null, notice: null,
         rerun: { parentRequestId: action.value.requestId, phase: 'before_apply', previousSourceText: action.value.sourceText, previousCandidates: action.value.candidates } };
     }
     case 'failure': {
@@ -62,7 +68,7 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       return { ...state, pending: null, error: action.message };
     }
     case 'apply': {
-      if (!state.result || !isCurrent(state, state.result.snapshot)) return state;
+      if (state.pending || !state.result || !isCurrent(state, state.result.snapshot)) return state;
       const candidate = state.result.value.candidates.find(c => c.id === action.candidateId);
       if (!candidate || candidate.text === state.result.snapshot.sourceText) return state;
       const { start, end } = state.result.snapshot;

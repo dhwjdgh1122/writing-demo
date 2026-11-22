@@ -9,8 +9,9 @@ const results = (page: Page) => page.locator('.correction-view');
 const history = (page: Page) => page.locator('.history-panel:not(.activity-panel)');
 const activity = (page: Page) => page.locator('.activity-panel');
 const rerun = (page: Page) => page.getByRole('region', { name: '재교정 요청', exact: true });
-const requirement = (page: Page) => rerun(page).getByRole('combobox', { name: /이번에는 어떤 점을 바꾸고 싶나요/ });
-const rerunButton = (page: Page) => rerun(page).getByRole('button', { name: '다시 교정하기', exact: true });
+const requirement = (page: Page, value: string) => rerun(page).locator(`input[type="radio"][value="${value}"]`);
+const rerunButton = (page: Page) => rerun(page).getByRole('button', { name: /^(교정 시작|다시 시도|교정 중)/ });
+const rerunToggle = (page: Page, candidateIndex = 0) => results(page).getByRole('button', { name: '다시 교정하기', exact: true }).nth(candidateIndex);
 const explanationText = '테스트에서 주입한 교정 설명입니다.';
 const failureText = '테스트용 교정 오류: 로그에 보관하면 안 되는 상세 문구';
 
@@ -38,7 +39,23 @@ async function firstCorrection(page: Page, text: string, selection = text) {
   await selectRange(page, start, start + selection.length);
   await startCorrection(page);
   await expect(results(page).locator('.candidate-card')).not.toHaveCount(0);
+  await expect(rerunToggle(page)).toBeVisible();
+  await expect(rerun(page)).toHaveCount(0);
+}
+
+async function openRerun(page: Page) {
+  if (!await rerun(page).isVisible()) await rerunToggle(page).click();
   await expect(rerun(page)).toBeVisible();
+}
+
+async function selectRequirement(page: Page, value: string) {
+  await openRerun(page);
+  await requirement(page, value).check();
+}
+
+async function runRerun(page: Page) {
+  await openRerun(page);
+  await rerunButton(page).click();
 }
 
 async function mockModels(page: Page, outputs: (string[] | 'failure')[], beforeReply?: (input: CorrectionInput, index: number) => Promise<void>) {
@@ -121,8 +138,8 @@ test('before application, an optional requirement reaches new candidates and a l
   await page.goto('/');
   const document = `선택하지 않은 앞 문장.\n${source}\n선택하지 않은 뒤 문장.`;
   await firstCorrection(page, document, source);
-  await requirement(page).selectOption('alternative');
-  await expect(requirement(page)).toHaveValue('alternative');
+  await selectRequirement(page, 'alternative');
+  await expect(requirement(page, 'alternative')).toBeChecked();
   expect(calls.corrections).toHaveLength(1);
   expect(calls.explanations).toHaveLength(0);
   await rerunButton(page).click();
@@ -157,7 +174,7 @@ test('after application, rerun corrects the currently applied text and retains t
   await firstCorrection(page, `앞.\n${source}\n뒤.`, source);
   await results(page).getByRole('button', { name: '이 문장 적용', exact: true }).click();
   await expect(page.getByLabel('원문 입력')).toHaveValue(`앞.\n${applied}\n뒤.`);
-  await requirement(page).selectOption('polite');
+  await selectRequirement(page, 'polite');
   expect(calls.corrections).toHaveLength(1);
   await rerunButton(page).click();
   await expect(results(page).locator('.candidate-text')).toHaveText(next);
@@ -180,8 +197,8 @@ test('skipping the optional requirement makes a normal request without leaking a
   const calls = await mockModels(page, [['첫 후보입니다.'], ['다른 후보입니다.']]);
   await page.goto('/');
   await firstCorrection(page, '원문입니다.');
-  await requirement(page).selectOption('meaning');
-  await requirement(page).selectOption('');
+  await selectRequirement(page, 'meaning');
+  await selectRequirement(page, '');
   expect(calls.corrections).toHaveLength(1);
   await rerunButton(page).click();
   await expect(results(page).locator('.candidate-text')).toHaveText('다른 후보입니다.');
@@ -194,13 +211,168 @@ test('skipping the optional requirement makes a normal request without leaking a
   expect(events.every(event => event.requirement === undefined)).toBe(true);
 });
 
+test('candidate-local rerun panels share a draft choice until a successful batch resets it', async ({ page }) => {
+  const source = '금요일까지 자료 보내 주세여.';
+  const oldCandidates = ['금요일까지 자료를 보내 주세요.', '금요일까지 자료 전달 부탁드립니다.', '자료를 금요일까지 보내 주시겠어요?'];
+  const newCandidates = ['금요일까지 자료를 보내 주시면 감사하겠습니다.', '금요일까지 자료를 전달해 주시기 바랍니다.', '자료를 금요일까지 보내 주실 수 있을까요?'];
+  const calls = await mockModels(page, [oldCandidates, newCandidates]);
+  await page.goto('/');
+  await firstCorrection(page, source);
+  const cards = results(page).locator('.candidate-card');
+  await expect(cards).toHaveCount(3);
+  for (let index = 0; index < 3; index++) {
+    const apply = await cards.nth(index).getByRole('button', { name: '이 문장 적용', exact: true }).boundingBox();
+    const reopen = await rerunToggle(page, index).boundingBox();
+    expect(apply && reopen).toBeTruthy();
+    expect(Math.abs(apply!.width - reopen!.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(apply!.height - reopen!.height)).toBeLessThanOrEqual(1);
+    expect(reopen!.y).toBeGreaterThanOrEqual(apply!.y + apply!.height);
+    await expect(rerunToggle(page, index)).toHaveAttribute('aria-expanded', 'false');
+  }
+
+  await selectRequirement(page, 'polite');
+  await expect(rerunToggle(page, 0)).toHaveAttribute('aria-expanded', 'true');
+  await rerunToggle(page, 1).click();
+  await expect(rerun(page)).toHaveCount(1);
+  await expect(cards.nth(0).getByRole('region', { name: '재교정 요청' })).toHaveCount(0);
+  await expect(cards.nth(1).getByRole('region', { name: '재교정 요청' })).toBeVisible();
+  await expect(requirement(page, 'polite')).toBeChecked();
+  await expect(rerunToggle(page, 0)).toHaveAttribute('aria-expanded', 'false');
+  await page.evaluate(() => scrollTo(0, 0));
+  await page.screenshot({ path: 'test-results/rerun-inline-desktop.png', fullPage: true });
+  await rerunToggle(page, 1).click();
+  await expect(rerun(page)).toHaveCount(0);
+  await rerunToggle(page, 2).click();
+  await expect(requirement(page, 'polite')).toBeChecked();
+  expect(calls.corrections).toHaveLength(1);
+  expect(calls.explanations).toHaveLength(0);
+
+  await rerunButton(page).click();
+  await expect(cards.locator('.candidate-text')).toHaveText(newCandidates);
+  await expect(rerun(page)).toHaveCount(0);
+  expect(calls.corrections[1].sourceText).toBe(source);
+  expect(calls.corrections[1].retryContext?.previousCandidates).toEqual(calls.candidates[0]);
+  expect(calls.corrections[1].retryContext?.requirement).toBe('polite');
+  await rerunToggle(page, 1).click();
+  await expect(requirement(page, '')).toBeChecked();
+  await expect(requirement(page, 'polite')).not.toBeChecked();
+  expect(calls.corrections).toHaveLength(2);
+
+  await results(page).getByRole('button', { name: /교정 이유/ }).click();
+  await expect(cards.locator('.candidate-explanation')).toHaveCount(3);
+  expect(calls.explanations[0].retryContext?.requirement).toBe('polite');
+  expect((await activityRecords(page)).events.find(event => event.requestId === calls.corrections[1].requestId && event.action === 'correction_received')?.requirement).toBe('polite');
+});
+
+test('pending and repeated failed reruns retain all candidates and explanations without duplicate requests or a false success', async ({ page }) => {
+  const requested = gate();
+  const release = gate();
+  const oldCandidates = ['첫 번째 기존 후보.', '두 번째 기존 후보.', '세 번째 기존 후보.'];
+  const newCandidates = ['첫 번째 새 후보.', '두 번째 새 후보.', '세 번째 새 후보.'];
+  const calls = await mockModels(page, [oldCandidates, 'failure', 'failure', newCandidates], async (_input, index) => {
+    if (index === 1) { requested.resolve(); await release.promise; }
+  });
+  await page.goto('/');
+  await firstCorrection(page, '원래 선택한 문장.');
+  await results(page).getByRole('button', { name: /교정 이유/ }).click();
+  await expect(results(page).locator('.candidate-explanation')).toHaveCount(3);
+  await results(page).locator('.candidate-card').first().locator('summary').click();
+  await rerunToggle(page, 1).click();
+  await selectRequirement(page, 'errors');
+  await rerunButton(page).click();
+  await requested.promise;
+  try {
+    await expect(results(page).locator('.candidate-text')).toHaveText(oldCandidates);
+    await expect(results(page).locator('.candidate-explanation p')).toHaveText(Array(3).fill(explanationText));
+    await expect(results(page).locator('.candidate-explanation').first()).toBeVisible();
+    await expect(results(page).locator('.candidate-card').first().locator('details')).toHaveAttribute('open', '');
+    const cachedExplanationToggle = results(page).getByRole('button', { name: '교정 이유', exact: true });
+    await expect(cachedExplanationToggle).toBeEnabled();
+    await cachedExplanationToggle.click();
+    await expect(results(page).locator('.candidate-explanation')).toHaveCount(0);
+    await cachedExplanationToggle.click();
+    await expect(results(page).locator('.candidate-explanation p')).toHaveText(Array(3).fill(explanationText));
+    expect(calls.explanations).toHaveLength(1);
+    await expect(rerunButton(page)).toBeDisabled();
+    for (let index = 0; index < 3; index++) {
+      await expect(results(page).getByRole('button', { name: '이 문장 적용', exact: true }).nth(index)).toBeDisabled();
+      await expect(rerunToggle(page, index)).toBeDisabled();
+      await expect(results(page).locator('.candidate-card').nth(index)).toBeVisible();
+    }
+    await expect(requirement(page, 'errors')).toBeDisabled();
+    // Even a programmatic native click on disabled controls must not start another request or apply stale text.
+    await rerunButton(page).evaluate((button: HTMLButtonElement) => button.click());
+    await results(page).getByRole('button', { name: '이 문장 적용', exact: true }).first().evaluate((button: HTMLButtonElement) => button.click());
+    expect(calls.corrections).toHaveLength(2);
+    await expect(page.getByLabel('원문 입력')).toHaveValue('원래 선택한 문장.');
+  } finally { release.resolve(); }
+
+  for (let failureIndex = 1; failureIndex <= 2; failureIndex++) {
+    await expect(rerunButton(page)).toHaveText('다시 시도');
+    await expect(rerunButton(page)).toBeEnabled();
+    await expect(results(page).locator('.candidate-text')).toHaveText(oldCandidates);
+    await expect(results(page).locator('.candidate-explanation')).toHaveCount(3);
+    await expect(results(page).locator('.candidate-card').first().locator('details')).toHaveAttribute('open', '');
+    await expect(requirement(page, 'errors')).toBeChecked();
+    await expect(results(page).locator('.candidate-card').nth(1).getByRole('region', { name: '재교정 요청' })).toBeVisible();
+    expect(calls.corrections).toHaveLength(failureIndex + 1);
+    const events = (await activityRecords(page)).events.filter(event => event.requestId === calls.corrections[failureIndex].requestId);
+    expect(events.filter(event => event.action === 'correction_failed')).toHaveLength(1);
+    expect(events.some(event => event.action === 'correction_received')).toBe(false);
+    await expect(history(page).locator('.history-entry')).toHaveCount(1);
+    await rerunButton(page).click();
+  }
+  await expect(results(page).locator('.candidate-text')).toHaveText(newCandidates);
+  await expect(rerun(page)).toHaveCount(0);
+  const records = await historyRecords(page);
+  expect(records).toHaveLength(2);
+  expect(records.find(record => record.id === calls.corrections[3].requestId)?.parentRecordId).toBe(calls.corrections[0].requestId);
+  for (const input of calls.corrections.slice(1)) expect(input.retryContext).toEqual(calls.corrections[1].retryContext);
+});
+
+test('an applied sentence and its rerun notice survive a failed request and remain the retry source', async ({ page }) => {
+  const requested = gate();
+  const release = gate();
+  const source = '자료 보내 주세여.';
+  const applied = '자료를 보내 주세요.';
+  const newCandidates = ['자료를 보내 주시기 바랍니다.', '자료 전달을 부탁드립니다.', '자료를 보내 주시면 감사하겠습니다.'];
+  const calls = await mockModels(page, [[applied, '자료 전달 부탁드려요.', '자료를 보내 주시겠어요?'], 'failure', newCandidates], async (_input, index) => {
+    if (index === 1) { requested.resolve(); await release.promise; }
+  });
+  await page.goto('/');
+  await firstCorrection(page, `앞.\n${source}\n뒤.`, source);
+  await results(page).getByRole('button', { name: '이 문장 적용', exact: true }).first().click();
+  const appliedNotice = results(page).getByText('선택한 문장에 적용했습니다.', { exact: true });
+  await expect(appliedNotice).toBeVisible();
+  await selectRequirement(page, 'polite');
+  await rerunButton(page).click();
+  await requested.promise;
+  try {
+    await expect(appliedNotice).toBeVisible();
+    await expect(page.getByLabel('원문 입력')).toHaveValue(`앞.\n${applied}\n뒤.`);
+    await expect(rerunToggle(page)).toBeDisabled();
+    await expect(rerunButton(page)).toBeDisabled();
+  } finally { release.resolve(); }
+  await expect(rerunButton(page)).toHaveText('다시 시도');
+  await expect(appliedNotice).toBeVisible();
+  await expect(requirement(page, 'polite')).toBeChecked();
+  await rerunButton(page).click();
+  await expect(results(page).locator('.candidate-text')).toHaveText(newCandidates);
+  expect(calls.corrections[1].sourceText).toBe(applied);
+  expect(calls.corrections[2].sourceText).toBe(applied);
+  expect(calls.corrections[2].retryContext).toEqual(calls.corrections[1].retryContext);
+  const records = await historyRecords(page);
+  expect(records.find(record => record.id === calls.corrections[0].requestId)?.appliedCandidateId).toBe(calls.candidates[0][0].id);
+  expect(records.find(record => record.id === calls.corrections[2].requestId)?.parentRecordId).toBe(calls.corrections[0].requestId);
+});
+
 for (const change of ['edit', 'selection'] as const) {
   test(`${change} invalidates the previous rerun context and the next ordinary request has no requirement or parent`, async ({ page }) => {
     const calls = await mockModels(page, [['첫 줄의 후보.'], ['새 요청 후보.']]);
     await page.goto('/');
     const document = '첫째 문장.\n둘째 문장.';
     await firstCorrection(page, document, '첫째 문장.');
-    await requirement(page).selectOption('plain');
+    await selectRequirement(page, 'plain');
     const nextSource = change === 'edit' ? '직접 고친 원문.' : '둘째 문장.';
     if (change === 'edit') {
       await page.getByLabel('원문 입력').fill(nextSource);
@@ -223,11 +395,13 @@ test('a failed rerun retains its original context for retry and stores only a sa
   const calls = await mockModels(page, [['처음 받은 후보.'], 'failure', ['다시 받은 후보.']]);
   await page.goto('/');
   await firstCorrection(page, '오류가 있는 원문.');
-  await requirement(page).selectOption('errors');
+  await selectRequirement(page, 'errors');
   await rerunButton(page).click();
-  await expect(results(page).getByText(failureText, { exact: true })).toBeVisible();
+  await expect(rerun(page).getByRole('alert')).toContainText(failureText);
   await expect(rerunButton(page)).toBeEnabled();
-  await expect(requirement(page)).toHaveValue('errors');
+  await expect(rerunButton(page)).toHaveText('다시 시도');
+  await expect(requirement(page, 'errors')).toBeChecked();
+  await expect(results(page).locator('.candidate-text')).toHaveText('처음 받은 후보.');
   await expect(history(page).locator('.history-entry')).toHaveCount(1);
   await rerunButton(page).click();
   await expect(results(page).locator('.candidate-text')).toHaveText('다시 받은 후보.');
@@ -250,9 +424,13 @@ test('editing during a rerun discards the late result without adding history or 
   });
   await page.goto('/');
   await firstCorrection(page, '처음 입력한 원문.');
-  await requirement(page).selectOption('alternative');
+  await selectRequirement(page, 'alternative');
   await rerunButton(page).click();
   await requested.promise;
+  const uncachedExplanationToggle = results(page).getByRole('button', { name: '교정 이유', exact: true });
+  await expect(uncachedExplanationToggle).toBeDisabled();
+  await uncachedExplanationToggle.evaluate((button: HTMLButtonElement) => button.click());
+  expect(calls.explanations).toHaveLength(0);
   await page.getByLabel('원문 입력').fill('기다리다가 바꾼 원문.');
   await expect(rerun(page)).toHaveCount(0);
   release.resolve();
@@ -275,10 +453,10 @@ test('a rerun response with a different requirement echo is rejected instead of 
     await route.fulfill({ json: { ...input, retryContext: { ...input.retryContext, requirement: 'plain' },
       candidates: [{ id: 'wrong-echo', text: '요구가 잘못 연결된 후보.' }] } });
   });
-  await requirement(page).selectOption('polite');
+  await selectRequirement(page, 'polite');
   await rerunButton(page).click();
-  await expect(results(page).locator('.error-message')).toBeVisible();
-  await expect(results(page).locator('.candidate-card')).toHaveCount(0);
+  await expect(rerun(page).getByRole('alert')).toBeVisible();
+  await expect(results(page).locator('.candidate-text')).toHaveText('기존 후보.');
   await expect(history(page).locator('.history-entry')).toHaveCount(1);
   expect((await historyRecords(page)).some(record => record.id === calls.corrections[1].requestId)).toBe(false);
 });
@@ -291,7 +469,7 @@ test('activity JSON/CSV omit all text by default and opt-in content joins only h
   await page.goto('/');
   await firstCorrection(page, source);
   await results(page).getByRole('button', { name: '이 문장 적용', exact: true }).click();
-  await requirement(page).selectOption('polite');
+  await selectRequirement(page, 'polite');
   await rerunButton(page).click();
   await expect(results(page).locator('.candidate-text')).toHaveText(second);
   await results(page).getByRole('button', { name: /교정 이유/ }).click();
@@ -338,10 +516,10 @@ test('participant edits affect future events only after apply and deleting activ
   await activity(page).getByRole('button', { name: '참여자 코드 적용' }).click();
   await firstCorrection(page, '참여자 검증 원문.');
   await activity(page).getByLabel('참여자 코드', { exact: true }).fill('T02');
-  await rerunButton(page).click();
+  await runRerun(page);
   await expect(results(page).locator('.candidate-text')).toHaveText('둘째 후보.');
   await activity(page).getByRole('button', { name: '참여자 코드 적용' }).click();
-  await rerunButton(page).click();
+  await runRerun(page);
   await expect(results(page).locator('.candidate-text')).toHaveText('셋째 후보.');
   const exported = await activityRecords(page);
   expect(exported.events.filter(event => event.requestId !== calls.corrections[2].requestId).every(event => event.participantCode === 'T01')).toBe(true);
@@ -377,7 +555,7 @@ test('activity quota failure keeps both saved and new events exportable and can 
       return setItem.call(this, name, value);
     };
   }, key);
-  await requirement(page).selectOption('alternative');
+  await selectRequirement(page, 'alternative');
   await rerunButton(page).click();
   await expect(results(page).locator('.candidate-text')).toHaveText('저장 재시도가 필요한 후보.');
   await expect(activity(page).getByText(/행동 기록을 저장하지 못했습니다/)).toBeVisible();
@@ -426,20 +604,26 @@ test('corrupt activity bytes are preserved while current events remain exportabl
 });
 
 test('requirement selection and rerun are keyboard operable on a narrow screen without extra requests', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 320, height: 844 });
   const calls = await mockModels(page, [['처음 보여준 후보.'], ['뜻을 유지한 새 후보.']]);
   await page.goto('/');
   await firstCorrection(page, '원래 뜻을 유지할 원문.');
-  const choice = requirement(page);
+  await rerunToggle(page).focus();
+  await rerunToggle(page).press('Enter');
+  const choice = requirement(page, '');
   await choice.focus();
-  await choice.press('Home');
-  for (let index = 0; index < 4; index++) await choice.press('ArrowDown');
-  await expect(choice).toHaveValue('meaning');
+  for (let index = 0; index < 4; index++) await page.keyboard.press('ArrowDown');
+  await expect(requirement(page, 'meaning')).toBeChecked();
+  await expect(requirement(page, 'meaning')).toBeFocused();
   expect(calls.corrections).toHaveLength(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.evaluate(() => scrollTo(0, 0));
+  await page.screenshot({ path: 'test-results/rerun-keyboard-mobile-open.png', fullPage: true });
   await page.keyboard.press('Tab');
   await expect(rerunButton(page)).toBeFocused();
   await rerunButton(page).press('Enter');
   await expect(results(page).locator('.candidate-text')).toHaveText('뜻을 유지한 새 후보.');
+  await expect(rerun(page)).toHaveCount(0);
   expect(calls.corrections[1].retryContext?.requirement).toBe('meaning');
   expect(calls.explanations).toHaveLength(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

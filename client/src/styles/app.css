@@ -70,13 +70,33 @@ main{max-width:1488px;margin:0 auto;padding:38px 24px 20px}.page-intro{display:f
 .activity-participant p { flex-basis: 100%; margin: 0; overflow-wrap: anywhere; }
 .activity-content-option { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .activity-content-option input { width: 16px; height: 16px; accent-color: #7027e8; }
-.rerun-controls { margin: 20px 0 0; padding: 16px; background: #faf8fd; border: 1px solid #e7def6; border-radius: 9px; min-width: 0; }
-.rerun-controls h3 { margin: 0 0 10px; font-size: 15px; }
+.candidate-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.candidate-actions .apply-button { margin-top: 0; min-height: 44px; }
+.rerun-entry { min-width: 0; }
+.rerun-toggle[aria-expanded="true"] { background: #f6f0ff; border-color: #bda1e7; }
+.rerun-chevron { display: inline-flex; transform: rotate(-90deg); }
+.rerun-chevron.is-open { transform: rotate(90deg); }
+.rerun-controls { margin: 12px 0 0; padding: 14px; background: #faf8fd; border: 1px solid #e7def6; border-radius: 9px; min-width: 0; }
+.rerun-controls fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }
+.rerun-controls legend { padding: 0; font-size: 13px; font-weight: 600; line-height: 1.8; }
+.rerun-controls legend span { font-weight: 400; }
 .rerun-controls p { margin: 8px 0 12px; font-size: 12px; line-height: 1.7; color: #62566f; }
-.rerun-controls label { display: block; margin: 10px 0 8px; font-size: 13px; }
-.rerun-controls select { width: 100%; max-width: 100%; min-width: 0; padding: 10px; border: 1px solid #d8c9e8; border-radius: 6px; background: #fff; color: #4c435e; font: inherit; font-size: 13px; }
-.rerun-controls button { min-height: 40px; }
-.rerun-controls select:focus-visible,.activity-participant input:focus-visible { outline: 3px solid #9c76e8; outline-offset: 2px; }
+.rerun-options { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.rerun-option { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 9px 10px; background: #fff; border: 1px solid #ddd0ee; border-radius: 6px; font-size: 13px; line-height: 1.6; cursor: pointer; overflow-wrap: anywhere; }
+.rerun-option input { margin: 0; width: 15px; height: 15px; accent-color: var(--purple); flex-shrink: 0; }
+.rerun-option:has(input:checked) { border-color: var(--purple); box-shadow: inset 0 0 0 1px var(--purple); color: var(--purple); }
+.rerun-option:has(input:disabled) { opacity: .6; cursor: not-allowed; }
+.rerun-controls input:focus-visible,.activity-participant input:focus-visible { outline: 3px solid #9c76e8; outline-offset: 2px; }
+.rerun-controls .rerun-error { color: #984c45; background: #fff7f5; padding: 10px 12px; border-left: 3px solid #dd857d; overflow-wrap: anywhere; }
+.rerun-submit-row { display: flex; justify-content: flex-end; margin-top: 12px; }
+.rerun-submit-row button { min-height: 44px; }
+.applied-state { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 10px; margin-top: 12px; }
+.applied-state .success-message { margin: 0; }
+.rerun-after-apply { display: contents; }
+.rerun-after-apply > button { grid-column: 2; min-height: 40px; }
+.rerun-after-apply > section { grid-column: 1 / -1; margin-top: 0; }
+.panel-action:disabled { opacity: .6; cursor: not-allowed; }
+@media(max-width:520px) { .rerun-options { grid-template-columns: 1fr; } .applied-state { grid-template-columns: minmax(0,1fr); } .rerun-after-apply > button { grid-column: 1; justify-self: start; } }
 .activity-stats-scroll { margin: 0 24px 16px; overflow-x: auto; }
 .activity-stats-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .activity-stats-table th,.activity-stats-table td { padding: 8px; border-bottom: 1px solid var(--line); text-align: left; }
