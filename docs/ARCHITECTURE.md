@@ -190,7 +190,7 @@ API는 모델 제공자와 독립적인 앱 내부 계약이다. health·correct
 
 ## 5. 모델 연결 경계
 
-- 내부 인터페이스는 `generateCandidates(sourceText, signal)`를 구현했다. `generateExplanations(sourceText, candidates, signal)`도 구현했다. 설명 메서드가 없는 제공자는 설명 요청 시 미설정 안내를 반환한다.
+- 내부 인터페이스는 `generateCandidates(sourceText, signal, retryContext?)`와 `generateExplanations(sourceText, candidates, signal, retryContext?)`를 구현했다. 선택 인자 `retryContext`는 요구를 선택한 재교정의 이전 원문·후보·요구를 전달하며 [제공자 계약](../server/llm/provider.ts)을 따른다. 설명 메서드가 없는 제공자는 설명 요청 시 미설정 안내를 반환한다.
 - 제공자별 요청 형식·모델명·응답 추출은 `server/llm/` 안에서 처리한다. 화면은 제공자 SDK를 직접 호출하지 않는다.
 - API가 준비되기 전에는 `MODEL_NOT_CONFIGURED`를 반환한다. 테스트용 고정 응답은 테스트에서 명시적으로 주입하며 실제 데모의 교정 성공으로 사용하지 않는다.
 - `config.ts`는 `LLM_PROVIDER=gemini`이면 기존 `gemini.ts`, `LLM_PROVIDER=elice`이면 `elice.ts` 어댑터를 생성한다. 각 제공자의 필수 키·모델·URL이 없으면 미설정 제공자를 사용하고, 알 수 없는 제공자·잘못된 설정은 오류로 중단한다. 화면에는 모델 선택 메뉴가 없으며 설정 변경 후 서버를 재시작한다. 다른 제공자로 자동 대체하지 않는다.
