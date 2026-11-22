@@ -1,0 +1,64 @@
+{
+  "scope": "기존 CT-03·EQ-03·E-03 재사용. 평가 기준·정답·출처는 보고 전용이며 모델 입력에서 제외한다.",
+  "cases": [
+    {
+      "id": "CT-03",
+      "origin": "기존 의미 유지 대조 사례. 합성 문장.",
+      "sourceText": "회원인 경우에만 자료를 받을 수 있습니다.",
+      "candidates": [
+        {
+          "id": "ct03-c1",
+          "text": "회원만 자료를 받을 수 있습니다."
+        }
+      ],
+      "required": [
+        "회원만 받을 수 있다는 제한 유지",
+        "표현 다듬기로 분류하고 조건 삭제로 지적하지 않음"
+      ]
+    },
+    {
+      "id": "EQ-03",
+      "sourceText": "승인을 받은 경우에만 자료를 공개합니다.",
+      "candidates": [
+        {
+          "id": "eq03-c1",
+          "text": "승인을 받으면 자료를 공개합니다."
+        }
+      ],
+      "origin": "PR #23 기존 전체 동등성 EQ-03. 판정 단위 변경을 검토하며 새 사용자 사례가 아님.",
+      "provenance": {
+        "commit": "641931e",
+        "path": "tests/fixtures/explanation-equivalence-cases.json",
+        "gitBlobSha256": "211f1446823b09acb6c807816f1769a514a0b7111b2fd98f250f247fff3fb840",
+        "originalCase": {
+          "id": "EQ-03",
+          "group": "restriction",
+          "sourceText": "승인을 받은 경우에만 자료를 공개합니다.",
+          "candidateText": "승인을 받으면 자료를 공개합니다.",
+          "expected": "different",
+          "required": "명시적인 만 제한의 소실. 실제 무승인 공개 허용으로 단정하지 않음"
+        }
+      },
+      "required": [
+        "명시적인 만 제한의 소실. 실제 무승인 공개 허용으로 단정하지 않음"
+      ]
+    },
+    {
+      "id": "E-03",
+      "origin": "기존 explanation-cases.json NEW-meaning/m2의 개발자 작성 고정 문장 쌍.",
+      "sourceText": "담당자의 확인을 받은 경우에만 화요일까지 8명에게 자료를 보낼 예정이며, 발송은 확정되지 않았습니다.",
+      "candidates": [
+        {
+          "id": "e03-c1",
+          "text": "화요일까지 10명에게 자료를 발송합니다."
+        }
+      ],
+      "required": [
+        "담당자 확인 조건 삭제",
+        "8명→10명",
+        "예정·미확정 표현 소실",
+        "원문의 정보 유지 시 선택 기준"
+      ]
+    }
+  ]
+}

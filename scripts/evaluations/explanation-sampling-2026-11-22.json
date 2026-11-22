@@ -1,0 +1,14 @@
+{
+  "experimentId": "issue22-elice-sampling-20261122",
+  "fixturePath": "tests/fixtures/explanation-lexical-reference-2026-11-22.json",
+  "caseIds": ["R-03", "L-01", "E-04", "R-02", "R-05", "E-03"],
+  "arms": [
+    { "id": "omitted", "instructionExport": "referenceInstruction", "referenceExport": "lexicalReferences" },
+    { "id": "zero", "instructionExport": "referenceInstruction", "referenceExport": "lexicalReferences", "temperature": 0 }
+  ],
+  "repetitions": 2,
+  "promptModule": "scripts/lib/explanation-lexical-reference.mjs",
+  "reportPrefix": "docs/evaluations/explanation-sampling-2026-11-22",
+  "perProviderMaxCalls": 24,
+  "ledgerPath": "docs/evaluations/approved-model-calls-continuation-2026-11-22.json"
+}

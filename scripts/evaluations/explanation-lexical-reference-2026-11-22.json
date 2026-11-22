@@ -1,0 +1,13 @@
+{
+  "experimentId": "issue22-lexical-reference-20261122",
+  "fixturePath": "tests/fixtures/explanation-lexical-reference-2026-11-22.json",
+  "caseIds": ["R-03", "L-01", "E-04", "R-02", "R-05", "E-03"],
+  "arms": [
+    { "id": "instruction-definition", "instructionExport": "definitionInstruction" },
+    { "id": "reference-data", "instructionExport": "referenceInstruction", "referenceExport": "lexicalReferences" }
+  ],
+  "promptModule": "scripts/lib/explanation-lexical-reference.mjs",
+  "reportPrefix": "docs/evaluations/explanation-lexical-reference-2026-11-22",
+  "perProviderMaxCalls": 12,
+  "ledgerPath": "docs/evaluations/approved-model-calls-continuation-2026-11-22.json"
+}

@@ -1,0 +1,13 @@
+{
+  "experimentId": "issue22-freeform-contrast-20261122",
+  "fixturePath": "tests/fixtures/explanation-continuation-pilot-2026-11-22.json",
+  "caseIds": ["E-01", "E-03", "E-04", "CT-03", "R-03", "M-01"],
+  "arms": [
+    {"id": "baseline", "instructionExport": "baselineInstruction"},
+    {"id": "contrast", "instructionExport": "contrastInstruction"}
+  ],
+  "promptModule": "scripts/lib/explanation-freeform-contrast.mjs",
+  "reportPrefix": "docs/evaluations/explanation-freeform-contrast-2026-11-22",
+  "perProviderMaxCalls": 12,
+  "ledgerPath": "docs/evaluations/approved-model-calls-continuation-2026-11-22.json"
+}

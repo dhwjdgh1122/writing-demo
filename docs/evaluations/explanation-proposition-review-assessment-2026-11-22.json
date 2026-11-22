@@ -1,0 +1,465 @@
+{
+  "version": 1,
+  "date": "2026-11-22",
+  "experimentId": "issue22-proposition-review-20261122",
+  "evaluationPlan": "docs/evaluations/explanation-proposition-review-plan-2026-11-22.md",
+  "executionCommit": "8601330676e28ce89d38fdc1394b7d9df66d762a",
+  "sourceReportHashBasis": "SHA-256 of the captured UTF-8 report file bytes with LF layout. After checkout line-ending conversion, verify the committed git blob; raw completion and snapshot binding hashes use their own documented serialization.",
+  "method": "AI-assisted source review by root with separate agent review; no human participant validation, automatic semantic judge, or extra provider requests.",
+  "scope": "Case-level preservation review, not final explanation quality or an estimated general accuracy rate. Uncertain cases are not passes. Grouping depends on the recorded AI-assisted judgment.",
+  "summary": {
+    "planned": 6,
+    "attempted": 5,
+    "http200Outputs": 4,
+    "contractValidOutputs": 4,
+    "serviceFailures": 1,
+    "unexecuted": 1,
+    "casePreservationConfirmed": 2,
+    "caseNeedsReview": 2,
+    "productQualityPassed": false
+  },
+  "notAssessed": [
+    {
+      "provider": "gemini",
+      "caseId": "EQ-03",
+      "reason": "HTTP 503, no completion captured"
+    },
+    {
+      "provider": "gemini",
+      "caseId": "E-03",
+      "reason": "Not executed after provider service failure"
+    }
+  ],
+  "records": [
+    {
+      "provider": "gemini",
+      "caseId": "CT-03",
+      "sourceReport": "docs/evaluations/explanation-proposition-review-2026-11-22-gemini.json",
+      "sourceReportSha256": "50b163e3f531e996381582f6e5a71d3a37028b8de4e43c52cb1756cecd5eb58e",
+      "rawCompletionSha256": "4745164234a15cd7b6e5dc0f32b3797d00f87ceddd9f6bafc903a4f2f292de81",
+      "disposition": "information-preservation-confirmed-in-this-case",
+      "history": {
+        "activeRevisions": [
+          1
+        ],
+        "revisions": [
+          {
+            "reviewRevision": 1,
+            "binding": {
+              "runId": "bf86983f-4251-4492-ae81-c8b362dbe979",
+              "requestId": "d089f434-633c-4f23-87e1-fd892d8b839b",
+              "contractVersion": "proposition-review-v1",
+              "inputSha256": "da3a56deaf580eabde11bb398161750b1a830c9352595f7352ddc6ef91982ab7",
+              "outputSha256": "a9ec5c17aa574b0fdf225c4a6293ffe9f4e8a457787c1b4fbaf11f7002a9b731"
+            },
+            "reviewer": {
+              "kind": "ai-assisted",
+              "id": "codex-root-20261122"
+            },
+            "withdrawn": false,
+            "supports": [
+              {
+                "propositionId": "h1",
+                "status": "supported",
+                "reason": "t1의 제한·가능성 표현을 그대로 보존한다."
+              },
+              {
+                "propositionId": "h2",
+                "status": "supported",
+                "reason": "t2의 제한·가능성 표현을 그대로 보존한다."
+              }
+            ],
+            "relations": [
+              {
+                "leftId": "h1",
+                "rightId": "h2",
+                "status": "same",
+                "reason": "두 명제 모두 회원에게만 자료 수령 가능성을 한정한다. 실제 수령 보장이나 조건 변화를 주장하지 않는다."
+              }
+            ],
+            "coverage": [
+              {
+                "id": "t1-restriction",
+                "originId": "t1",
+                "information": "자료 수령에는 회원 자격이 필요하다는 제한",
+                "propositionIds": [
+                  "h1"
+                ],
+                "status": "preserved",
+                "reason": "회원에 한정한 필요조건을 보존한다."
+              },
+              {
+                "id": "t1-possibility",
+                "originId": "t1",
+                "information": "자료를 받을 수 있다는 가능성 표현",
+                "propositionIds": [
+                  "h1"
+                ],
+                "status": "preserved",
+                "reason": "받을 수 있다는 표현과 제한을 함께 그대로 보존한다."
+              },
+              {
+                "id": "t2-restriction",
+                "originId": "t2",
+                "information": "자료를 받는 대상을 회원에 한정한 제한",
+                "propositionIds": [
+                  "h2"
+                ],
+                "status": "preserved",
+                "reason": "회원만 또는 회원에게만이라는 제한을 보존한다."
+              },
+              {
+                "id": "t2-possibility",
+                "originId": "t2",
+                "information": "자료를 받을 수 있다는 가능성 표현",
+                "propositionIds": [
+                  "h2"
+                ],
+                "status": "preserved",
+                "reason": "받을 수 있다는 가능성과 회원 제한을 그대로 보존한다."
+              }
+            ]
+          }
+        ]
+      },
+      "proposedGroups": [
+        {
+          "reviewRevision": 1,
+          "representativeId": "h1",
+          "memberIds": [
+            "h1",
+            "h2"
+          ]
+        }
+      ],
+      "recordValidation": {
+        "ok": true,
+        "semanticAssessment": "not-performed",
+        "groups": [
+          {
+            "reviewRevision": 1,
+            "representativeId": "h1",
+            "memberIds": [
+              "h1",
+              "h2"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "provider": "elice",
+      "caseId": "CT-03",
+      "sourceReport": "docs/evaluations/explanation-proposition-review-2026-11-22-elice.json",
+      "sourceReportSha256": "73f8f64cf5ad172f60a15e8c803ef7e4eedef8301ede89f465e1b30694ec50b8",
+      "rawCompletionSha256": "e2e5d3dbc831355bdde95f0ed2a9ef367325912c435f4fee324826b4fe7444f4",
+      "disposition": "needs-review-not-passed",
+      "history": {
+        "activeRevisions": [
+          1
+        ],
+        "revisions": [
+          {
+            "reviewRevision": 1,
+            "binding": {
+              "runId": "b64b3654-6d47-423b-baef-59753d9c5778",
+              "requestId": "6f2fd37d-f2f1-4619-aabd-d6e90d08373d",
+              "contractVersion": "proposition-review-v1",
+              "inputSha256": "da3a56deaf580eabde11bb398161750b1a830c9352595f7352ddc6ef91982ab7",
+              "outputSha256": "835d0ddb217aaee1cbffd7bc3ebae3946a7460b0485e83412dc7c6a083215663"
+            },
+            "reviewer": {
+              "kind": "ai-assisted",
+              "id": "codex-root-20261122"
+            },
+            "withdrawn": false,
+            "supports": [
+              {
+                "propositionId": "h1",
+                "status": "supported",
+                "reason": "회원이어야 한다는 필요조건 자체는 t1에 지지된다. 이 지지 판정이 별도 수령 가능성 정보의 완전 보존까지 뜻하지는 않는다."
+              },
+              {
+                "propositionId": "h2",
+                "status": "uncertain",
+                "reason": "회원에게만 제공한다는 정책으로 읽을 수 있지만 가능성에서 제공 서술로 바꾼 범위가 명확하지 않다. 반드시 또는 이미 수령했다는 명백한 오류로 단정하지 않는다."
+              }
+            ],
+            "relations": [
+              {
+                "leftId": "h1",
+                "rightId": "h2",
+                "status": "uncertain",
+                "reason": "회원 제한은 공통이나 필요조건·제공 서술의 범위와 가능성 보존을 확정하지 못해 같은 의미 묶음을 보류한다."
+              }
+            ],
+            "coverage": [
+              {
+                "id": "t1-restriction",
+                "originId": "t1",
+                "information": "자료 수령에는 회원 자격이 필요하다는 제한",
+                "propositionIds": [
+                  "h1"
+                ],
+                "status": "preserved",
+                "reason": "회원에 한정한 필요조건을 보존한다."
+              },
+              {
+                "id": "t1-possibility",
+                "originId": "t1",
+                "information": "자료를 받을 수 있다는 가능성 표현",
+                "propositionIds": [
+                  "h1"
+                ],
+                "status": "needs-review",
+                "reason": "회원 자격 필요조건으로 풀었다. 원문의 가능성까지 같은 범위로 보존하는지는 판단 유보한다. 특정 낱말 부재만으로 명백한 누락이라 단정하지 않는다."
+              },
+              {
+                "id": "t2-restriction",
+                "originId": "t2",
+                "information": "자료를 받는 대상을 회원에 한정한 제한",
+                "propositionIds": [
+                  "h2"
+                ],
+                "status": "preserved",
+                "reason": "회원만 또는 회원에게만이라는 제한을 보존한다."
+              },
+              {
+                "id": "t2-possibility",
+                "originId": "t2",
+                "information": "자료를 받을 수 있다는 가능성 표현",
+                "propositionIds": [
+                  "h2"
+                ],
+                "status": "needs-review",
+                "reason": "받을 수 있다는 표현을 제공됩니다로 풀었다. 제공 정책으로 읽을 수 있으나 원문의 가능성과 서술 범위가 같은지 불확실하다. 실제 수령 완료를 날조했다고 단정하지 않는다."
+              }
+            ]
+          }
+        ]
+      },
+      "proposedGroups": [],
+      "recordValidation": {
+        "ok": true,
+        "semanticAssessment": "not-performed",
+        "groups": []
+      }
+    },
+    {
+      "provider": "elice",
+      "caseId": "EQ-03",
+      "sourceReport": "docs/evaluations/explanation-proposition-review-2026-11-22-elice.json",
+      "sourceReportSha256": "73f8f64cf5ad172f60a15e8c803ef7e4eedef8301ede89f465e1b30694ec50b8",
+      "rawCompletionSha256": "675de3b67211c6de8dd49f66c0b1bc41b0fc1a879821ef429f43930d7c3ef170",
+      "disposition": "information-preservation-confirmed-in-this-case",
+      "history": {
+        "activeRevisions": [
+          1
+        ],
+        "revisions": [
+          {
+            "reviewRevision": 1,
+            "binding": {
+              "runId": "b64b3654-6d47-423b-baef-59753d9c5778",
+              "requestId": "af37589a-30f0-4184-9bf1-245aa048a7e8",
+              "contractVersion": "proposition-review-v1",
+              "inputSha256": "1a99d9e1cee7e798ae27100a9a7851efa07bf7c0f4bdd182fe834043f4851068",
+              "outputSha256": "995f58387e96c4ddba17cb8bc54d5e2c0ab97f8c84bcf3f9c213e4eb5c1e8308"
+            },
+            "reviewer": {
+              "kind": "ai-assisted",
+              "id": "codex-root-20261122"
+            },
+            "withdrawn": false,
+            "supports": [
+              {
+                "propositionId": "h1",
+                "status": "supported",
+                "reason": "승인받은 경우에만이라는 명시적 제한을 보존한다."
+              },
+              {
+                "propositionId": "h2",
+                "status": "supported",
+                "reason": "승인받으면 공개한다는 조건부 진술을 보존하며 만을 추가하지 않는다."
+              }
+            ],
+            "relations": [
+              {
+                "leftId": "h1",
+                "rightId": "h2",
+                "status": "different",
+                "reason": "h1에는 명시적 만 제한이 있고 h2에는 조건부 진술이 있다. 실제 무승인 공개 허용이나 모순이라고 해석하지 않는다."
+              }
+            ],
+            "coverage": [
+              {
+                "id": "t1-only",
+                "originId": "t1",
+                "information": "승인받은 경우에만 공개한다는 명시적 제한",
+                "propositionIds": [
+                  "h1"
+                ],
+                "status": "preserved",
+                "reason": "원문의 제한을 그대로 유지한다."
+              },
+              {
+                "id": "t2-condition",
+                "originId": "t2",
+                "information": "승인받으면 공개한다는 조건부 진술",
+                "propositionIds": [
+                  "h2"
+                ],
+                "status": "preserved",
+                "reason": "조건부 진술만 남기며 원문쪽 제한을 옮기지 않는다."
+              }
+            ]
+          }
+        ]
+      },
+      "proposedGroups": [],
+      "recordValidation": {
+        "ok": true,
+        "semanticAssessment": "not-performed",
+        "groups": []
+      }
+    },
+    {
+      "provider": "elice",
+      "caseId": "E-03",
+      "sourceReport": "docs/evaluations/explanation-proposition-review-2026-11-22-elice.json",
+      "sourceReportSha256": "73f8f64cf5ad172f60a15e8c803ef7e4eedef8301ede89f465e1b30694ec50b8",
+      "rawCompletionSha256": "5aeec80f7836374863acae6837e1aa46c306a68b7537bb10124d31e3d141312b",
+      "disposition": "needs-review-not-passed",
+      "history": {
+        "activeRevisions": [
+          1
+        ],
+        "revisions": [
+          {
+            "reviewRevision": 1,
+            "binding": {
+              "runId": "b64b3654-6d47-423b-baef-59753d9c5778",
+              "requestId": "4b7d045c-184c-472d-8402-0290ace30c8f",
+              "contractVersion": "proposition-review-v1",
+              "inputSha256": "f391072b358b97a8d8ccb5272b9fb613428fcb6b3d85f073f5b83a8e5afb4779",
+              "outputSha256": "d0141e33989424993c42fa49406673759a6b655e297d3134813550d5436ae393"
+            },
+            "reviewer": {
+              "kind": "ai-assisted",
+              "id": "codex-root-20261122"
+            },
+            "withdrawn": false,
+            "supports": [
+              {
+                "propositionId": "h1",
+                "status": "supported",
+                "reason": "담당자 확인 전제·화요일 기한·8명·예정·별도 미확정을 모두 보존한다."
+              },
+              {
+                "propositionId": "h2",
+                "status": "uncertain",
+                "reason": "해당 입력(t2)의 발송합니다를 발송할 예정이다로 바꾸었다. 미래 기한 문맥에서 가능한 해석일 수 있으나 명시되지 않은 계획 표현이 추가되어 서술 차이 보존을 확정하지 않는다. 실제 발송 완료나 확정 사실을 날조한 것으로 판단하지 않는다."
+              }
+            ],
+            "relations": [
+              {
+                "leftId": "h1",
+                "rightId": "h2",
+                "status": "different",
+                "reason": "담당자 확인 조건·수량·미확정 등의 차이가 있어 두 명제를 같은 뜻으로 합치지 않는다. h2의 예정 해석은 별도로 유보한다."
+              }
+            ],
+            "coverage": [
+              {
+                "id": "t1-condition",
+                "originId": "t1",
+                "information": "담당자 확인을 받은 경우에만이라는 발송 전제",
+                "propositionIds": [
+                  "h1"
+                ],
+                "status": "preserved",
+                "reason": "행동과 함께 전제를 보존한다. 담당자가 이미 확인했다고 주장하지 않는다."
+              },
+              {
+                "id": "t1-deadline",
+                "originId": "t1",
+                "information": "화요일까지라는 발송 기한",
+                "propositionIds": [
+                  "h1"
+                ],
+                "status": "preserved",
+                "reason": "발송 예정에 붙은 기한을 보존한다."
+              },
+              {
+                "id": "t1-count",
+                "originId": "t1",
+                "information": "8명에게 자료 발송",
+                "propositionIds": [
+                  "h1"
+                ],
+                "status": "preserved",
+                "reason": "8명을 유지한다."
+              },
+              {
+                "id": "t1-plan",
+                "originId": "t1",
+                "information": "자료를 보낼 예정이라는 양태",
+                "propositionIds": [
+                  "h1"
+                ],
+                "status": "preserved",
+                "reason": "보낼 예정이라는 표현을 유지한다."
+              },
+              {
+                "id": "t1-unconfirmed",
+                "originId": "t1",
+                "information": "별도로 명시된 발송 미확정",
+                "propositionIds": [
+                  "h1"
+                ],
+                "status": "preserved",
+                "reason": "발송은 확정되지 않았다는 별도 진술을 유지한다."
+              },
+              {
+                "id": "t2-deadline",
+                "originId": "t2",
+                "information": "화요일까지라는 기한",
+                "propositionIds": [
+                  "h2"
+                ],
+                "status": "preserved",
+                "reason": "기한을 유지한다."
+              },
+              {
+                "id": "t2-count",
+                "originId": "t2",
+                "information": "10명에게 자료 발송",
+                "propositionIds": [
+                  "h2"
+                ],
+                "status": "preserved",
+                "reason": "10명을 유지한다."
+              },
+              {
+                "id": "t2-dispatch",
+                "originId": "t2",
+                "information": "자료를 발송한다는 서술",
+                "propositionIds": [
+                  "h2"
+                ],
+                "status": "needs-review",
+                "reason": "발송할 예정이다로 바꾸면서 명시되지 않은 계획 양태를 붙였다. 기한상 계획 해석 여지는 있으나 표현 차이를 보존했다고 확정하지 않는다."
+              }
+            ]
+          }
+        ]
+      },
+      "proposedGroups": [],
+      "recordValidation": {
+        "ok": true,
+        "semanticAssessment": "not-performed",
+        "groups": []
+      }
+    }
+  ]
+}
