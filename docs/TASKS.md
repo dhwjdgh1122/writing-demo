@@ -230,7 +230,7 @@ TASKS는 작업 안내·출처·링크를, Issue는 상세 작업 내용·완료
 
 준비 당시에는 사용자 요청으로 [명제 생성 진단](evaluations/explanation-propositions-plan-2026-11-22.md)의 실행기·오프라인 검증까지만 보존했고 실제 모델 0회·계획 6회 미실행이었다. 이후 사용자의 「실행」 지시에 따라 **5회 실행·503 이후 1회 미실행**을 [결과와 원자료](evaluations/explanation-propositions-result-2026-11-22.md)에 남겼다. 일부 정보 보존에도 의미 중복·정확 인용 실패가 남아 후속 판단·제품 적용으로 확대하지 않았다. #22 미완료·기존 평가 기준은 유지하며 장시간 목표의 무제한 재개와 구분한다.
 
-이후 [의미 중복·인용 재작성 개선안](evaluations/explanation-propositions-followup-design-2026-11-22.md)을 설계하고 [오프라인 계약 구현·검증](evaluations/explanation-proposition-review-offline-2026-11-22.md)을 완료했다. 코드가 원문 문맥을 연결하고 별도 검토 기록과 묶음 조건을 검사한다. 당시 새 검사 19개를 포함한 단위/API 216개·타입 검사 통과는 자동 의미 중복 해결이나 설명 품질 개선의 입증이 아니다. 후속으로 [제한 평가 계획·진단 실행기](evaluations/explanation-proposition-review-plan-2026-11-22.md)를 준비했으며 기존 #22·PR #55에서 이어 관리한다. 최대 6요청의 향후 진단과 현재 준비를 구분하고, 제품 변경·실제 모델 추가 호출·main 병합은 수행하지 않았다.
+이후 [의미 중복·인용 재작성 개선안](evaluations/explanation-propositions-followup-design-2026-11-22.md)을 설계하고 [오프라인 계약 구현·검증](evaluations/explanation-proposition-review-offline-2026-11-22.md)을 완료했다. 코드가 원문 문맥을 연결하고 별도 검토 기록과 묶음 조건을 검사한다. 당시 새 검사 19개를 포함한 단위/API 216개·타입 검사 통과는 자동 의미 중복 해결이나 설명 품질 개선의 입증이 아니다. 후속으로 [제한 평가 계획·진단 실행기](evaluations/explanation-proposition-review-plan-2026-11-22.md)를 준비하고 사용자 실행 지시에 따라 [5요청·4출력·1미실행 결과](evaluations/explanation-proposition-review-result-2026-11-22.md)를 남겼다. 정보 보존 확인 2개·판단 유보 2개와 Gemini 평가 공백이 있어 확대하지 않았으며 기존 #22·PR #55에서 이어 관리한다. 제품 변경·main 병합은 수행하지 않았다.
 
 **11/21 후속 — [#49 요구 재교정·최소 행동 기록](https://github.com/dhwjdgh1122/writing-demo/issues/49):** 사용자의 확정 범위에 따라 적용 전/후 요구 선택을 실제 후보 생성에 반영하고 요청·결과·적용을 연결한다. 기존 동일 목적 이슈가 없어 독립 과제로 등록했다. #8의 브라우저 이력과 연결하고 #22의 설명 품질·#9의 모델 비교와 구분한다. [F-07 명세](FEATURE_SPEC.md#demand-rerun)를 기준으로 구현·검증하며, 사용자 만족과 설명 효과는 별도 검증 대상이다.
 

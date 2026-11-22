@@ -1065,6 +1065,66 @@
       "status": "received",
       "httpStatus": 200,
       "finishedAt": "2026-11-22T07:31:27.233Z"
+    },
+    {
+      "id": "6f2fd37d-f2f1-4619-aabd-d6e90d08373d",
+      "experimentId": "issue22-proposition-review-20261122",
+      "label": "CT-03-proposition-review",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "perProviderMaxCalls": 3,
+      "reservedAt": "2026-11-22T09:19:38.202Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-22T09:19:40.553Z"
+    },
+    {
+      "id": "af37589a-30f0-4184-9bf1-245aa048a7e8",
+      "experimentId": "issue22-proposition-review-20261122",
+      "label": "EQ-03-proposition-review",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "perProviderMaxCalls": 3,
+      "reservedAt": "2026-11-22T09:19:40.638Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-22T09:19:42.568Z"
+    },
+    {
+      "id": "4b7d045c-184c-472d-8402-0290ace30c8f",
+      "experimentId": "issue22-proposition-review-20261122",
+      "label": "E-03-proposition-review",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "perProviderMaxCalls": 3,
+      "reservedAt": "2026-11-22T09:19:42.622Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-22T09:19:44.567Z"
+    },
+    {
+      "id": "d089f434-633c-4f23-87e1-fd892d8b839b",
+      "experimentId": "issue22-proposition-review-20261122",
+      "label": "CT-03-proposition-review",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "perProviderMaxCalls": 3,
+      "reservedAt": "2026-11-22T09:19:56.737Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-22T09:20:02.705Z"
+    },
+    {
+      "id": "420c79a1-84d1-4d34-a4c2-fff206886589",
+      "experimentId": "issue22-proposition-review-20261122",
+      "label": "EQ-03-proposition-review",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "perProviderMaxCalls": 3,
+      "reservedAt": "2026-11-22T09:20:02.809Z",
+      "status": "received",
+      "httpStatus": 503,
+      "finishedAt": "2026-11-22T09:20:03.845Z"
     }
   ]
 }
