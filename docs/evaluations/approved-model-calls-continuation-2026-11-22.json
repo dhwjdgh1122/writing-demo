@@ -1005,6 +1005,66 @@
       "status": "received",
       "httpStatus": 200,
       "finishedAt": "2026-11-21T16:50:19.339Z"
+    },
+    {
+      "id": "a7988041-8338-4008-92e2-bd65bb8e347d",
+      "experimentId": "issue22-propositions-20261122",
+      "label": "CT-03-propositions",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "perProviderMaxCalls": 3,
+      "reservedAt": "2026-11-22T07:31:06.728Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-22T07:31:08.300Z"
+    },
+    {
+      "id": "ac041348-4055-4c38-98f5-dc5ef5ca3f3f",
+      "experimentId": "issue22-propositions-20261122",
+      "label": "EQ-03-propositions",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "perProviderMaxCalls": 3,
+      "reservedAt": "2026-11-22T07:31:08.340Z",
+      "status": "received",
+      "httpStatus": 503,
+      "finishedAt": "2026-11-22T07:31:09.244Z"
+    },
+    {
+      "id": "d71ff5b8-e076-4c53-8151-ced310c5417b",
+      "experimentId": "issue22-propositions-20261122",
+      "label": "CT-03-propositions",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "perProviderMaxCalls": 3,
+      "reservedAt": "2026-11-22T07:31:21.862Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-22T07:31:23.654Z"
+    },
+    {
+      "id": "979295b0-6455-4b17-b296-56555ca5c915",
+      "experimentId": "issue22-propositions-20261122",
+      "label": "EQ-03-propositions",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "perProviderMaxCalls": 3,
+      "reservedAt": "2026-11-22T07:31:23.695Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-22T07:31:25.145Z"
+    },
+    {
+      "id": "bfcaf98f-30b5-4329-a81b-b2171b863f87",
+      "experimentId": "issue22-propositions-20261122",
+      "label": "E-03-propositions",
+      "provider": "elice",
+      "model": "gpt-4o-mini",
+      "perProviderMaxCalls": 3,
+      "reservedAt": "2026-11-22T07:31:25.167Z",
+      "status": "received",
+      "httpStatus": 200,
+      "finishedAt": "2026-11-22T07:31:27.233Z"
     }
   ]
 }
