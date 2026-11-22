@@ -1,6 +1,6 @@
 # 공동 작업 안내와 중간발표 진행 기록
 
-> 역할: 공동 작업 보드·Issue의 위치와 운영 기준, 중간발표 준비 계획과 실제 진행 기록을 안내한다. 작업 내용·완료 기준·논의는 Issue, 최신 상태·담당·목표일은 Projects에서 관리한다. 최신화: 2026-11-21.
+> 역할: 공동 작업 보드·Issue의 위치와 운영 기준, 중간발표 준비 계획과 실제 진행 기록을 안내한다. 작업 내용·완료 기준·논의는 Issue, 최신 상태·담당·목표일은 Projects에서 관리한다. 최신화: 2026-11-22.
 
 ## 현재 확인한 상태
 
@@ -10,7 +10,7 @@
 
 최초 의견·희망 작업 확인과 역할 협의 준비는 [#17의 11/16 완료 확인](https://github.com/dhwjdgh1122/writing-demo/issues/17)에 근거해 종료했다. 이후 새 작업의 담당·범위·완료 기준은 개별 Issue에서 정한다. 최신 상태·담당·목표일은 [Projects](https://github.com/users/dhwjdgh1122/projects/7)에서 확인하며 이 문서에 상태표를 중복 관리하지 않는다.
 
-**11/22 정합성 점검:** [main·작업 브랜치·검증 결과 대조](검증%20기록.md#project-consistency-20261122)에 현재 반영 범위와 미병합 PR, 기록 보완 근거를 연결했다. #22의 다음 작업은 이미 실행한 명제 생성 진단의 의미 중복·인용 재작성 개선안 설계이며, 같은 진단의 반복 실행이나 품질 완료 처리가 아니다. 최신 상태·담당은 계속 Issue·Projects에서 확인한다.
+**11/22 정합성 점검과 후속 반영:** [main·작업 브랜치·검증 결과 대조](검증%20기록.md#project-consistency-20261122)를 보존하고 [PR #57 반영·PR #58 보완](검증%20기록.md#project-integration-20261122)을 연결했다. #22의 기존 장시간 개선 목표는 사용자 결정으로 [미달성 종료](검증%20기록.md#explanation-goal-closeout-01)했다. 품질 문제는 미완료로 남으며 과거 ‘다음 설계’·무제한 호출 계획은 현재 실행 지시가 아니다. 최신 상태·담당은 계속 Issue·Projects에서 확인한다.
 
 ### 11/12 확인한 실제 진행 경과
 
@@ -180,7 +180,7 @@ TASKS는 작업 안내·출처·링크를, Issue는 상세 작업 내용·완료
 | 교정 설명의 사용자 기대와 평가 기준 정리 | [#5](https://github.com/dhwjdgh1122/writing-demo/issues/5) |
 | 선택 유지·교정 대상·화면 안내의 역할 확인 | [#6](https://github.com/dhwjdgh1122/writing-demo/issues/6) — [FEEDBACK-04](사용자%20피드백.md#feedback-04)의 적용 후 안내 개선은 PR #24로 반영했다. 이후 선택·전송 범위와 읽기 전용 안내를 별도로 점검했으며 [SELECTION-SCOPE-01](검증%20기록.md#selection-scope-01)에 근거·한계를 연결한다. |
 | 같은 내용 붙여넣기의 선택 유지 동작 확인 | [#7](https://github.com/dhwjdgh1122/writing-demo/issues/7) |
-| 브라우저 교정 히스토리 저장·조회·삭제·내보내기 | [#8](https://github.com/dhwjdgh1122/writing-demo/issues/8) — 기존 보관 기능과 오른쪽 패널의 이력 진입·복귀 개선을 연결한다. [화면 전환 검증](검증%20기록.md#history-panel-navigation-01) 참고. |
+| 브라우저 교정 히스토리 저장·조회·삭제·내보내기 | [#8](https://github.com/dhwjdgh1122/writing-demo/issues/8) — 기존 보관 기능과 오른쪽 패널의 이력 진입·복귀 개선을 연결한다. [화면 전환 검증](검증%20기록.md#history-panel-navigation-01), [키보드 검사 표시 대기 보완](검증%20기록.md#history-keyboard-render-wait-01) 참고. |
 | Gemini·엘리스 후보와 설명 품질 비교 계획 | [#9](https://github.com/dhwjdgh1122/writing-demo/issues/9) |
 
 #5의 설명 목적·명칭 검토·대표 사례·수동 평가 방법은 [교정 설명 평가 기준](교정%20설명%20평가%20기준.md)에 정리한다. 코드·프롬프트 개선 및 실제 사용자 효과 검증과 구분하며, 범위·완료 기준은 해당 Issue에서 확인한다.
@@ -224,7 +224,7 @@ TASKS는 작업 안내·출처·링크를, Issue는 상세 작업 내용·완료
 
 ### 기록과 상태 관리
 
-**11/22 문제 정의·KPI 보강:** [PRD의 검증 축](PRD.md#problem-kpi-framework)과 [평가 기준의 KPI 정의](교정%20설명%20평가%20기준.md#kpi-contract)를 연결했다. #5의 평가 정의와 #20의 기존 평가 자료를 재사용하며, #22의 설명 품질 개선·기존 병합 기준을 대체하지 않는다. [기능명세의 계측 경계](FEATURE_SPEC.md#kpi-measurement-boundary)와 [문서 대조 기록](검증%20기록.md#problem-kpi-review-01)을 함께 확인한다. 이번 범위는 문서 보강이며 새 모델 실행·계측 코드 개발·실사용 KPI 측정은 포함하지 않는다. 확인 시점의 #22 후속은 [Draft PR #55](https://github.com/dhwjdgh1122/writing-demo/pull/55)의 `98cd8be`에 보존되어 있고 main `17a2a20`과 구분한다. 사용자의 요청으로 품질 개발 목표는 일시 중지 상태다. Issue·Projects 상태 변경이나 main 병합을 이 문구만으로 완료 처리하지 않는다.
+**11/22 문제 정의·KPI 보강:** [PRD의 검증 축](PRD.md#problem-kpi-framework)과 [평가 기준의 KPI 정의](교정%20설명%20평가%20기준.md#kpi-contract)를 연결했다. #5의 평가 정의와 #20의 기존 평가 자료를 재사용하며, #22의 설명 품질 개선·기존 병합 기준을 대체하지 않는다. [기능명세의 계측 경계](FEATURE_SPEC.md#kpi-measurement-boundary)와 [문서 대조 기록](검증%20기록.md#problem-kpi-review-01)을 함께 확인한다. 이번 범위는 문서 보강이며 새 모델 실행·계측 코드 개발·실사용 KPI 측정은 포함하지 않는다. 확인 시점의 #22 후속은 [Draft PR #55](https://github.com/dhwjdgh1122/writing-demo/pull/55)의 `98cd8be`에 보존되어 있고 main `17a2a20`과 구분한다. 당시 품질 개발 목표는 사용자 요청으로 일시 중지했으며, 이후 [미달성 종료](검증%20기록.md#explanation-goal-closeout-01)했다. Issue·Projects 상태 변경이나 main 병합을 이 문구만으로 완료 처리하지 않는다.
 
 **11/21 #22 후속:** [별도 설명 재검토 실험](검증%20기록.md#explanation-review-01) 8회에서도 조건·선택 기준·잔존 단어 누락이 남아 미채택했다. 제품에 자동 두 번째 요청을 추가하지 않는다. 기존 완료 기준과 Draft #23·#34는 보존하며 #22는 미완료다. 히스토리·재교정 요구 기능의 동작 검증과 구분한다.
 
