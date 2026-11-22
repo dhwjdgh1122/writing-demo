@@ -222,6 +222,8 @@ TASKS는 작업 안내·출처·링크를, Issue는 상세 작업 내용·완료
 
 ### 기록과 상태 관리
 
+**11/22 문제 정의·KPI 보강:** [PRD의 검증 축](PRD.md#problem-kpi-framework)과 [평가 기준의 KPI 정의](교정%20설명%20평가%20기준.md#kpi-contract)를 연결했다. #5의 평가 정의와 #20의 기존 평가 자료를 재사용하며, #22의 설명 품질 개선·기존 병합 기준을 대체하지 않는다. [기능명세의 계측 경계](FEATURE_SPEC.md#kpi-measurement-boundary)와 [문서 대조 기록](검증%20기록.md#problem-kpi-review-01)을 함께 확인한다. 이번 범위는 문서 보강이며 새 모델 실행·계측 코드 개발·실사용 KPI 측정은 포함하지 않는다. 문서 보강 당시의 #22 후속은 [Draft PR #55](https://github.com/dhwjdgh1122/writing-demo/pull/55)의 `98cd8be`에 보존되어 있었고 main `17a2a20`과 구분했으며, 품질 개발 목표는 사용자 요청으로 일시 중지 상태였다. 이후 제한 진단은 아래 후속 기록을, main `3573c4a`의 보강 내용을 작업 브랜치로 가져온 결과는 [충돌 정리 기록](검증%20기록.md#issue22-main-sync-01)을 따른다. Issue·Projects 상태 변경이나 작업 브랜치의 main 병합을 이 문구만으로 완료 처리하지 않는다.
+
 **11/21 #22 후속:** [별도 설명 재검토 실험](검증%20기록.md#explanation-review-01) 8회에서도 조건·선택 기준·잔존 단어 누락이 남아 미채택했다. 제품에 자동 두 번째 요청을 추가하지 않는다. 기존 완료 기준과 Draft #23·#34는 보존하며 #22는 미완료다. 히스토리·재교정 요구 기능의 동작 검증과 구분한다.
 
 **11/22 #22 후속 — [Draft PR #55](https://github.com/dhwjdgh1122/writing-demo/pull/55):** [원래 gate와 이번 수동 사례](evaluations/explanation-continuation-plan-2026-11-22.md)를 재사용한 대조 예시, [사전 정의 전달 위치](evaluations/explanation-lexical-reference-result-2026-11-22.md), [다른 제공자 재검토](evaluations/explanation-cross-review-result-2026-11-22.md), [문장별 독립 조건 추출](evaluations/explanation-isolated-conditions-result-2026-11-22.md), [인용·사전 참조 구분](evaluations/explanation-typed-reference-result-2026-11-22.md), [엘리스 응답 설정](evaluations/explanation-sampling-result-2026-11-22.md) 실험의 실패·부분 개선·미실행을 보존했다. [공백 변경 사실 안내의 독립 재사용](evaluations/explanation-spacing-reuse-result-2026-11-22.md)은 PR #34의 제한된 계산 기능을 현재 계약에 연결한 것으로 전체 설명 품질 완료와 구분한다. 현재 진행·병합 여부는 #22·PR #55에서 관리한다.
