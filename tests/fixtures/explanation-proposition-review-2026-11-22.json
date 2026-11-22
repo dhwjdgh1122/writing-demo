@@ -1,0 +1,70 @@
+{
+  "scope": "오프라인 계약 검사를 위해 수동 작성한 합성 명제·검토 예제. 실제 모델 출력이나 사람의 실사용 평가가 아니며, 기존 실패를 성공으로 재평가하지 않는다.",
+  "sourceFixture": "explanation-propositions-2026-11-22.json",
+  "cases": [
+    {
+      "id": "CT-03",
+      "propositions": [
+        { "id": "h1", "statement": "회원인 경우에만 자료를 받을 수 있다.", "originId": "t1" },
+        { "id": "h2", "statement": "회원만 자료를 받을 수 있다.", "originId": "t2" }
+      ],
+      "supports": [
+        { "propositionId": "h1", "status": "supported", "reason": "합성 검토: t1의 회원 제한과 수령 가능성을 보존한다." },
+        { "propositionId": "h2", "status": "supported", "reason": "합성 검토: t2의 회원 제한과 수령 가능성을 보존한다." }
+      ],
+      "relations": [
+        { "leftId": "h1", "rightId": "h2", "status": "same", "reason": "합성 검토: 두 진술 모두 회원 제한과 수령 가능성을 나타낸다." }
+      ],
+      "coverage": [
+        { "id": "ct-source-limit", "originId": "t1", "information": "회원 제한과 수령 가능성", "propositionIds": ["h1"], "status": "preserved", "reason": "합성 검토용 참조이며 자동 의미 판정이 아니다." },
+        { "id": "ct-candidate-limit", "originId": "t2", "information": "회원 제한과 수령 가능성", "propositionIds": ["h2"], "status": "preserved", "reason": "합성 검토용 참조이며 자동 의미 판정이 아니다." }
+      ]
+    },
+    {
+      "id": "EQ-03",
+      "propositions": [
+        { "id": "h1", "statement": "자료는 승인을 받은 경우에만 공개된다.", "originId": "t1" },
+        { "id": "h2", "statement": "자료는 승인을 받으면 공개된다.", "originId": "t2" }
+      ],
+      "supports": [
+        { "propositionId": "h1", "status": "supported", "reason": "합성 검토: 원문에 명시된 승인 제한을 보존한다." },
+        { "propositionId": "h2", "status": "supported", "reason": "합성 검토: 조건부 공개 진술이며 무승인 공개를 추정하지 않는다." }
+      ],
+      "relations": [
+        { "leftId": "h1", "rightId": "h2", "status": "different", "reason": "합성 검토: 명시적 만 제한과 조건부 진술의 차이를 지운 묶음을 만들지 않는다. 모순이라는 판정은 아니다." }
+      ],
+      "coverage": [
+        { "id": "eq-source-restriction", "originId": "t1", "information": "승인받은 경우에만 공개한다는 명시적 제한", "propositionIds": ["h1"], "status": "preserved", "reason": "합성 검토용 참조." },
+        { "id": "eq-candidate-condition", "originId": "t2", "information": "승인을 받으면 공개한다는 조건부 진술", "propositionIds": ["h2"], "status": "preserved", "reason": "합성 검토용 참조." }
+      ]
+    },
+    {
+      "id": "E-03",
+      "propositions": [
+        { "id": "h1", "statement": "담당자의 확인을 받은 경우에만 화요일까지 8명에게 자료를 보낼 예정이다.", "originId": "t1" },
+        { "id": "h2", "statement": "발송은 확정되지 않았다.", "originId": "t1" },
+        { "id": "h3", "statement": "화요일까지 10명에게 자료를 발송한다.", "originId": "t2" }
+      ],
+      "supports": [
+        { "propositionId": "h1", "status": "supported", "reason": "합성 검토: 담당자 확인 전제·기한·8명·예정을 함께 보존한다." },
+        { "propositionId": "h2", "status": "supported", "reason": "합성 검토: 별도로 명시된 발송 미확정을 보존한다." },
+        { "propositionId": "h3", "status": "supported", "reason": "합성 검토: 후보의 기한·10명·발송 서술을 보존하며 실제 완료로 추정하지 않는다." }
+      ],
+      "relations": [
+        { "leftId": "h1", "rightId": "h2", "status": "different", "reason": "합성 검토: 계획 진술과 별도의 미확정 진술은 서로를 대신하지 않는다." },
+        { "leftId": "h1", "rightId": "h3", "status": "different", "reason": "합성 검토: 조건·수량·예정 표현의 차이를 지우지 않는다." },
+        { "leftId": "h2", "rightId": "h3", "status": "different", "reason": "합성 검토: 미확정과 후보의 발송 서술을 같은 명제로 합치지 않는다." }
+      ],
+      "coverage": [
+        { "id": "e-source-condition", "originId": "t1", "information": "담당자의 확인을 받은 경우에만", "propositionIds": ["h1"], "status": "preserved", "reason": "합성 검토용 참조." },
+        { "id": "e-source-deadline", "originId": "t1", "information": "화요일까지", "propositionIds": ["h1"], "status": "preserved", "reason": "합성 검토용 참조." },
+        { "id": "e-source-count", "originId": "t1", "information": "8명", "propositionIds": ["h1"], "status": "preserved", "reason": "합성 검토용 참조." },
+        { "id": "e-source-plan", "originId": "t1", "information": "자료를 보낼 예정", "propositionIds": ["h1"], "status": "preserved", "reason": "합성 검토용 참조." },
+        { "id": "e-source-unconfirmed", "originId": "t1", "information": "발송은 확정되지 않았음", "propositionIds": ["h2"], "status": "preserved", "reason": "예정 표현만으로 별도 미확정까지 보존했다고 처리하지 않는 합성 검토." },
+        { "id": "e-candidate-deadline", "originId": "t2", "information": "화요일까지", "propositionIds": ["h3"], "status": "preserved", "reason": "합성 검토용 참조." },
+        { "id": "e-candidate-count", "originId": "t2", "information": "10명", "propositionIds": ["h3"], "status": "preserved", "reason": "합성 검토용 참조." },
+        { "id": "e-candidate-statement", "originId": "t2", "information": "자료를 발송한다는 서술", "propositionIds": ["h3"], "status": "preserved", "reason": "실제 발송 완료나 확정의 증명으로 해석하지 않는 합성 검토." }
+      ]
+    }
+  ]
+}
