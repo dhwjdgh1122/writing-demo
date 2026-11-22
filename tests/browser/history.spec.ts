@@ -366,8 +366,10 @@ test('history remains keyboard operable without horizontal overflow on a narrow 
   await summary.focus();
   await summary.press('Enter');
   await expect(history(page).locator('.history-entry')).toHaveAttribute('open', '');
-  await page.keyboard.press('Tab');
   const sourceRegion = history(page).getByRole('region', { name: '교정 요청 당시 원문' });
+  // Native details opens before onToggle mounts the React content.
+  await expect(sourceRegion).toBeVisible();
+  await page.keyboard.press('Tab');
   await expect(sourceRegion).toBeFocused();
   expect(await sourceRegion.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
   await sourceRegion.press('Control+End');
