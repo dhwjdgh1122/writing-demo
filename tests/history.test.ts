@@ -75,6 +75,19 @@ test('invalid versions, duplicate IDs and mismatched explanation/application lin
   assert.throws(() => parseHistory('{broken'));
 });
 
+test('candidate revision history preserves its target and old records remain readable without target metadata', () => {
+  const previous = record('previous');
+  const revision: HistoryRecord = { ...record('revision'), parentRecordId: previous.id, phase: 'before_apply',
+    targetCandidate: previous.candidates[0], requirement: 'plain' };
+  const loaded = parseHistory(serializeHistory([revision, previous]));
+  assert.deepEqual(loaded, [revision, previous]);
+  assert.equal(Object.hasOwn(loaded[1], 'targetCandidate'), false);
+  const changed = applyHistoryOperation(loaded, { type: 'apply', id: previous.id, candidateId: previous.candidates[0].id, at });
+  assert.equal(changed[0].appliedCandidateId, null);
+  assert.equal(changed[1].appliedCandidateId, previous.candidates[0].id);
+  assert.throws(() => serializeHistory([{ ...revision, targetCandidate: { id: 'bad', text: '가'.repeat(2001) } }]));
+});
+
 test('safety limits reject whole documents without silently dropping old records', () => {
   assert.throws(() => parseHistory(' '.repeat(HISTORY_MAX_BYTES / 2 + 1)));
   const entries = Array.from({ length: HISTORY_MAX_RECORDS + 1 }, (_, index) => record(`r${index}`));

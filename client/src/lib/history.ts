@@ -5,6 +5,7 @@ export type HistoryRecord = {
   id: string; createdAt: string; sourceText: string; candidates: Candidate[];
   explanations: ExplanationResult[]; appliedCandidateId: string | null; appliedAt: string | null;
   parentRecordId?: string;
+  targetCandidate?: Candidate;
   phase?: 'before_apply' | 'after_apply'; requirement?: RetryRequirement;
 };
 export type HistoryOperation =
@@ -27,6 +28,7 @@ const recordSchema = z.object({
   id: requestIdSchema, createdAt: timestamp, sourceText: correctionInputSchema.shape.sourceText,
   candidates: correctionOutputSchema.shape.candidates, explanations: explanationValues,
   appliedCandidateId: requestIdSchema.nullable(), appliedAt: timestamp.nullable(), parentRecordId: requestIdSchema.optional(),
+  targetCandidate: correctionInputSchema.shape.targetCandidate,
   phase: z.enum(['before_apply', 'after_apply']).optional(), requirement: retryRequirementSchema.optional(),
 }).strict().refine(record => record.explanations.every(value => record.candidates.some(candidate => candidate.id === value.candidateId))
   && (record.appliedCandidateId === null ? record.appliedAt === null

@@ -1,6 +1,6 @@
 import express, { type ErrorRequestHandler } from 'express';
 import { randomUUID } from 'node:crypto';
-import { correctionInputSchema, explanationInputSchema, explanationResultsSchema, explanationsMatch, modelOutputSchema, LIMITS, requestIdSchema, type ApiErrorBody, type ErrorCode, type ExplanationResult } from '../shared/contracts.js';
+import { correctionInputSchema, explanationInputSchema, explanationResultsSchema, explanationsMatch, modelOutputSchema, candidateRevisionOutputSchema, LIMITS, requestIdSchema, type ApiErrorBody, type ErrorCode, type ExplanationResult } from '../shared/contracts.js';
 import { ProviderError, unavailableProvider, type CorrectionProvider } from './llm/provider.js';
 import { explanationQuotesMatch } from './llm/explanation-check.js';
 
@@ -22,6 +22,9 @@ export function createApp(provider: CorrectionProvider = unavailableProvider, ti
       if (!res.destroyed) res.status(status).json({ requestId: requestId.success ? requestId.data : null, error: { code, message, retryable } } satisfies ApiErrorBody);
     };
     if (!parsed.success) { fail(400, 'INVALID_INPUT', explaining ? '설명할 원문과 후보를 확인해주세요.' : '교정할 문장을 1,000자 이내로 선택해주세요.', false); return; }
+    const invalidCandidateMessage = parsed.data.targetCandidate
+      ? '선택한 후보의 새 교정안 1개를 완전하게 받지 못했습니다. 기존 후보는 유지됩니다. 다시 시도해주세요.'
+      : '교정 후보 3개를 완전하게 받지 못했습니다. 원문은 유지됩니다. 다시 실행해주세요.';
     if (!provider.configured || (explaining && !provider.generateExplanations)) { fail(503, 'MODEL_NOT_CONFIGURED', `AI 연결 설정이 필요합니다. 아직 ${label} 모델이 연결되지 않았습니다.`, false); return; }
     const controller = new AbortController();
     const onClose = () => { if (!res.writableEnded) controller.abort(); };
@@ -31,8 +34,8 @@ export function createApp(provider: CorrectionProvider = unavailableProvider, ti
     try {
       const raw = await Promise.race([
         explanationInput?.success
-          ? provider.generateExplanations!(explanationInput.data.sourceText, explanationInput.data.candidates, controller.signal, explanationInput.data.retryContext)
-          : provider.generateCandidates(parsed.data.sourceText, controller.signal, parsed.data.retryContext),
+          ? provider.generateExplanations!(explanationInput.data.sourceText, explanationInput.data.candidates, controller.signal, explanationInput.data.retryContext, explanationInput.data.targetCandidate)
+          : provider.generateCandidates(parsed.data.sourceText, controller.signal, parsed.data.retryContext, parsed.data.targetCandidate),
         new Promise<never>((_, reject) => { timer = setTimeout(() => { reject(timedOut); controller.abort(); }, timeoutMs); }),
       ]);
       if (explanationInput?.success) {
@@ -49,8 +52,8 @@ export function createApp(provider: CorrectionProvider = unavailableProvider, ti
         if (!res.destroyed) res.json({ ...explanationInput.data, explanations: results });
         return;
       }
-      const candidates = modelOutputSchema.safeParse(raw);
-      if (!candidates.success) { fail(502, 'MODEL_RESPONSE_INVALID', '교정 후보 3개를 완전하게 받지 못했습니다. 원문은 유지됩니다. 다시 실행해주세요.', true); return; }
+      const candidates = (parsed.data.targetCandidate ? candidateRevisionOutputSchema : modelOutputSchema).safeParse(raw);
+      if (!candidates.success) { fail(502, 'MODEL_RESPONSE_INVALID', invalidCandidateMessage, true); return; }
       if (!res.destroyed) res.json({ ...parsed.data, candidates: candidates.data.map(text => ({ id: randomUUID(), text })) });
     } catch (error) {
       if (error === timedOut) fail(504, 'MODEL_TIMEOUT', `${label} 요청 시간이 초과되었습니다. 다시 시도해주세요.`, true);
@@ -64,7 +67,7 @@ export function createApp(provider: CorrectionProvider = unavailableProvider, ti
             : '교정 결과가 출력 한도에서 중단됐습니다. 원문은 유지됩니다. 선택 범위를 줄여 나누어 교정해주세요.', true); break;
           case 'invalid': fail(502, 'MODEL_RESPONSE_INVALID', explaining
             ? '완전한 설명 결과를 받지 못했습니다. 원문은 유지됩니다. 다시 실행해주세요.'
-            : '교정 후보 3개를 완전하게 받지 못했습니다. 원문은 유지됩니다. 다시 실행해주세요.', true); break;
+            : invalidCandidateMessage, true); break;
           case 'unavailable': fail(503, 'MODEL_UNAVAILABLE', 'AI 서비스가 일시적으로 요청을 처리하지 못했습니다. 잠시 기다린 뒤 다시 실행해주세요. 원문은 유지됩니다.', true); break;
         }
       }

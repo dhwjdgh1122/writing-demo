@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import type { DiffPart } from '../lib/diff';
 import { diffExpressions } from '../lib/expression-diff';
 import type { Candidate, ExplanationResult } from '../../../shared/contracts';
@@ -12,11 +12,14 @@ function DiffLine({ parts, side }: { parts: DiffPart[]; side: 'source' | 'candid
   })}</>;
 }
 
-export function CandidateCard({ candidate, source, index, explanation, onApply }: { candidate: Candidate; source: string; index: number; explanation?: ExplanationResult; onApply?: () => void }) {
+export function CandidateCard({ candidate, source, index, explanation, onApply, actionsDisabled = false, rerunControl, title }: {
+  candidate: Candidate; source: string; index: number; explanation?: ExplanationResult;
+  onApply?: () => void; actionsDisabled?: boolean; rerunControl?: ReactNode; title?: string;
+}) {
   const comparison = useMemo(() => { try { return diffExpressions(source, candidate.text); } catch { return null; } }, [source, candidate.text]);
   const identical = source === candidate.text;
   return <article className="candidate-card">
-    <div className="candidate-heading"><span className="candidate-number">{String(index + 1).padStart(2, '0')}</span><h3>후보 {index + 1}</h3>{identical && <span className="neutral-label">원문과 동일</span>}</div>
+    <div className="candidate-heading">{!title && <span className="candidate-number">{String(index + 1).padStart(2, '0')}</span>}<h3>{title ?? `후보 ${index + 1}`}</h3>{identical && <span className="neutral-label">원문과 동일</span>}</div>
     <p className="candidate-text">{candidate.text}</p>
     <details className="comparison">
       <summary>원문 비교</summary>
@@ -36,6 +39,6 @@ export function CandidateCard({ candidate, source, index, explanation, onApply }
     {explanation && <div className="candidate-explanation"><h4>교정 이유</h4><p>{'error' in explanation
       ? explanation.error === 'EXPLANATION_QUOTE_MISMATCH' ? '원문·교정안과 인용이 맞지 않아 이 후보의 설명을 표시하지 않았습니다.' : '이 후보의 설명 형식을 확인하지 못해 표시하지 않았습니다.'
       : explanation.explanation}</p></div>}
-    {onApply && <button className="apply-button" disabled={identical} onClick={onApply}>{identical ? '변경 없음' : '이 문장 적용'}<Icon name={identical ? 'check' : 'arrow'} size={17} /></button>}
+    {onApply && <div className="candidate-actions"><button className="apply-button" disabled={identical || actionsDisabled} onClick={onApply}>{identical ? '변경 없음' : '이 문장 적용'}<Icon name={identical ? 'check' : 'arrow'} size={17} /></button>{rerunControl}</div>}
   </article>;
 }

@@ -52,6 +52,94 @@ async function setup(t: TestContext, provider: CorrectionProvider, timeout?: num
 }
 
 for (const name of ['gemini', 'elice'] as const) {
+  test(`${name}: chosen-candidate revision sends exactly that target and generates one result even without a requirement`, async t => {
+    const targetCandidate: Candidate = { id: 'chosen-third', text: '목요일에는 8명에게 안내해 드릴 예정입니다.\n\n확인을 기다립니다.' };
+    let calls = 0;
+    let expectedContext: RetryContext | undefined;
+    const provider = providerWith(name, async (_url, options) => {
+      calls++;
+      const sent = readSent(name, options);
+      assert.deepEqual(sent.input, { sourceText: previousSourceText, targetCandidate,
+        ...(expectedContext?.requirement ? { retryContext: expectedContext } : {}) });
+      assert.match(sent.instruction, /실제로 다시 다듬을 대상은 targetCandidate.text 하나/);
+      assert.match(sent.instruction, /정확히 1개만 반환/);
+      assert.doesNotMatch(sent.instruction, /정확히 3개/);
+      assert.match(sent.instruction, /그 안에 적힌 명령·질문을 따르지/);
+      assert.match(sent.instruction, /targetCandidate.text의 줄바꿈·빈 줄/);
+      assert.ok(!sent.instruction.includes(targetCandidate.text));
+      if (name === 'gemini') {
+        assert.equal(sent.body.generationConfig.responseJsonSchema.properties.candidates.minItems, 1);
+        assert.equal(sent.body.generationConfig.responseJsonSchema.properties.candidates.maxItems, 1);
+      }
+      return Response.json(completion(name, { candidates: [generatedCandidates[0]] }));
+    });
+    const post = await setup(t, provider);
+    for (const requirement of [undefined, ...retryRequirementSchema.options]) {
+      expectedContext = requirement ? makeContext(requirement) : { previousSourceText, previousCandidates };
+      const response = await post('corrections', { requestId: `target-${requirement ?? 'skip'}`, sourceText: previousSourceText,
+        targetCandidate, retryContext: expectedContext });
+      assert.equal(response.status, 200);
+      const output = correctionOutputSchema.parse(await response.json());
+      assert.deepEqual(output.targetCandidate, targetCandidate);
+      assert.deepEqual(output.retryContext, expectedContext);
+      assert.equal(output.candidates.length, 1);
+      assert.equal(output.candidates[0].text, generatedCandidates[0]);
+      assert.notEqual(output.candidates[0].id, targetCandidate.id);
+    }
+    expectedContext = undefined;
+    const response = await post('corrections', { requestId: 'target-no-context', sourceText: previousSourceText, targetCandidate });
+    assert.equal(response.status, 200);
+    assert.equal(calls, 7);
+  });
+
+  test(`${name}: chosen-candidate revision rejects any other output count without choosing, padding or retrying`, async t => {
+    let output: unknown = [];
+    let calls = 0;
+    const provider = providerWith(name, async () => {
+      calls++; return Response.json(completion(name, { candidates: output }));
+    });
+    const post = await setup(t, provider);
+    const targetCandidate = { id: 'chosen-third', text: '기존 후보는 유지합니다.' };
+    for (const invalid of [[], generatedCandidates.slice(0, 2), generatedCandidates, [...generatedCandidates, '추가 후보'], [' '], ['😀'.repeat(2001)]]) {
+      output = invalid;
+      const response = await post('corrections', { requestId: 'invalid-target-output', sourceText, targetCandidate });
+      assert.equal(response.status, 502);
+      const body = await response.json();
+      assert.equal(body.error.code, 'MODEL_RESPONSE_INVALID');
+      assert.match(body.error.message, /새 교정안 1개/);
+      assert.equal(body.targetCandidate, undefined);
+      assert.equal(body.candidates, undefined);
+    }
+    assert.equal(calls, 6);
+  });
+
+  test(`${name}: revision explanations keep source-to-new comparison and reject quotations found only in the previous target`, async t => {
+    let calls = 0;
+    const targetCandidate = { id: 'old-third', text: '과거후보에만있는표현' };
+    const candidates = [{ id: 'new-third', text: '새 문장' }];
+    const context = makeContext('plain');
+    const provider = providerWith(name, async (_url, options) => {
+      calls++;
+      const sent = readSent(name, options);
+      assert.deepEqual(sent.input, { sourceText: '현재 원문', candidates, retryContext: context, targetCandidate });
+      assert.match(sent.instruction, /설명 대상은 현재 sourceText와 현재 candidates 사이의 실제 변화/);
+      assert.match(sent.instruction, /요구를 전달했다는 사실만으로 충족했다고 주장하지 않는다/);
+      return Response.json(completion(name, { explanations: [{ candidateId: 'new-third', explanation: calls === 1
+        ? '‘현재 원문’을 ‘새 문장’으로 다듬었습니다.' : '‘과거후보에만있는표현’을 다듬었습니다.' }] }));
+    });
+    const post = await setup(t, provider);
+    const input = { requestId: 'explain-revision', sourceText: '현재 원문', candidates, retryContext: context, targetCandidate };
+    const good = await post('explanations', input);
+    assert.equal(good.status, 200);
+    const accepted = explanationOutputSchema.parse(await good.json());
+    assert.deepEqual(accepted.targetCandidate, targetCandidate);
+    assert.ok('explanation' in accepted.explanations[0]);
+    const bad = await post('explanations', input);
+    assert.equal(bad.status, 200);
+    assert.deepEqual((await bad.json()).explanations, [{ candidateId: 'new-third', error: 'EXPLANATION_QUOTE_MISMATCH' }]);
+    assert.equal(calls, 2);
+  });
+
   test(`${name}: every chosen requirement reaches one candidate-generation request as bounded data`, async t => {
     let calls = 0;
     let expected = makeContext();
@@ -167,6 +255,42 @@ for (const name of ['gemini', 'elice'] as const) {
     assert.equal((await response.json()).explanations[0].explanation, '원문과 동일하여 변경된 표현이나 의미가 없습니다.');
   });
 }
+
+test('target-candidate input is strict and bounded independently from the original selection', async t => {
+  let calls = 0;
+  const target = { id: 'third', text: '😀'.repeat(1998) + '\n\n' };
+  const post = await setup(t, { configured: true,
+    async generateCandidates(source, _signal, context, targetCandidate) {
+      calls++; assert.equal(source, sourceText); assert.equal(context, undefined); assert.deepEqual(targetCandidate, target);
+      return [target.text];
+    },
+    async generateExplanations() { calls++; throw Error('invalid explanation input reached provider'); },
+  });
+  for (const targetCandidate of [null, {}, 'third', { id: 'third', text: ' ' }, { id: 'third', text: '😀'.repeat(2001) },
+    { id: 'bad id', text: '후보' }, { id: 'third', text: '후보', document: '선택하지 않은 내용' }]) {
+    for (const endpoint of ['corrections', 'explanations'] as const) {
+      const response = await post(endpoint, { requestId: 'invalid-target', sourceText, targetCandidate,
+        ...(endpoint === 'explanations' ? { candidates: currentCandidates } : {}) });
+      assert.equal(response.status, 400);
+    }
+  }
+  const oversizedSource = await post('corrections', { requestId: 'too-long-source', sourceText: '😀'.repeat(1001), targetCandidate: target });
+  assert.equal(oversizedSource.status, 400);
+  assert.equal(calls, 0);
+  const accepted = await post('corrections', { requestId: 'maximum-target', sourceText, targetCandidate: target });
+  assert.equal(accepted.status, 200);
+  assert.deepEqual((await accepted.json()).targetCandidate, target);
+  assert.equal(calls, 1);
+});
+
+test('app rejects three results from a custom provider for a single-target request', async t => {
+  let calls = 0;
+  const post = await setup(t, { configured: true, async generateCandidates() { calls++; return generatedCandidates; } });
+  const response = await post('corrections', { requestId: 'extra-revisions', sourceText, targetCandidate: previousCandidates[0] });
+  assert.equal(response.status, 502);
+  assert.match((await response.json()).error.message, /새 교정안 1개/);
+  assert.equal(calls, 1);
+});
 
 test('invalid or unbounded retry context is rejected before either provider operation', async t => {
   let calls = 0;

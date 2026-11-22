@@ -38,6 +38,7 @@ const errorCodeSchema = z.enum(errorCodes);
 const eventSchema = z.object({
   id: requestIdSchema, at: z.string().datetime(), participantCode: participantCodeSchema, sessionId: requestIdSchema,
   requestId: requestIdSchema, parentRequestId: requestIdSchema.optional(),
+  targetCandidateId: requestIdSchema.optional(),
   phase: z.enum(['before_apply', 'after_apply']).optional(),
   requirement: z.enum(['alternative', 'polite', 'plain', 'meaning', 'errors']).optional(),
   action: z.enum(actions), candidateId: requestIdSchema.optional(), attemptId: requestIdSchema.optional(),
@@ -97,7 +98,7 @@ export function csvCell(value: unknown) {
   return `"${text.replaceAll('"', '""')}"`;
 }
 export function exportActivityCsv(events: ActivityEvent[], records: HistoryRecord[] = [], includeContent = false) {
-  const headers = ['id', 'at', 'participantCode', 'sessionId', 'requestId', 'parentRequestId', 'phase', 'requirement',
+  const headers = ['id', 'at', 'participantCode', 'sessionId', 'requestId', 'parentRequestId', 'targetCandidateId', 'phase', 'requirement',
     'action', 'candidateId', 'attemptId', 'errorCode', ...(includeContent ? ['sourceText', 'candidates', 'explanations'] : [])];
   const lines = exportRows(events, records, includeContent).map(event => {
     const row: Record<string, unknown> = { ...event };
