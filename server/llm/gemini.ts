@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CORRECTION_CANDIDATE_COUNT, modelOutputSchema } from '../../shared/contracts.js';
+import { CORRECTION_CANDIDATE_COUNT, modelOutputSchema, candidateRevisionOutputSchema } from '../../shared/contracts.js';
 import { parseExplanations } from './parse-explanations.js';
 import { ProviderError, type CorrectionProvider } from './provider.js';
 import { activeRetryContext, correctionInstructionFor, explanationInstructionFor } from './prompt.js';
@@ -12,7 +12,6 @@ const envelopeSchema = z.object({
     content: z.object({ parts: z.array(z.object({ text: z.string().optional(), thought: z.boolean().optional() })) }).optional(),
   })).optional(),
 });
-const resultSchema = z.object({ candidates: modelOutputSchema }).strict();
 
 export function createGeminiProvider(config: { apiKey: string; model: string }, fetcher: typeof fetch = fetch): CorrectionProvider {
   if (!config.apiKey.trim() || !/^gemini-[a-zA-Z0-9._-]+$/.test(config.model)) throw new ProviderError('configuration');
@@ -60,19 +59,20 @@ export function createGeminiProvider(config: { apiKey: string; model: string }, 
   }
   return {
     configured: true,
-    async generateCandidates(sourceText, signal, retryContext) {
+    async generateCandidates(sourceText, signal, retryContext, targetCandidate) {
       const context = activeRetryContext(retryContext);
-      const decoded = await generate(correctionInstructionFor(context), { sourceText, ...(context ? { retryContext: context } : {}) }, {
-        type: 'object', properties: { candidates: { type: 'array', items: { type: 'string' }, minItems: CORRECTION_CANDIDATE_COUNT, maxItems: CORRECTION_CANDIDATE_COUNT } },
+      const count = targetCandidate ? 1 : CORRECTION_CANDIDATE_COUNT;
+      const decoded = await generate(correctionInstructionFor(context, targetCandidate), { sourceText, ...(context ? { retryContext: context } : {}), ...(targetCandidate ? { targetCandidate } : {}) }, {
+        type: 'object', properties: { candidates: { type: 'array', items: { type: 'string' }, minItems: count, maxItems: count } },
         required: ['candidates'], additionalProperties: false,
       }, signal);
-      const result = resultSchema.safeParse(decoded);
+      const result = z.object({ candidates: targetCandidate ? candidateRevisionOutputSchema : modelOutputSchema }).strict().safeParse(decoded);
       if (!result.success) throw new ProviderError('invalid');
       return result.data.candidates;
     },
-    async generateExplanations(sourceText, candidates, signal, retryContext) {
+    async generateExplanations(sourceText, candidates, signal, retryContext, targetCandidate) {
       const context = activeRetryContext(retryContext);
-      const decoded = await generate(explanationInstructionFor(context), { sourceText, candidates, ...(context ? { retryContext: context } : {}) }, {
+      const decoded = await generate(explanationInstructionFor(context, targetCandidate), { sourceText, candidates, ...(context ? { retryContext: context } : {}), ...(targetCandidate ? { targetCandidate } : {}) }, {
         type: 'object', properties: { explanations: { type: 'array', minItems: 1, maxItems: 3,
           items: { type: 'object', properties: { candidateId: { type: 'string', enum: candidates.map(c => c.id) }, explanation: { type: 'string' } },
             required: ['candidateId', 'explanation'], additionalProperties: false } } },

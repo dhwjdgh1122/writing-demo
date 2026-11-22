@@ -23,6 +23,7 @@ export function retryContextsMatch(left?: RetryContext, right?: RetryContext): b
 }
 export const correctionInputSchema = z.object({
   requestId: requestIdSchema, sourceText: nonBlank(LIMITS.selection), retryContext: retryContextSchema.optional(),
+  targetCandidate: candidateSchema.optional(),
 }).strict();
 // Keep previous 1–3-candidate responses and stored history readable. Fresh
 // generation is checked separately by modelOutputSchema on the server.
@@ -30,9 +31,13 @@ export const correctionOutputSchema = correctionInputSchema.extend({
   candidates: z.array(candidateSchema).min(1).max(3).refine(cs => new Set(cs.map(c => c.id)).size === cs.length),
 }).strict();
 export const modelOutputSchema = z.array(nonBlank(LIMITS.candidate)).length(CORRECTION_CANDIDATE_COUNT);
+export const candidateRevisionOutputSchema = z.array(nonBlank(LIMITS.candidate)).length(1);
 export type CorrectionInput = z.infer<typeof correctionInputSchema>;
 export type CorrectionResult = z.infer<typeof correctionOutputSchema>;
 export type Candidate = z.infer<typeof candidateSchema>;
+export function targetCandidatesMatch(left?: Candidate, right?: Candidate): boolean {
+  return left && right ? left.id === right.id && left.text === right.text : left === right;
+}
 export const explanationInputSchema = correctionInputSchema.extend({
   candidates: z.array(candidateSchema).min(1).max(3).refine(cs => new Set(cs.map(c => c.id)).size === cs.length),
 }).strict();

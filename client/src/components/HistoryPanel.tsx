@@ -36,10 +36,10 @@ function HistoryEntry({ record, onRemove }: { record: HistoryRecord; onRemove: (
     <summary>
       <span className="history-summary-title"><time dateTime={record.createdAt}>{formatDate(record.createdAt)}</time><span className="history-summary-count">후보 {record.candidates.length}개</span></span>
       <span className="history-preview">{preview.slice(0, 100).join('')}{preview.length > 100 ? '…' : ''}</span>
-      <span className="history-apply-status">{appliedIndex >= 0 ? `당시 후보 ${appliedIndex + 1} 적용 기록 있음` : '적용 기록 없음'}</span>
+      <span className="history-apply-status">{appliedIndex >= 0 ? record.targetCandidate ? '다시 다듬은 후보 적용 기록 있음' : `당시 후보 ${appliedIndex + 1} 적용 기록 있음` : '적용 기록 없음'}</span>
     </summary>
     {expanded && <div className="history-entry-content">
-      {record.parentRecordId && <p className="history-explanation-note">이전 교정에 이어 {record.phase === 'after_apply' ? '적용 후' : '적용 전'} 재교정한 기록입니다. 요청한 점: {record.requirement ? requirementLabels[record.requirement] : '선택 없이 일반 재교정'}.</p>}
+      {record.parentRecordId && <p className="history-explanation-note">{record.targetCandidate ? '이전 후보 하나를 다시 다듬은 기록입니다.' : `이전 교정에 이어 ${record.phase === 'after_apply' ? '적용 후' : '적용 전'} 재교정한 기록입니다.`} 요청한 점: {record.requirement ? requirementLabels[record.requirement] : '선택 안 함'}.</p>}
       <h3 id={sourceId}>교정 요청 당시 원문</h3>
       <div className="history-source" role="region" aria-labelledby={sourceId} tabIndex={0}>{record.sourceText}</div>
       <p className="history-explanation-note">당시 받아 둔 교정 이유만 표시합니다. 이력 조회로 새 설명을 요청하지 않습니다. 적용 표시는 당시 기록이며, 현재 글에 그대로 남아 있다는 뜻은 아닙니다.</p>
@@ -47,7 +47,7 @@ function HistoryEntry({ record, onRemove }: { record: HistoryRecord; onRemove: (
         const explanation = record.explanations.find(value => value.candidateId === candidate.id);
         return <div key={candidate.id}>
           {candidate.id === record.appliedCandidateId && <p className="history-candidate-status">당시 적용한 후보{record.appliedAt && <> · <time dateTime={record.appliedAt}>{formatDate(record.appliedAt)}</time></>}</p>}
-          <CandidateCard candidate={candidate} source={record.sourceText} index={index} explanation={explanation} />
+          <CandidateCard candidate={candidate} source={record.sourceText} index={index} explanation={explanation} title={record.targetCandidate ? '다시 다듬은 후보' : undefined} />
           {!explanation && <p className="history-explanation-note history-missing-explanation">이 후보에 저장된 교정 이유가 없습니다.</p>}
         </div>;
       })}</div>

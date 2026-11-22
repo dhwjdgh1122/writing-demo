@@ -20,6 +20,87 @@ function stubFetch(t: TestContext, implementation: typeof fetch) {
     else Reflect.deleteProperty(globalThis, 'fetch');
   });
 }
+function threeCandidates() {
+  const pending = reduce(selected('원문', 0, 2), { type: 'start', requestId: 'batch' });
+  return reduce(pending, { type: 'success', value: { requestId: 'batch', sourceText: '원문', candidates: [
+    { id: 'one', text: '첫 번째 후보' }, { id: 'two', text: '두 번째 후보' }, { id: 'three', text: '세 번째 후보' },
+  ] } });
+}
+function completeRevision(state: EditorState, id: string, text: string) {
+  const pending = state.pending!;
+  return reduce(state, { type: 'success', value: { requestId: pending.requestId, sourceText: pending.sourceText,
+    targetCandidate: pending.targetCandidate, retryContext: pending.retryContext, candidates: [{ id, text }] } });
+}
+test('candidate revision retains siblings and original source while chaining each candidate to its own request', () => {
+  const original = threeCandidates();
+  const pending = reduce(original, { type: 'startRerun', requestId: 'rev-three', candidateId: 'three', requirement: 'plain' });
+  assert.equal(pending.result, original.result);
+  assert.deepEqual(pending.pending?.targetCandidate, original.result!.value.candidates[2]);
+  assert.equal(pending.pending?.sourceText, '원문');
+  assert.deepEqual(pending.pending?.retryContext?.previousCandidates, [original.result!.value.candidates[2]]);
+  const revised = completeRevision(pending, 'three-new', '간단한 세 번째 후보');
+  assert.equal(revised.result?.batchId, 'batch');
+  assert.equal(revised.result!.value.candidates[0], original.result!.value.candidates[0]);
+  assert.equal(revised.result!.value.candidates[1], original.result!.value.candidates[1]);
+  assert.equal(revised.result!.value.candidates[2].id, 'three-new');
+  assert.equal(revised.result!.origins.one.requestId, 'batch');
+  assert.equal(revised.result!.origins['three-new'].requestId, 'rev-three');
+  assert.equal(revised.result!.origins.three, undefined);
+  assert.equal(reduce(revised, { type: 'startRerun', requestId: 'rev-one', candidateId: 'one' }).pending?.parentRequestId, 'batch');
+  assert.equal(reduce(revised, { type: 'startRerun', requestId: 'rev-three-again', candidateId: 'three-new' }).pending?.parentRequestId, 'rev-three');
+  const appliedSibling = reduce(revised, { type: 'apply', candidateId: 'one' });
+  assert.equal(appliedSibling.text, '첫 번째 후보');
+  assert.equal(appliedSibling.rerun?.parentRequestId, 'batch');
+  assert.deepEqual(appliedSibling.rerun?.previousCandidates, [original.result!.value.candidates[0]]);
+});
+test('a candidate up to 2000 characters can be refined without replacing the original 1000 character source constraint', () => {
+  const original = result(selected('원문', 0, 2), '가'.repeat(2000));
+  const pending = reduce(original, { type: 'startRerun', requestId: 'rev', candidateId: 'c1' });
+  assert.equal(pending.pending?.targetCandidate?.text.length, 2000);
+  assert.equal(pending.pending?.sourceText, '원문');
+  assert.equal(pending.pending?.retryContext, undefined);
+  assert.ok(correctionInputSchema.safeParse({ requestId: 'rev', sourceText: '원문', targetCandidate: pending.pending?.targetCandidate }).success);
+});
+test('candidate revisions reject absent or altered targets, wrong counts and reused sibling IDs without losing existing results', () => {
+  const original = threeCandidates();
+  const pending = reduce(original, { type: 'startRerun', requestId: 'rev', candidateId: 'three' });
+  const target = pending.pending!.targetCandidate!;
+  const valid = { requestId: 'rev', sourceText: '원문', targetCandidate: target, candidates: [{ id: 'fresh', text: '새 후보' }] };
+  for (const value of [ { ...valid, targetCandidate: undefined }, { ...valid, targetCandidate: { ...target, text: '다른 대상' } },
+    { ...valid, candidates: original.result!.value.candidates }, { ...valid, candidates: [{ id: 'one', text: 'ID 충돌' }] },
+    { ...valid, candidates: [{ id: 'three', text: '대상 ID 재사용' }] } ]) {
+    const rejected = reduce(pending, { type: 'success', value });
+    assert.equal(rejected.result, original.result);
+    assert.equal(rejected.pending, null);
+    assert.ok(rejected.error);
+  }
+  assert.equal(reduce(original, { type: 'startRerun', requestId: 'rev', candidateId: 'missing' }), original);
+});
+test('invalidating the source while revising one candidate prevents a late result from restoring the old batch', () => {
+  const pending = reduce(threeCandidates(), { type: 'startRerun', requestId: 'rev', candidateId: 'three' });
+  const changed = reduce(pending, { type: 'edit', text: '직접 바꾼 원문' });
+  const late = { requestId: 'rev', sourceText: '원문', targetCandidate: pending.pending!.targetCandidate, candidates: [{ id: 'new', text: '늦은 후보' }] };
+  assert.equal(reduce(changed, { type: 'success', value: late }), changed);
+});
+test('client target response matching prevents wrong candidates or omitted target context from becoming a revision or explanation', async t => {
+  const targetCandidate = { id: 'three', text: '기존 후보' };
+  const input = { requestId: 'rev', sourceText: '원문', targetCandidate };
+  const candidates = [{ id: 'new', text: '다듬은 후보' }];
+  let response: Record<string, unknown> = { ...input, candidates };
+  stubFetch(t, async () => jsonResponse(response));
+  const signal = new AbortController().signal;
+  assert.deepEqual((await requestCorrection(input, signal)).candidates, candidates);
+  for (const invalid of [{ ...input, candidates, targetCandidate: undefined },
+    { ...input, candidates, targetCandidate: { ...targetCandidate, text: '다른 대상' } },
+    { ...input, candidates: [...candidates, { id: 'extra', text: '추가 후보' }] }]) {
+    response = invalid;
+    await assert.rejects(requestCorrection(input, signal), error => requestFailureCode(error) === 'CLIENT_RESPONSE_INVALID');
+  }
+  response = { ...input, candidates, explanations: [{ candidateId: 'new', explanation: '변경 설명' }] };
+  assert.equal((await requestExplanations({ ...input, candidates }, signal)).length, 1);
+  delete response.targetCandidate;
+  await assert.rejects(requestExplanations({ ...input, candidates }, signal), error => requestFailureCode(error) === 'CLIENT_RESPONSE_INVALID');
+});
 const jsonResponse = (body: unknown, status = 200) => ({ ok: status >= 200 && status < 300, status,
   json: async () => JSON.parse(JSON.stringify(body)) } as Response);
 test('applies to the selected occurrence only and preserves surrounding text', () => {

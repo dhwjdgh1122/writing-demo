@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { modelOutputSchema } from '../../shared/contracts.js';
+import { modelOutputSchema, candidateRevisionOutputSchema } from '../../shared/contracts.js';
 import { parseExplanations } from './parse-explanations.js';
 import { ProviderError, type CorrectionProvider } from './provider.js';
 import { activeRetryContext, correctionInstructionFor, explanationInstructionFor } from './prompt.js';
@@ -67,16 +67,16 @@ export function createEliceProvider(config: { apiKey: string; model: string; bas
   }
   return {
     configured: true,
-    async generateCandidates(sourceText, signal, retryContext) {
+    async generateCandidates(sourceText, signal, retryContext, targetCandidate) {
       const context = activeRetryContext(retryContext);
-      const decoded = await generate(correctionInstructionFor(context), { sourceText, ...(context ? { retryContext: context } : {}) }, signal);
-      const result = z.object({ candidates: modelOutputSchema }).strict().safeParse(decoded);
+      const decoded = await generate(correctionInstructionFor(context, targetCandidate), { sourceText, ...(context ? { retryContext: context } : {}), ...(targetCandidate ? { targetCandidate } : {}) }, signal);
+      const result = z.object({ candidates: targetCandidate ? candidateRevisionOutputSchema : modelOutputSchema }).strict().safeParse(decoded);
       if (!result.success) throw new ProviderError('invalid');
       return result.data.candidates;
     },
-    async generateExplanations(sourceText, candidates, signal, retryContext) {
+    async generateExplanations(sourceText, candidates, signal, retryContext, targetCandidate) {
       const context = activeRetryContext(retryContext);
-      const decoded = await generate(explanationInstructionFor(context), { sourceText, candidates, ...(context ? { retryContext: context } : {}) }, signal);
+      const decoded = await generate(explanationInstructionFor(context, targetCandidate), { sourceText, candidates, ...(context ? { retryContext: context } : {}), ...(targetCandidate ? { targetCandidate } : {}) }, signal);
       return parseExplanations(sourceText, candidates, decoded);
     },
   };

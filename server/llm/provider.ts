@@ -2,8 +2,8 @@ import type { Candidate, RetryContext } from '../../shared/contracts.js';
 /** Provider-neutral contract. Providers return text candidates; the app supplies IDs. */
 export interface CorrectionProvider {
   readonly configured: boolean;
-  generateCandidates(sourceText: string, signal: AbortSignal, retryContext?: RetryContext): Promise<unknown>;
-  generateExplanations?(sourceText: string, candidates: Candidate[], signal: AbortSignal, retryContext?: RetryContext): Promise<unknown>;
+  generateCandidates(sourceText: string, signal: AbortSignal, retryContext?: RetryContext, targetCandidate?: Candidate): Promise<unknown>;
+  generateExplanations?(sourceText: string, candidates: Candidate[], signal: AbortSignal, retryContext?: RetryContext, targetCandidate?: Candidate): Promise<unknown>;
 }
 
 export type ProviderFailure = 'configuration' | 'quota' | 'blocked' | 'truncated' | 'invalid' | 'unavailable';

@@ -55,6 +55,17 @@ test('duplicate callbacks are ignored but distinct explanation attempts remain s
   assert.equal(first[0].participantCode, 'T01');
 });
 
+test('candidate revision target IDs survive exports without including the old candidate sentence', () => {
+  const events = [event('rev', { parentRequestId: 'previous', targetCandidateId: 'previous-c3' })];
+  const revisedHistory = { ...history, id: events[0].requestId, targetCandidate: { id: 'previous-c3', text: 'PRIVATE_OLD_CANDIDATE' } };
+  assert.deepEqual(parseActivity(serializeActivity(events)), events);
+  for (const output of [exportActivityJson(events, [revisedHistory]), exportActivityCsv(events, [revisedHistory])]) {
+    assert.ok(output.includes('previous-c3'));
+    assert.ok(!output.includes('PRIVATE_'));
+  }
+  assert.throws(() => serializeActivity([event('bad', { targetCandidateId: 'free form sentence' })]));
+});
+
 test('default exports contain no sentence data and optional exports join only remaining history by request ID', () => {
   const events = [event(), event('other')];
   for (const output of [exportActivityJson(events, [history]), exportActivityCsv(events, [history])]) {

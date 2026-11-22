@@ -1,21 +1,23 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { LIMITS, type CorrectionResult, type ExplanationResult, type ExplanationInput } from '../../../shared/contracts';
+import { LIMITS, type Candidate, type CorrectionResult, type ExplanationResult, type ExplanationInput } from '../../../shared/contracts';
 import { requestExplanations, requestFailureCode } from '../lib/api';
 import { activityErrorCode, type ActivityInput } from '../lib/activity';
+import type { Snapshot } from '../state/editor';
 import { CandidateCard } from './CandidateCard';
 import { Icon } from './Icon';
 
-// The parent keys this component by correction request ID. New results unmount
-// the old view and cancelling its request. Completed explanations can be saved
-// by the parent without making history responsible for model requests.
+// A batch keeps its view while one candidate is replaced. Each candidate's
+// explanation still belongs to the request that actually generated it.
 export type ExplanationActivity = Omit<ActivityInput, 'action'> & {
   action: 'explanation_requested' | 'explanation_received' | 'explanation_failed' | 'explanation_cancelled';
 };
 type ActivityContext = Pick<ActivityInput, 'parentRequestId' | 'phase' | 'requirement'>;
-type ExplanationAttempt = { input: ExplanationInput; activity: Omit<ExplanationActivity, 'action'> };
+type ExplanationAttempt = { input: ExplanationInput; historyRequestId: string; activity: Omit<ExplanationActivity, 'action'> };
+type ExplanationError = { candidateIds: string[]; message: string };
 
-export function CorrectionResults({ result, onApply, onExplanationResults, activityContext, onActivity, disabled = false, renderRerun }: {
+export function CorrectionResults({ result, candidateOrigins, onApply, onExplanationResults, activityContext, onActivity, disabled = false, renderRerun }: {
   result: CorrectionResult;
+  candidateOrigins?: Record<string, Snapshot>;
   onApply: (id: string) => void;
   onExplanationResults?: (requestId: string, explanations: ExplanationResult[]) => void;
   activityContext?: ActivityContext;
@@ -24,34 +26,39 @@ export function CorrectionResults({ result, onApply, onExplanationResults, activ
   renderRerun?: (candidateId: string) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const [attempt, setAttempt] = useState<ExplanationAttempt | null>(null);
+  const [attempts, setAttempts] = useState<ExplanationAttempt[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [explanations, setExplanations] = useState<ExplanationResult[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<ExplanationError[]>([]);
   const panelId = useId();
   const explanationCallback = useRef(onExplanationResults);
   const activityCallback = useRef(onActivity);
   const requesting = useRef(false);
+  const currentCandidates = useRef(result.candidates);
+  currentCandidates.current = result.candidates;
 
   useEffect(() => { explanationCallback.current = onExplanationResults; }, [onExplanationResults]);
   useEffect(() => { activityCallback.current = onActivity; }, [onActivity]);
   useEffect(() => {
-    if (explanations) explanationCallback.current?.(result.requestId, explanations);
-  }, [explanations, result.requestId]);
-
-  useEffect(() => {
-    if (!attempt) return;
+    if (!attempts) return;
     requesting.current = true;
-    const controller = new AbortController();
     let active = true;
-    let timedOut = false;
-    let settled = false;
-    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, LIMITS.timeout + 5_000);
-    requestExplanations(attempt.input, controller.signal)
+    const running = attempts.map(attempt => ({ attempt, controller: new AbortController(), timedOut: false, settled: false,
+      timer: undefined as ReturnType<typeof setTimeout> | undefined }));
+    const pending = running.map(task => {
+      const { attempt, controller } = task;
+      task.timer = setTimeout(() => { task.timedOut = true; controller.abort(); }, LIMITS.timeout + 5_000);
+      return requestExplanations(attempt.input, controller.signal)
       .then(value => {
         if (!active) return;
-        settled = true;
-        setExplanations(previous => [...(previous ?? []).filter(e => !value.some(v => v.candidateId === e.candidateId)), ...value]);
+        task.settled = true;
+        // A late response may still describe unchanged siblings, but never the
+        // replacement candidate. Save the response only to its original record.
+        const visible = value.filter(explanation => currentCandidates.current.some(candidate => candidate.id === explanation.candidateId
+          && attempt.input.candidates.some(sent => sent.id === candidate.id && sent.text === candidate.text)));
+        setExplanations(previous => [...(previous ?? []).filter(explanation => currentCandidates.current.some(candidate => candidate.id === explanation.candidateId)
+          && !visible.some(value => value.candidateId === explanation.candidateId)), ...visible]);
+        explanationCallback.current?.(attempt.historyRequestId, value);
         activityCallback.current?.({ ...attempt.activity, action: 'explanation_received' });
         for (const explanation of value) {
           if ('error' in explanation) activityCallback.current?.({ ...attempt.activity, action: 'explanation_failed',
@@ -60,46 +67,71 @@ export function CorrectionResults({ result, onApply, onExplanationResults, activ
       })
       .catch(reason => {
         if (!active) return;
-        settled = true;
-        setError(timedOut ? '설명 응답 시간이 초과되었습니다. 다시 시도해주세요.' : reason instanceof Error ? reason.message : '설명을 불러오지 못했습니다.');
+        task.settled = true;
+        setErrors(previous => [...previous, { candidateIds: attempt.input.candidates.map(candidate => candidate.id),
+          message: task.timedOut ? '설명 응답 시간이 초과되었습니다. 다시 시도해주세요.' : reason instanceof Error ? reason.message : '설명을 불러오지 못했습니다.' }]);
         activityCallback.current?.({ ...attempt.activity, action: 'explanation_failed',
-          errorCode: timedOut ? 'CLIENT_TIMEOUT' : requestFailureCode(reason) });
+          errorCode: task.timedOut ? 'CLIENT_TIMEOUT' : requestFailureCode(reason) });
       })
-      .finally(() => { clearTimeout(timer); if (active) { requesting.current = false; setLoading(false); } });
+      .finally(() => { clearTimeout(task.timer); });
+    });
+    void Promise.allSettled(pending).then(() => { if (active) { requesting.current = false; setLoading(false); } });
     return () => {
-      active = false; clearTimeout(timer); controller.abort(); requesting.current = false;
-      if (!settled) activityCallback.current?.({ ...attempt.activity, action: 'explanation_cancelled' });
+      active = false; requesting.current = false;
+      for (const task of running) {
+        clearTimeout(task.timer); task.controller.abort();
+        if (!task.settled) activityCallback.current?.({ ...task.attempt.activity, action: 'explanation_cancelled' });
+      }
     };
-  }, [attempt]);
+  }, [attempts]);
 
-  const failedIds = explanations?.filter(e => 'error' in e).map(e => e.candidateId) ?? [];
+  const visibleExplanations = explanations?.filter(explanation => result.candidates.some(candidate => candidate.id === explanation.candidateId)) ?? [];
+  const failedIds = visibleExplanations.filter(explanation => 'error' in explanation).map(explanation => explanation.candidateId);
+  const missingIds = result.candidates.filter(candidate => !visibleExplanations.some(explanation => explanation.candidateId === candidate.id)).map(candidate => candidate.id);
+  const error = errors.find(error => error.candidateIds.some(id => result.candidates.some(candidate => candidate.id === id)))?.message;
   const request = () => {
     if (requesting.current || disabled) return;
+    const groups = new Map<string, { origin?: Snapshot; candidates: Candidate[] }>();
+    for (const candidate of result.candidates) {
+      if (!missingIds.includes(candidate.id) && !failedIds.includes(candidate.id)) continue;
+      const origin = candidateOrigins?.[candidate.id];
+      const key = origin?.requestId ?? result.requestId;
+      const group = groups.get(key) ?? { origin, candidates: [] };
+      group.candidates.push(candidate); groups.set(key, group);
+    }
+    if (!groups.size) return;
     requesting.current = true;
-    const attemptId = crypto.randomUUID();
-    const activity = { ...activityContext, requestId: result.requestId, attemptId };
-    const input: ExplanationInput = { requestId: attemptId, sourceText: result.sourceText,
-      candidates: failedIds.length ? result.candidates.filter(c => failedIds.includes(c.id)) : result.candidates,
-      ...(result.retryContext ? { retryContext: result.retryContext } : {}) };
-    activityCallback.current?.({ ...activity, action: 'explanation_requested' });
-    setError(null); setLoading(true); setAttempt({ input, activity });
+    const nextAttempts = Array.from(groups, ([historyRequestId, { origin, candidates }]) => {
+      const attemptId = crypto.randomUUID();
+      const retryContext = origin ? origin.retryContext : result.retryContext;
+      const targetCandidate = origin ? origin.targetCandidate : result.targetCandidate;
+      const activity = { ...(origin ? { parentRequestId: origin.parentRequestId, phase: origin.phase, requirement: retryContext?.requirement,
+        ...(targetCandidate ? { targetCandidateId: targetCandidate.id } : {}) } : activityContext),
+        requestId: historyRequestId, attemptId };
+      const input: ExplanationInput = { requestId: attemptId, sourceText: origin?.sourceText ?? result.sourceText, candidates,
+        ...(retryContext ? { retryContext } : {}), ...(targetCandidate ? { targetCandidate } : {}) };
+      activityCallback.current?.({ ...activity, action: 'explanation_requested' });
+      return { input, activity, historyRequestId };
+    });
+    setErrors([]); setLoading(true); setAttempts(nextAttempts);
   };
-  const toggleDisabled = disabled && !explanations;
+  const toggleDisabled = disabled && !visibleExplanations.length;
   const toggle = () => {
     if (toggleDisabled) return;
     setOpen(!open);
-    if (!open && !explanations && !loading && !error) request();
+    if (!open && !visibleExplanations.length && !loading && !error) request();
   };
   return <>
     <div className="explanation-toolbar"><button type="button" className="panel-action explanation-toggle" disabled={toggleDisabled} aria-expanded={open} aria-controls={panelId} onClick={toggle}><Icon name="message" size={18} /><span>교정 이유</span></button></div>
     <div id={panelId} hidden={!open} className="explanation-status" role="status" aria-live="polite">
       {loading && <p className="loading-message"><span className="spinner" />교정 이유를 확인하고 있습니다.</p>}
       {error && <div className="explanation-error"><p>{error}</p><button className="text-button" onClick={request} disabled={loading || disabled}>설명 다시 시도</button></div>}
-      {explanations?.some(e => 'explanation' in e) && <p>원문과 후보를 비교한 AI 설명입니다. 실제 차이와 함께 확인해주세요.</p>}
+      {visibleExplanations.some(e => 'explanation' in e) && <p>원문과 후보를 비교한 AI 설명입니다. 실제 차이와 함께 확인해주세요.</p>}
       {!error && failedIds.length > 0 && <div className="explanation-error"><p>{failedIds.length === result.candidates.length ? '교정 이유를 표시하지 못했습니다.' : '일부 후보의 교정 이유를 표시하지 못했습니다.'} {disabled ? '원문 비교를 확인할 수 있습니다.' : '후보 비교와 적용은 계속할 수 있습니다.'}</p><button className="text-button" onClick={request} disabled={loading || disabled}>실패한 설명 다시 시도</button></div>}
+      {!error && !failedIds.length && missingIds.length > 0 && !loading && <div className="explanation-missing"><p>새 후보의 교정 이유는 아직 요청하지 않았습니다.</p><button className="text-button" onClick={request} disabled={disabled}>새 후보 설명 보기</button></div>}
     </div>
     <div className="candidate-list">{result.candidates.map((candidate, index) => <CandidateCard key={candidate.id} candidate={candidate} index={index} source={result.sourceText}
-      explanation={open ? explanations?.find(e => e.candidateId === candidate.id) : undefined} onApply={() => onApply(candidate.id)}
+      explanation={open ? visibleExplanations.find(e => e.candidateId === candidate.id) : undefined} onApply={() => onApply(candidate.id)}
       actionsDisabled={disabled} rerunControl={renderRerun?.(candidate.id)} />)}</div>
     <p className="result-disclaimer">데모 생성 결과입니다. 적용 전에 내용을 확인해주세요.</p>
   </>;

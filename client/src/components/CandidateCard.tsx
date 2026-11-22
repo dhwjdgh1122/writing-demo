@@ -12,14 +12,14 @@ function DiffLine({ parts, side }: { parts: DiffPart[]; side: 'source' | 'candid
   })}</>;
 }
 
-export function CandidateCard({ candidate, source, index, explanation, onApply, actionsDisabled = false, rerunControl }: {
+export function CandidateCard({ candidate, source, index, explanation, onApply, actionsDisabled = false, rerunControl, title }: {
   candidate: Candidate; source: string; index: number; explanation?: ExplanationResult;
-  onApply?: () => void; actionsDisabled?: boolean; rerunControl?: ReactNode;
+  onApply?: () => void; actionsDisabled?: boolean; rerunControl?: ReactNode; title?: string;
 }) {
   const comparison = useMemo(() => { try { return diffExpressions(source, candidate.text); } catch { return null; } }, [source, candidate.text]);
   const identical = source === candidate.text;
   return <article className="candidate-card">
-    <div className="candidate-heading"><span className="candidate-number">{String(index + 1).padStart(2, '0')}</span><h3>후보 {index + 1}</h3>{identical && <span className="neutral-label">원문과 동일</span>}</div>
+    <div className="candidate-heading">{!title && <span className="candidate-number">{String(index + 1).padStart(2, '0')}</span>}<h3>{title ?? `후보 ${index + 1}`}</h3>{identical && <span className="neutral-label">원문과 동일</span>}</div>
     <p className="candidate-text">{candidate.text}</p>
     <details className="comparison">
       <summary>원문 비교</summary>
