@@ -3,7 +3,7 @@ import { countCharacters, LIMITS, selectionProblem, type ExplanationResult, type
 import { editorReducer, initialState, type Action, type Snapshot } from './state/editor';
 import { requestCorrection, requestFailureCode } from './lib/api';
 import { Icon } from './components/Icon';
-import { CorrectionResults, type ExplanationActivity } from './components/CorrectionResults';
+import { CorrectionResults, type ExplanationActivity, type ReadingState } from './components/CorrectionResults';
 import { selectionAnchor } from './lib/selectionAnchor';
 import { useHistory } from './hooks/useHistory';
 import { HistoryPanel } from './components/HistoryPanel';
@@ -48,6 +48,10 @@ export default function App() {
   const rerunOriginRef = useRef<RerunOrigin | null>(null);
   const rerunPositionRef = useRef<RerunPosition | null>(null);
   const correctionPanelRef = useRef<HTMLElement>(null);
+  // A new generation replaces explanation data, but an explicit rerun keeps
+  // the reading controls open. Ordinary correction/edit/selection starts fresh.
+  const readingRef = useRef<ReadingState>({ explanationsOpen: false, comparisonsOpen: [] });
+  const saveReadingState = useCallback((value: ReadingState) => { readingRef.current = value; }, []);
   useLayoutEffect(() => {
     const position = rerunPositionRef.current;
     rerunPositionRef.current = null;
@@ -67,6 +71,7 @@ export default function App() {
   const dispatch = useCallback((action: Action) => {
     const previous = editorStateRef.current;
     const next = editorReducer(previous, action);
+    if (!next.result) readingRef.current = { explanationsOpen: false, comparisonsOpen: [] };
     const wasRerun = Boolean(previous.pending && previous.pending.requestId === rerunRequestRef.current);
     const origin = rerunOriginRef.current;
     if (action.type === 'success' && next.result && next.result !== previous.result && origin && origin.requestId === previous.pending?.requestId) {
@@ -109,7 +114,7 @@ export default function App() {
     if (action.type === 'apply' && previous.result && next.revision !== previous.revision) {
       const origin = previous.result.origins[action.candidateId];
       history.enqueue({ type: 'apply', id: origin.requestId, candidateId: action.candidateId, at: new Date().toISOString() });
-      activity.record({ ...requestMetadata(origin), action: 'candidate_applied', candidateId: action.candidateId });
+      activity.record({ ...requestMetadata(origin), action: 'candidate_applied', candidateId: action.candidateId, attemptId: crypto.randomUUID() });
     }
     return next;
   }, [history.enqueue, activity.record]);
@@ -218,9 +223,10 @@ export default function App() {
     const requestId = crypto.randomUUID();
     rerunOriginRef.current = { requestId, candidateId: id, trigger,
       index: Math.max(0, editorStateRef.current.result?.value.candidates.findIndex(candidate => candidate.id === id) ?? 0) };
-    dispatch({ type: 'startRerun', requestId, requirement, ...(id !== 'applied' ? { candidateId: id } : {}) });
+    dispatch({ type: 'startRerun', requestId, requirement, candidateId: id });
   };
   const renderRerun = (id: string) => state.rerun && <RerunControls phase={state.rerun.phase}
+    unavailable={state.rerun.phase === 'after_apply' && state.result?.appliedCandidateId !== id}
     restoreFocusOnError={rerunOriginRef.current?.candidateId === id}
     open={rerunUI.openId === id} requirement={rerunUI.requirement} disabled={disabled} pending={Boolean(state.pending)}
     problem={problem} error={rerunUI.error}
@@ -238,9 +244,13 @@ export default function App() {
       const nextState = dispatch({ type: 'apply', candidateId });
       if (previous.revision === nextState.revision || !previous.result || !nextState.selection) return;
       editorRef.current?.focus({ preventScroll: true });
-      editorRef.current?.setSelectionRange(previous.result.snapshot.start, previous.result.snapshot.end);
+      editorRef.current?.setSelectionRange(previous.result.application.start, previous.result.application.end);
       document.execCommand('insertText', false, nextState.selection.text);
-      runRef.current?.focus();
+      const index = previous.result.value.candidates.findIndex(candidate => candidate.id === candidateId);
+      requestAnimationFrame(() => {
+        if (editorStateRef.current.revision === nextState.revision) correctionPanelRef.current
+          ?.querySelectorAll<HTMLButtonElement>('.correction-view .candidate-card .rerun-toggle')[index]?.focus({ preventScroll: true });
+      });
     } finally { applyingRef.current = false; }
   };
 
@@ -273,8 +283,9 @@ export default function App() {
           <div className="results-section" aria-busy={Boolean(state.pending)}><div className="section-heading"><h2>교정 문장</h2><button ref={historyButtonRef} type="button" className="panel-action history-toggle" aria-controls="correction-history" onClick={() => setHistoryOpen(true)}><Icon name="history" size={18} /><span>교정 이력</span></button></div>
             {(['memory-only', 'error', 'corrupt'] as const).some(status => status === history.status) && <p className="history-save-warning" role="status">교정 이력 자동 저장에 문제가 있습니다. 교정 이력에서 저장 상태를 확인해주세요.</p>}
             <div role="status" aria-live="polite" className="status-region">{state.pending && <p className="loading-message"><span className="spinner" />{state.pending.targetCandidate ? '선택한 후보를 다시 다듬고 있습니다. 다른 후보는 유지됩니다.' : state.result ? '새 교정안을 만들고 있습니다. 아래 후보는 이전 결과입니다.' : '교정안을 만들고 있습니다.'}</p>}{state.error && state.error !== rerunUI.error && <div className="error-message"><Icon name="info" size={18} /><p>{state.error}</p></div>}</div>
-            {state.notice && <div className="applied-state"><p className="success-message" role="status"><Icon name="check" size={18} />{state.notice}</p>{renderRerun('applied')}</div>}
+            {state.notice && <div className="applied-state"><p className="success-message" role="status"><Icon name="check" size={18} />{state.notice}</p><p className="applied-comparison-note">원문 비교와 교정 이유는 이 후보를 생성할 당시 원문을 기준으로 합니다.</p></div>}
             {state.result ? <CorrectionResults key={state.result.batchId} result={state.result.value} candidateOrigins={state.result.origins} onApply={apply} onExplanationResults={saveExplanations}
+              appliedCandidateId={state.result.appliedCandidateId} currentText={state.result.application.sourceText} initialReading={readingRef.current} onReadingChange={saveReadingState}
               activityContext={requestMetadata(state.result.snapshot)} onActivity={recordExplanationActivity} disabled={Boolean(state.pending)} renderRerun={renderRerun} /> : !state.pending && <div className="empty-result"><div className="empty-icon"><Icon name="document" size={31} /></div><h3>{emptyHeading}</h3><p>{emptyDescription}</p></div>}
           </div>
           {connection === 'missing' && <div className="setup-note"><Icon name="info" size={16} /><p>현재는 화면·선택 기능을 확인할 수 있습니다.<br /><strong>실제 교정은 AI 연결 후 사용할 수 있습니다.</strong></p></div>}

@@ -14,8 +14,10 @@ export type ExplanationActivity = Omit<ActivityInput, 'action'> & {
 type ActivityContext = Pick<ActivityInput, 'parentRequestId' | 'phase' | 'requirement'>;
 type ExplanationAttempt = { input: ExplanationInput; historyRequestId: string; activity: Omit<ExplanationActivity, 'action'> };
 type ExplanationError = { candidateIds: string[]; message: string };
+export type ReadingState = { explanationsOpen: boolean; comparisonsOpen: boolean[] };
 
-export function CorrectionResults({ result, candidateOrigins, onApply, onExplanationResults, activityContext, onActivity, disabled = false, renderRerun }: {
+export function CorrectionResults({ result, candidateOrigins, onApply, onExplanationResults, activityContext, onActivity, disabled = false, renderRerun,
+  appliedCandidateId, currentText, initialReading, onReadingChange }: {
   result: CorrectionResult;
   candidateOrigins?: Record<string, Snapshot>;
   onApply: (id: string) => void;
@@ -24,13 +26,15 @@ export function CorrectionResults({ result, candidateOrigins, onApply, onExplana
   onActivity?: (event: ExplanationActivity) => void;
   disabled?: boolean;
   renderRerun?: (candidateId: string) => ReactNode;
+  appliedCandidateId?: string | null; currentText?: string;
+  initialReading?: ReadingState; onReadingChange?: (state: ReadingState) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialReading?.explanationsOpen ?? false);
   const [attempts, setAttempts] = useState<ExplanationAttempt[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [explanations, setExplanations] = useState<ExplanationResult[] | null>(null);
   const [errors, setErrors] = useState<ExplanationError[]>([]);
-  const [comparisonsOpen, setComparisonsOpen] = useState<boolean[]>([]);
+  const [comparisonsOpen, setComparisonsOpen] = useState<boolean[]>(initialReading?.comparisonsOpen ?? []);
   const panelId = useId();
   const explanationCallback = useRef(onExplanationResults);
   const activityCallback = useRef(onActivity);
@@ -41,6 +45,7 @@ export function CorrectionResults({ result, candidateOrigins, onApply, onExplana
   const currentCandidates = useRef(result.candidates);
   currentCandidates.current = result.candidates;
 
+  useEffect(() => { onReadingChange?.({ explanationsOpen: open, comparisonsOpen }); }, [open, comparisonsOpen, onReadingChange]);
   useEffect(() => { explanationCallback.current = onExplanationResults; }, [onExplanationResults]);
   useEffect(() => { activityCallback.current = onActivity; }, [onActivity]);
   useEffect(() => {
@@ -155,7 +160,8 @@ export function CorrectionResults({ result, candidateOrigins, onApply, onExplana
         if ((previous[index] ?? false) === value) return previous;
         const next = [...previous]; next[index] = value; return next;
       })}
-      actionsDisabled={disabled} rerunControl={renderRerun?.(candidate.id)} />)}</div>
+      actionsDisabled={disabled} applied={candidate.id === appliedCandidateId} switching={Boolean(appliedCandidateId)} currentText={currentText}
+      rerunControl={renderRerun?.(candidate.id)} />)}</div>
     <p className="result-disclaimer">데모 생성 결과입니다. 적용 전에 내용을 확인해주세요.</p>
   </>;
 }

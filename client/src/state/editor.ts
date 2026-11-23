@@ -4,7 +4,9 @@ export type Selection = { start: number; end: number; text: string; revision: nu
 export type Rerun = { parentRequestId: string; phase: 'before_apply' | 'after_apply'; previousSourceText: string; previousCandidates: Candidate[] };
 export type Snapshot = { requestId: string; documentRevision: number; selectionRevision: number; start: number; end: number; sourceText: string;
   retryContext?: RetryContext; targetCandidate?: Candidate; parentRequestId?: string; phase?: Rerun['phase'] };
-export type EditorResult = { snapshot: Snapshot; value: CorrectionResult; batchId: string; origins: Record<string, Snapshot> };
+type ApplicationRange = Pick<Snapshot, 'documentRevision' | 'selectionRevision' | 'start' | 'end' | 'sourceText'>;
+export type EditorResult = { snapshot: Snapshot; value: CorrectionResult; batchId: string; origins: Record<string, Snapshot>;
+  application: ApplicationRange; appliedCandidateId: string | null };
 export type EditorState = {
   text: string; revision: number; selectionRevision: number; selection: Selection | null;
   pending: Snapshot | null; result: EditorResult | null; rerun: Rerun | null;
@@ -21,7 +23,7 @@ export type Action =
   | { type: 'failure'; requestId: string; message: string; errorCode?: string }
   | { type: 'apply'; candidateId: string };
 
-export function isCurrent(state: EditorState, snapshot: Snapshot): boolean {
+export function isCurrent(state: EditorState, snapshot: ApplicationRange): boolean {
   return snapshot.documentRevision === state.revision && snapshot.selectionRevision === state.selection?.revision
     && snapshot.start === state.selection.start && snapshot.end === state.selection.end
     && state.text.slice(snapshot.start, snapshot.end) === snapshot.sourceText;
@@ -49,13 +51,15 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         || ((action.type === 'startRerun' || action.requirement) && !state.rerun)) return state;
       const { start, end, text, revision } = state.selection;
       const predecessor = state.rerun;
-      const target = action.type === 'startRerun' && action.candidateId
+      const afterApply = predecessor?.phase === 'after_apply';
+      if (action.type === 'startRerun' && action.candidateId && afterApply && action.candidateId !== state.result?.appliedCandidateId) return state;
+      const target = action.type === 'startRerun' && action.candidateId && !afterApply
         ? state.result?.value.candidates.find(candidate => candidate.id === action.candidateId) : undefined;
-      if (action.type === 'startRerun' && action.candidateId && (!target || !state.result || !isCurrent(state, state.result.snapshot))) return state;
+      if (action.type === 'startRerun' && action.candidateId && ((!afterApply && !target) || !state.result || !isCurrent(state, state.result.application))) return state;
       const parentRequestId = target ? state.result!.origins[target.id].requestId : predecessor?.parentRequestId;
       // A rerun keeps the last successful batch mounted until a valid replacement arrives.
       // Starting an ordinary correction retains its existing clear-before-loading behavior.
-      const retainResult = action.type === 'startRerun' && state.result && isCurrent(state, state.result.snapshot);
+      const retainResult = action.type === 'startRerun' && state.result && isCurrent(state, state.result.application);
       return { ...state, pending: { requestId: action.requestId, documentRevision: state.revision, selectionRevision: revision, start, end, sourceText: text,
         ...(predecessor ? { parentRequestId, phase: predecessor.phase } : {}),
         ...(target ? { targetCandidate: target } : {}),
@@ -78,7 +82,7 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         ...(target ? Object.entries(state.result!.origins).filter(([id]) => id !== target.id) : []),
         ...action.value.candidates.map(candidate => [candidate.id, state.pending]),
       ]);
-      return { ...state, result: { snapshot: state.pending, value: { ...action.value, candidates },
+      return { ...state, result: { snapshot: state.pending, application: state.pending, appliedCandidateId: null, value: { ...action.value, candidates },
         batchId: target ? state.result!.batchId : action.value.requestId, origins }, pending: null, error: null, notice: null,
         rerun: { parentRequestId: action.value.requestId, phase: 'before_apply', previousSourceText: action.value.sourceText, previousCandidates: candidates } };
     }
@@ -87,15 +91,20 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       return { ...state, pending: null, error: action.message };
     }
     case 'apply': {
-      if (state.pending || !state.result || !isCurrent(state, state.result.snapshot)) return state;
+      if (state.pending || !state.result || !isCurrent(state, state.result.application)) return state;
       const candidate = state.result.value.candidates.find(c => c.id === action.candidateId);
-      if (!candidate || candidate.text === state.result.snapshot.sourceText) return state;
-      const { start, end } = state.result.snapshot;
+      if (!candidate || candidate.text === state.result.application.sourceText) return state;
+      const { start, end } = state.result.application;
       const text = state.text.slice(0, start) + candidate.text + state.text.slice(end);
       if (countCharacters(text) > LIMITS.document) return { ...state, error: '적용하면 원문이 20,000자를 초과합니다. 원문을 줄인 후 다시 교정해주세요.' };
       const revision = state.selectionRevision + 1;
-      return { ...initialState, text, revision: state.revision + 1, selectionRevision: revision,
-        selection: { start, end: start + candidate.text.length, text: candidate.text, revision }, notice: '선택한 문장에 적용했습니다.',
+      // Keep generation evidence immutable. Only the current replacement range
+      // advances when a different-length candidate is applied to the document.
+      return { ...state, text, revision: state.revision + 1, selectionRevision: revision,
+        result: { ...state.result, appliedCandidateId: candidate.id,
+          application: { start, end: start + candidate.text.length, sourceText: candidate.text,
+            documentRevision: state.revision + 1, selectionRevision: revision } },
+        selection: { start, end: start + candidate.text.length, text: candidate.text, revision }, error: null, notice: '선택한 문장에 적용했습니다. 다른 후보와 계속 비교할 수 있습니다.',
         rerun: { parentRequestId: state.result.origins[candidate.id].requestId, phase: 'after_apply', previousSourceText: state.result.value.sourceText, previousCandidates: [candidate] } };
     }
   }

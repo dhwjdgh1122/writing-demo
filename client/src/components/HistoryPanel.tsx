@@ -42,7 +42,7 @@ function HistoryEntry({ record, onRemove }: { record: HistoryRecord; onRemove: (
       {record.parentRecordId && <p className="history-explanation-note">{record.targetCandidate ? '이전 후보 하나를 다시 다듬은 기록입니다.' : `이전 교정에 이어 ${record.phase === 'after_apply' ? '적용 후' : '적용 전'} 재교정한 기록입니다.`} 요청한 점: {record.requirement ? requirementLabels[record.requirement] : '선택 안 함'}.</p>}
       <h3 id={sourceId}>교정 요청 당시 원문</h3>
       <div className="history-source" role="region" aria-labelledby={sourceId} tabIndex={0}>{record.sourceText}</div>
-      <p className="history-explanation-note">당시 받아 둔 교정 이유만 표시합니다. 이력 조회로 새 설명을 요청하지 않습니다. 적용 표시는 당시 기록이며, 현재 글에 그대로 남아 있다는 뜻은 아닙니다.</p>
+      <p className="history-explanation-note">당시 받아 둔 교정 이유만 표시합니다. 이력 조회로 새 설명을 요청하지 않습니다. 적용 표시는 이 기록에서 마지막으로 적용한 후보이며, 현재 글에 그대로 남아 있다는 뜻은 아닙니다.</p>
       <div className="candidate-list">{record.candidates.map((candidate, index) => {
         const explanation = record.explanations.find(value => value.candidateId === candidate.id);
         return <div key={candidate.id}>

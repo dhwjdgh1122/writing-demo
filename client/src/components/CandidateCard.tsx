@@ -74,10 +74,11 @@ function LinkedDiffLine({ text, changes, side, selectedId, titles, panelId, onSe
   return <>{nodes}</>;
 }
 
-export function CandidateCard({ candidate, source, index, explanation, explanationPending, comparisonOpen, onComparisonToggle, onApply, actionsDisabled = false, rerunControl, title }: {
+export function CandidateCard({ candidate, source, index, explanation, explanationPending, comparisonOpen, onComparisonToggle, onApply, actionsDisabled = false, rerunControl, title, applied = false, switching = false, currentText = source }: {
   candidate: Candidate; source: string; index: number; explanation?: ExplanationResult;
   explanationPending?: string; comparisonOpen?: boolean; onComparisonToggle?: (open: boolean) => void;
   onApply?: () => void; actionsDisabled?: boolean; rerunControl?: ReactNode; title?: string;
+  applied?: boolean; switching?: boolean; currentText?: string;
 }) {
   const comparison = useMemo(() => { try { return diffExpressions(source, candidate.text); } catch { return null; } }, [source, candidate.text]);
   const changes = useMemo(() => { try { return getExplanationChanges(source, candidate.text); } catch { return []; } }, [source, candidate.text]);
@@ -114,8 +115,9 @@ export function CandidateCard({ candidate, source, index, explanation, explanati
     if (explicit) { focusRequested.current = true; setExplicitSelection(value => value + 1); }
   };
   const identical = source === candidate.text;
-  return <article className="candidate-card">
-    <div className="candidate-heading">{!title && <span className="candidate-number">{String(index + 1).padStart(2, '0')}</span>}<h3>{title ?? `후보 ${index + 1}`}</h3>{identical && <span className="neutral-label">원문과 동일</span>}</div>
+  const unchanged = currentText === candidate.text;
+  return <article className={`candidate-card${applied ? ' is-applied' : ''}`}>
+    <div className="candidate-heading">{!title && <span className="candidate-number">{String(index + 1).padStart(2, '0')}</span>}<h3>{title ?? `후보 ${index + 1}`}</h3>{applied ? <span className="applied-label"><Icon name="check" size={13} />적용됨</span> : identical && <span className="neutral-label">원문과 동일</span>}</div>
     <p className="candidate-text">{candidate.text}</p>
     <details className="comparison" open={comparisonOpen} onToggle={event => onComparisonToggle?.(event.currentTarget.open)}>
       <summary>원문 비교</summary>
@@ -152,6 +154,6 @@ export function CandidateCard({ candidate, source, index, explanation, explanati
       ? explanation.error === 'EXPLANATION_QUOTE_MISMATCH' ? '원문·교정안과 인용이 맞지 않아 이 후보의 설명을 표시하지 않았습니다.' : '이 후보의 설명 형식을 확인하지 못해 표시하지 않았습니다.'
       : explanation.explanation}</p></div>)}
     {explanationPending && <div className="candidate-explanation"><h4>교정 이유</h4><p className="loading-message" role="status"><span className="spinner" />{explanationPending}</p></div>}
-    {onApply && <div className="candidate-actions"><button className="apply-button" disabled={identical || actionsDisabled} onClick={onApply}>{identical ? '변경 없음' : '이 문장 적용'}<Icon name={identical ? 'check' : 'arrow'} size={17} /></button>{rerunControl}</div>}
+    {onApply && <div className="candidate-actions"><button className="apply-button" disabled={applied || unchanged || actionsDisabled} onClick={onApply}>{applied ? '적용됨' : unchanged ? switching ? '현재 글과 동일' : '변경 없음' : switching ? '이 후보로 바꾸기' : '이 문장 적용'}<Icon name={applied || unchanged ? 'check' : 'arrow'} size={17} /></button>{rerunControl}</div>}
   </article>;
 }

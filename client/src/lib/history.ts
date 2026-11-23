@@ -71,7 +71,9 @@ export function applyHistoryOperation(records: HistoryRecord[], input: HistoryOp
   const record = records[index];
   let updated: HistoryRecord;
   if (operation.type === 'apply') {
-    if (!record.candidates.some(candidate => candidate.id === operation.candidateId) || record.appliedCandidateId !== null) return records;
+    if (!record.candidates.some(candidate => candidate.id === operation.candidateId)
+      || record.appliedCandidateId === operation.candidateId && record.appliedAt === operation.at
+      || record.appliedAt && Date.parse(operation.at) < Date.parse(record.appliedAt)) return records;
     updated = { ...record, appliedCandidateId: operation.candidateId, appliedAt: operation.at };
   } else {
     if (!operation.values.every(value => record.candidates.some(candidate => candidate.id === value.candidateId))) return records;

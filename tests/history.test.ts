@@ -116,6 +116,22 @@ test('only valid accepted application is recorded and late patches cannot recrea
   assert.equal(applyHistoryOperation(removed, { type: 'apply', id: 'r1', candidateId: 'r1-c1', at }), removed);
 });
 
+test('candidate switches retain the latest accepted application without replaying stale patches', () => {
+  const original = record();
+  original.candidates.push({ id: 'r1-c2', text: '다른 후보입니다.' });
+  const first = applyHistoryOperation([original], { type: 'apply', id: 'r1', candidateId: 'r1-c1', at });
+  const later = '2026-11-21T03:01:00.000Z';
+  const switched = applyHistoryOperation(first, { type: 'apply', id: 'r1', candidateId: 'r1-c2', at: later });
+  assert.equal(switched[0].appliedCandidateId, 'r1-c2');
+  assert.equal(switched[0].appliedAt, later);
+  assert.equal(applyHistoryOperation(switched, { type: 'apply', id: 'r1', candidateId: 'r1-c1', at }), switched);
+  assert.equal(applyHistoryOperation(switched, { type: 'apply', id: 'r1', candidateId: 'r1-c2', at: later }), switched);
+  const returned = applyHistoryOperation(switched, { type: 'apply', id: 'r1', candidateId: 'r1-c1', at: '2026-11-21T03:02:00.000Z' });
+  assert.equal(returned[0].appliedCandidateId, 'r1-c1');
+  assert.equal(returned[0].sourceText, original.sourceText);
+  assert.deepEqual(parseHistory(serializeHistory(returned)), returned);
+});
+
 test('accepted record and later metadata persist and load after a new controller starts', async () => {
   const storage = new MemoryStorage();
   const first = controller(storage);
