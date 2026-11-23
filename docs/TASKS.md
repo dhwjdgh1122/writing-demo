@@ -8,6 +8,8 @@
 
 11/12 이후 확인창·원문 비교 안내·선택 표시 유지와 줄바꿈 보존 지침이 main에 반영됐고, 문장 누락 사례의 제한 반복 점검과 AI 사전 점검 자료를 기록했다. 11/19에는 [PR #36](https://github.com/dhwjdgh1122/writing-demo/pull/36)의 후보별 설명 실패 처리 등을 main에 반영했다. [#22](https://github.com/dhwjdgh1122/writing-demo/issues/22)의 설명 내용 품질 개선은 미완료이며, [독립 반영 범위와 남은 변경](검증%20기록.md#explanation-isolation-01)을 구분한다. 구현 범위는 [기능명세](FEATURE_SPEC.md), 확인 결과와 한계는 [검증 기록](검증%20기록.md)을 따른다. 아래 11/12 경과와 11/9 계획은 과거 기록이며 현재 상태표가 아니다.
 
+11/23 사용자 요청으로 확인창을 제거하는 후속 작업은 [#64](https://github.com/dhwjdgh1122/writing-demo/issues/64)에 연결한다. 드래그 버튼·상단 버튼은 유지하고 누르면 바로 요청한다. 과거 확인창 도입 기록을 현재 동작으로 읽지 않도록 [변경 근거·검증](검증%20기록.md#direct-correction-entry-01)을 구분한다.
+
 최초 의견·희망 작업 확인과 역할 협의 준비는 [#17의 11/16 완료 확인](https://github.com/dhwjdgh1122/writing-demo/issues/17)에 근거해 종료했다. 이후 새 작업의 담당·범위·완료 기준은 개별 Issue에서 정한다. 최신 상태·담당·목표일은 [Projects](https://github.com/users/dhwjdgh1122/projects/7)에서 확인하며 이 문서에 상태표를 중복 관리하지 않는다.
 
 **11/22 정합성 점검과 후속 반영:** [main·작업 브랜치·검증 결과 대조](검증%20기록.md#project-consistency-20261122)를 보존하고 [PR #57 반영·PR #58 보완](검증%20기록.md#project-integration-20261122)을 연결했다. #22의 기존 장시간 개선 목표는 사용자 결정으로 [미달성 종료](검증%20기록.md#explanation-goal-closeout-01)했다. 품질 문제는 미완료로 남으며 과거 ‘다음 설계’·무제한 호출 계획은 현재 실행 지시가 아니다. 최신 상태·담당은 계속 Issue·Projects에서 확인한다.
@@ -178,7 +180,8 @@ TASKS는 작업 안내·출처·링크를, Issue는 상세 작업 내용·완료
 | 여러 문장 교정에서 문장 누락 재현 — 내용 누락·줄바꿈·전달 경로 구분 ([1차 점검](검증%20기록.md#correction-coverage-01), [보존 지침 반영 후 반복 점검](검증%20기록.md#correction-stability-01)). 같은 실패가 관찰되면 기존 근거와 함께 이어 검토한다. | [#1](https://github.com/dhwjdgh1122/writing-demo/issues/1) |
 | 여러 줄 교정의 줄바꿈 보존 기준과 지침 보완 — 직접 입력한 줄바꿈·빈 줄 유지, 자동 줄 접힘 제외 ([목표 동작·검증 예문](FEATURE_SPEC.md#linebreak-policy), [지침 전후 평가](검증%20기록.md#linebreak-prompt-01)). 강제 검사는 미구현이며 main 반영 여부는 PR #30을 따른다. | [#2](https://github.com/dhwjdgh1122/writing-demo/issues/2) |
 | 후보 적용 후 실행 취소·다시 실행 오류 재현 | [#3](https://github.com/dhwjdgh1122/writing-demo/issues/3) |
-| 원문 비교 범례와 선택 확인·교정 시작 흐름 개선 | [#4](https://github.com/dhwjdgh1122/writing-demo/issues/4) — 선택 위치 근처/고정 버튼 → 읽기 전용 확인창 → 교정 시작 흐름과 비교 표시를 관리한다. 하단의 큰 선택 패널은 제거하고 긴 선택 원문은 팝업 본문에서 스크롤한다. 기존 배치 시험은 [SELECTION-LAYOUT-01](검증%20기록.md#selection-layout-01), 확인창은 [PR #26](https://github.com/dhwjdgh1122/writing-demo/pull/26)·[검증 기록](검증%20기록.md#selection-confirm-final-01), 입력창 밖 드래그는 [PR #45](https://github.com/dhwjdgh1122/writing-demo/pull/45)에 연결한다. 후속 비교 개선은 상단 완성 문장과 원문 → 교정안 비교를 분리하고 변경 표현을 묶어 강조한다([COMPARISON-EXPRESSION-01](검증%20기록.md#comparison-expression-01)). 병합·현재 상태는 #4에서 확인하며 다중 구간 선택과 실제 사용자 편의 평가는 별도다. |
+| 원문 비교 범례와 선택 확인·교정 시작 흐름 개선 | [#4](https://github.com/dhwjdgh1122/writing-demo/issues/4) — 선택 위치 근처/고정 버튼과 비교 표시의 선행 작업이다. 당시 확인창·본문 스크롤 흐름은 [PR #26](https://github.com/dhwjdgh1122/writing-demo/pull/26)·[검증 기록](검증%20기록.md#selection-confirm-final-01)에 보존하며, 확인창을 제거하는 후속 변경은 아래 #64로 구분한다. 기존 배치 시험은 [SELECTION-LAYOUT-01](검증%20기록.md#selection-layout-01), 입력창 밖 드래그는 [PR #45](https://github.com/dhwjdgh1122/writing-demo/pull/45)에 연결한다. 후속 비교 개선은 상단 완성 문장과 원문 → 교정안 비교를 분리하고 변경 표현을 묶어 강조한다([COMPARISON-EXPRESSION-01](검증%20기록.md#comparison-expression-01)). 다중 구간 선택과 실제 사용자 편의 평가는 별도다. |
+| 두 교정 진입 버튼의 확인창 제거 | [#64](https://github.com/dhwjdgh1122/writing-demo/issues/64) — [사용자 요청](사용자%20피드백.md#feedback-08)에 따라 드래그 후 근처 ‘교정하기’를 유지하고, 근처·고정 버튼 모두 확인창 없이 같은 경로로 바로 요청한다. 선택 한도·중복 실행 차단·늦은 응답 무효화와 기존 후보 재교정은 유지한다. [DIRECT-CORRECTION-ENTRY-01](검증%20기록.md#direct-correction-entry-01)에 검증을 연결하며 #59의 실사용 오류 해결로 간주하지 않는다. |
 | 교정 설명의 사용자 기대와 평가 기준 정리 | [#5](https://github.com/dhwjdgh1122/writing-demo/issues/5) |
 | 선택 유지·교정 대상·화면 안내의 역할 확인 | [#6](https://github.com/dhwjdgh1122/writing-demo/issues/6) — [FEEDBACK-04](사용자%20피드백.md#feedback-04)의 적용 후 안내 개선은 PR #24로 반영했다. 이후 선택·전송 범위와 읽기 전용 안내를 별도로 점검했으며 [SELECTION-SCOPE-01](검증%20기록.md#selection-scope-01)에 근거·한계를 연결한다. |
 | 같은 내용 붙여넣기의 선택 유지 동작 확인 | [#7](https://github.com/dhwjdgh1122/writing-demo/issues/7) |
@@ -189,7 +192,7 @@ TASKS는 작업 안내·출처·링크를, Issue는 상세 작업 내용·완료
 
 ### 평가 기준 정리 이후의 후속 작업
 
-#4 / PR #26 이후 사용 화면에서 접수한 선택 표시 제보는 [#27 — 선택 확인창에서 배경 원문의 선택 범위 표시 유지](https://github.com/dhwjdgh1122/writing-demo/issues/27)에서 관리한다. 확인창에 포커스가 이동할 때 배경 원문에 같은 범위를 표시하고, 상단 실행 버튼은 작은 테두리 보조 버튼으로 유지한다. 검증 근거는 [SELECTION-HIGHLIGHT-FINAL-01](검증%20기록.md#selection-highlight-final-01)을 따른다.
+#4 / PR #26 이후 사용 화면에서 접수한 선택 표시 제보는 [#27 — 선택 확인창에서 배경 원문의 선택 범위 표시 유지](https://github.com/dhwjdgh1122/writing-demo/issues/27)에 보존한다. 당시 확인창의 포커스 이동으로 사라진 배경 선택을 별도 레이어로 표시했으며 검증 근거는 [SELECTION-HIGHLIGHT-FINAL-01](검증%20기록.md#selection-highlight-final-01)이다. #64에서는 확인창과 그 전용 레이어를 함께 제거하고 상단 보조 실행 버튼·실제 원문 선택은 유지한다.
 
 | 작업 | Issue·근거 |
 |---|---|

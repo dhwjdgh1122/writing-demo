@@ -4,8 +4,6 @@ import { editorReducer, initialState, type Action, type Snapshot } from './state
 import { requestCorrection, requestFailureCode } from './lib/api';
 import { Icon } from './components/Icon';
 import { CorrectionResults, type ExplanationActivity } from './components/CorrectionResults';
-import { SelectionConfirm } from './components/SelectionConfirm';
-import { SelectionHighlight } from './components/SelectionHighlight';
 import { selectionAnchor } from './lib/selectionAnchor';
 import { useHistory } from './hooks/useHistory';
 import { HistoryPanel } from './components/HistoryPanel';
@@ -126,7 +124,6 @@ export default function App() {
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const runRef = useRef<HTMLButtonElement>(null);
   const [anchor, setAnchor] = useState<{ left: number; top: number } | null>(null);
-  const [confirmation, setConfirmation] = useState<{ text: string; revision: number; selectionRevision: number } | null>(null);
   const draggingPointerRef = useRef<number | null>(null);
 
   const captureSelection = useCallback(() => {
@@ -200,37 +197,20 @@ export default function App() {
   const selectedLength = countCharacters(state.selection?.text ?? '');
   const problem = documentLength > LIMITS.document ? '원문은 20,000자 이내로 줄여주세요.' : selectionProblem(state.selection?.text);
   const disabled = Boolean(problem || state.pending || composing);
-  const openConfirmation = () => {
-    if (disabled || !state.selection) return;
+  const startCorrection = () => {
+    // Both entry points use the saved selection. The reducer validates its
+    // current range and limits; the ref also guards clicks before React renders.
+    if (disabled || compositionRef.current || editorStateRef.current.pending) return;
     setAnchor(null);
-    setConfirmation({ text: state.selection.text, revision: state.revision, selectionRevision: state.selectionRevision });
-  };
-  const cancelConfirmation = () => {
-    setConfirmation(null);
-    requestAnimationFrame(() => {
-      const editor = editorRef.current;
-      if (!editor || !state.selection) return;
-      const scrollTop = editor.scrollTop;
-      editor.focus({ preventScroll: true });
-      editor.setSelectionRange(state.selection.start, state.selection.end);
-      editor.scrollTop = scrollTop;
-      setAnchor(null);
-    });
-  };
-  const confirmCorrection = () => {
-    if (!confirmation || disabled || confirmation.revision !== state.revision || confirmation.selectionRevision !== state.selectionRevision) {
-      cancelConfirmation();
-      return;
-    }
-    setConfirmation(null);
-    dispatch({ type: 'start', requestId: crypto.randomUUID() });
+    const next = dispatch({ type: 'start', requestId: crypto.randomUUID() });
+    if (!next.pending) return;
     // The invoking button is disabled/removed while requesting; keep keyboard focus in the editor.
     requestAnimationFrame(() => editorRef.current?.focus({ preventScroll: true }));
   };
   const emptyHeading = state.notice ? '적용한 내용을 확인해주세요' : state.selection ? '교정할 준비가 되었습니다' : '문장을 선택하면 시작됩니다';
   const emptyDescription = state.notice
     ? '원문 작업 공간에서 바뀐 내용을 확인하세요.\n다른 문장을 다듬으려면 해당 부분을 선택해주세요.'
-    : state.selection ? '교정 실행 버튼에서 선택한 문장을 확인하면\n교정을 시작할 수 있습니다.' : '원문에서 고치고 싶은 부분을 선택한 뒤\n교정 실행 버튼을 눌러주세요.';
+    : state.selection ? '교정 실행 버튼을 누르면\n선택한 문장을 바로 교정합니다.' : '원문에서 고치고 싶은 부분을 선택한 뒤\n교정 실행 버튼을 눌러주세요.';
   const connectionText = { checking: '연결 확인 중', ready: 'AI 설정 확인됨', missing: 'AI 연결 대기', offline: '서버 연결 확인 필요' }[connection];
   const rerun = (id: string, trigger: HTMLButtonElement, requirement?: RetryRequirement) => {
     if (disabled || editorStateRef.current.pending || !editorStateRef.current.rerun) return;
@@ -277,12 +257,11 @@ export default function App() {
             <div className="panel-heading"><div className="heading-with-icon"><Icon name="document" /><h2 id="editor-heading">원문 작업 공간</h2></div><span className="subtle-tag">한국어 · 일반 문장</span></div>
             <div className="compact-selection" aria-label="선택 및 교정 실행">
               <span className={selectedLength > LIMITS.selection ? 'over-limit' : ''}>선택한 글 {selectedLength.toLocaleString()}자 · 최대 1,000자까지 교정할 수 있어요</span>
-              <div className="compact-actions"><button className="text-button" disabled={!state.selection} onClick={() => { setAnchor(null); dispatch({ type: 'clear' }); }}><Icon name="close" size={14} />선택 해제</button><button ref={runRef} className="secondary-button correction-fallback" disabled={disabled} aria-haspopup="dialog" aria-describedby="selection-help" onClick={openConfirmation}>{state.pending ? <><span className="spinner" />교정 중</> : <>교정 실행<Icon name="arrow" size={17} /></>}</button></div>
+              <div className="compact-actions"><button className="text-button" disabled={!state.selection} onClick={() => { setAnchor(null); dispatch({ type: 'clear' }); }}><Icon name="close" size={14} />선택 해제</button><button ref={runRef} className="secondary-button correction-fallback" disabled={disabled} aria-describedby="selection-help" onClick={startCorrection}>{state.pending ? <><span className="spinner" />교정 중</> : <>교정 실행<Icon name="arrow" size={17} /></>}</button></div>
               <p id="selection-help" className={problem && state.selection ? 'selection-help over-limit' : 'selection-help'}>{composing ? '문장 입력을 마치면 실행할 수 있습니다.' : problem ?? (state.notice ? '원문에 반영된 내용을 확인해주세요.' : '선택한 내용을 확인한 후 실행해주세요.')}</p>
             </div>
           </div>
-          <div className="editor-body"><label htmlFor="source-editor" className="sr-only">원문 입력</label><textarea id="source-editor" ref={editorRef} value={state.text} onChange={e => { setAnchor(null); dispatch({ type: 'edit', text: e.target.value }); }} onSelect={captureSelection} onPointerDown={event => { if (event.isPrimary && event.button === 0) { draggingPointerRef.current = event.pointerId; setAnchor(null); } }} onBlur={() => { draggingPointerRef.current = null; }} onKeyUp={captureSelection} onCompositionStart={() => { compositionRef.current = true; setComposing(true); setAnchor(null); }} onCompositionEnd={() => { compositionRef.current = false; setComposing(false); }} placeholder={'이곳에 원문을 입력하거나 붙여넣으세요.\n\n교정하고 싶은 문장을 드래그하면\n교정하기 버튼으로 선택한 내용을 확인하세요.'} aria-describedby="editor-hint document-count" spellCheck={false} />
-            {confirmation && state.selection && confirmation.revision === state.revision && confirmation.selectionRevision === state.selectionRevision && <SelectionHighlight editor={editorRef.current} text={state.text} start={state.selection.start} end={state.selection.end} />}
+          <div className="editor-body"><label htmlFor="source-editor" className="sr-only">원문 입력</label><textarea id="source-editor" ref={editorRef} value={state.text} onChange={e => { setAnchor(null); dispatch({ type: 'edit', text: e.target.value }); }} onSelect={captureSelection} onPointerDown={event => { if (event.isPrimary && event.button === 0) { draggingPointerRef.current = event.pointerId; setAnchor(null); } }} onBlur={() => { draggingPointerRef.current = null; }} onKeyUp={captureSelection} onCompositionStart={() => { compositionRef.current = true; setComposing(true); setAnchor(null); }} onCompositionEnd={() => { compositionRef.current = false; setComposing(false); }} placeholder={'이곳에 원문을 입력하거나 붙여넣으세요.\n\n교정하고 싶은 문장을 드래그한 뒤\n교정하기 버튼을 누르면 바로 교정합니다.'} aria-describedby="editor-hint document-count" spellCheck={false} />
             <div className="editor-meta"><span id="editor-hint"><Icon name="select" size={16} />드래그한 부분만 교정합니다</span><span id="document-count" className={documentLength > LIMITS.document ? 'over-limit' : ''}>전체 글 {documentLength.toLocaleString()}자<span className="count-limit"> · 최대 20,000자 입력 가능</span></span></div>
           </div>
           <div className="editor-footnote"><Icon name="info" size={16} /><span>선택한 부분의 원문·후보를 이 브라우저에 보관합니다. 작성 중인 글 전체는 새로고침 후 복원하지 않습니다.</span></div>
@@ -306,7 +285,6 @@ export default function App() {
       <ActivityPanel activity={activity} historyRecords={history.records} />
       <footer className="page-footer"><span>센틴스파이 데스크톱 사용 흐름을 참고한 독립 웹 데모</span><span>교정에는 선택한 문장을 사용하며, 후보별 재교정에는 해당 후보와 원문을 함께 전달합니다.</span></footer>
     </main>
-    {anchor && !disabled && !confirmation && <button className="floating-correction" style={anchor} aria-haspopup="dialog" onPointerDown={event => event.preventDefault()} onClick={openConfirmation}>교정하기 <Icon name="arrow" size={16} /></button>}
-    {confirmation && <SelectionConfirm text={confirmation.text} count={countCharacters(confirmation.text)} onCancel={cancelConfirmation} onConfirm={confirmCorrection} />}
+    {anchor && !disabled && <button className="floating-correction" style={anchor} onPointerDown={event => event.preventDefault()} onClick={startCorrection}>교정하기 <Icon name="arrow" size={16} /></button>}
   </div>;
 }

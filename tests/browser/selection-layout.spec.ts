@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { expectSelected, startCorrection } from './selection-helpers';
 
 for (const width of [1440, 390]) {
-  test(`compact selection and existing results survive confirmation/failure/retry at ${width}px`, async ({ page }) => {
+  test(`compact selection and existing results survive direct execution/failure/retry at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });
     const target = '안녕 하세요. 다음주 목요일 오후 3시에 팀 회의를 진행할 예정 입니다.\n참석 가능하신 분들은 수요일 까지 댓글로 알려 주시기바랍니다.\n회의 자료는 미리 읽어보시고, 궁금한점은 따로 적어 주세요.\n참석이 어려우신 분들에게는 회의가 끝난뒤 내용을 공유 하겠습니다.';
     const corrected = target.replace('안녕 하세요', '안녕하세요');

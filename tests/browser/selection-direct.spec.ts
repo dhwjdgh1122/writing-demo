@@ -1,15 +1,14 @@
 import { test, expect } from '@playwright/test';
 
 for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
-  test(`long readonly preview scrolls without hiding actions at ${size.width}x${size.height}`, async ({ page }) => {
+  test(`keyboard execution immediately submits the exact long selection at ${size.width}x${size.height}`, async ({ page }) => {
     await page.setViewportSize(size);
     const text = Array.from({ length: 35 }, (_, i) => `${i + 1}. 날짜와  공백\t😀를 유지합니다.`).join('\n');
-    let calls = 0;
+    const requests: string[] = [];
     await page.route('**/api/corrections', async route => {
-      calls++;
       const input = route.request().postDataJSON();
-      expect(input.sourceText).toBe(text);
-      await route.fulfill({ json: { ...input, candidates: [{ id: 'preview', text: text + ' 끝' }] } });
+      requests.push(input.sourceText);
+      await route.fulfill({ json: { ...input, candidates: [{ id: 'direct', text: text + ' 끝' }] } });
     });
     await page.goto('/');
     const editor = page.getByLabel('원문 입력');
@@ -17,54 +16,29 @@ for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, {
     await editor.press('Control+Home');
     await editor.press('Control+Shift+End');
     await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(requests).toHaveLength(0);
     const run = page.getByRole('button', { name: '교정 실행', exact: true });
     await run.focus();
     await run.scrollIntoViewIfNeeded();
-    const scrollBefore = await page.evaluate(() => window.scrollY);
-    const editorScroll = await editor.evaluate(el => el.scrollTop);
     await run.press('Enter');
-    const dialog = page.getByRole('dialog');
-    const preview = dialog.getByRole('region', { name: '선택한 문장' });
-    await expect(dialog).toBeVisible();
-    expect(await preview.textContent()).toBe(text);
-    expect(await preview.evaluate(el => el instanceof HTMLElement && el.isContentEditable)).toBe(false);
-    await expect(dialog.locator('textarea,input')).toHaveCount(0);
-    expect(await preview.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
-    const confirm = dialog.getByRole('button', { name: '교정 시작' });
-    const before = await confirm.boundingBox();
-    await preview.focus();
-    await preview.press('Control+End');
-    await expect.poll(() => preview.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
-    expect((await confirm.boundingBox())!.y).toBeCloseTo(before!.y, 0);
-    const bounds = await dialog.boundingBox();
-    expect(bounds!.y).toBeGreaterThanOrEqual(0);
-    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(size.height);
-    expect(bounds!.x).toBeGreaterThanOrEqual(0);
-    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(size.width);
-    await confirm.focus();
-    await page.keyboard.press('Tab');
-    expect(await dialog.evaluate(el => el.contains(document.activeElement))).toBe(true);
-    await page.keyboard.press('Escape');
-    await expect(dialog).toHaveCount(0);
-    await expect(editor).toBeFocused();
-    expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
-    expect(await editor.evaluate(el => el.scrollTop)).toBe(editorScroll);
-    expect(await editor.evaluate((el: HTMLTextAreaElement) => [el.selectionStart, el.selectionEnd])).toEqual([0, text.length]);
-    expect(calls).toBe(0);
-    await run.click();
-    await page.screenshot({ path: `test-results/selection-confirm-${size.width}.png` });
-    await confirm.click();
-    await expect(dialog).toHaveCount(0);
-    await expect(page.locator('.selection-highlight')).toHaveCount(0);
-    await expect(editor).toBeFocused();
     await expect(page.locator('.candidate-card')).toHaveCount(1);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '원문으로 돌아가기' })).toHaveCount(0);
     await expect(editor).toHaveValue(text);
-    expect(calls).toBe(1);
+    expect(await editor.evaluate((el: HTMLTextAreaElement) => [el.selectionStart, el.selectionEnd])).toEqual([0, text.length]);
+    expect(requests).toEqual([text]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 }
 
-test('floating action does not interrupt drag or copy; cancel and replace range before confirming', async ({ page }) => {
+test('drag and copy do not submit; floating action immediately submits the current selection', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
+  const requests: string[] = [];
+  await page.route('**/api/corrections', async route => {
+    const input = route.request().postDataJSON();
+    requests.push(input.sourceText);
+    await route.fulfill({ json: { ...input, candidates: [{ id: `drag-${requests.length}`, text: input.sourceText + ' 수정' }] } });
+  });
   await page.goto('/');
   const editor = page.getByLabel('원문 입력');
   const source = '첫 번째 줄입니다.\n두 번째 줄입니다.\n세 번째 줄입니다.\n네 번째 줄입니다.';
@@ -85,18 +59,18 @@ test('floating action does not interrupt drag or copy; cancel and replace range 
   expect(floatingBox.x + floatingBox.width).toBeLessThanOrEqual(box.x + box.width);
   expect(await page.evaluate(() => window.scrollY)).toBe(beforeScroll);
   await editor.press('Control+c');
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(requests).toHaveLength(0);
   const first = await editor.evaluate((el: HTMLTextAreaElement) => el.value.slice(el.selectionStart, el.selectionEnd));
   await floating.click();
-  await expect(page.getByTestId('selected-text')).toHaveText(first);
-  await page.getByRole('button', { name: '원문으로 돌아가기' }).click();
-  await expect(editor).toBeFocused();
+  await expect(page.locator('.candidate-card')).toHaveCount(1);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(requests).toEqual([first]);
   await editor.press('Control+End');
   await editor.press('Shift+Home');
   await expect(floating).toBeVisible();
   await floating.click();
-  await expect(page.getByTestId('selected-text')).toHaveText('네 번째 줄입니다.');
-  await page.getByRole('button', { name: '닫기', exact: true }).click();
+  await expect(page.locator('.candidate-text')).toHaveText('네 번째 줄입니다. 수정');
+  expect(requests).toEqual([first, '네 번째 줄입니다.']);
   await expect(editor).toHaveValue(source);
   await page.getByRole('button', { name: '선택 해제' }).click();
   await expect(floating).toHaveCount(0);
@@ -124,7 +98,6 @@ for (const direction of ['forward', 'backward'] as const) {
     await page.mouse.down();
     await page.mouse.move(end.x, end.y, { steps: 12 });
     await expect(page.locator('.floating-correction')).toHaveCount(0);
-    await expect(page.getByRole('dialog')).toHaveCount(0);
     await page.mouse.up();
     const selected = await editor.evaluate((el: HTMLTextAreaElement) => el.value.slice(el.selectionStart, el.selectionEnd));
     expect(selected.length).toBeGreaterThan(0);
@@ -132,9 +105,8 @@ for (const direction of ['forward', 'backward'] as const) {
     await expect(floating).toBeVisible();
     expect(requests).toHaveLength(0);
     await floating.click();
-    expect(await page.getByTestId('selected-text').textContent()).toBe(selected);
-    await page.getByRole('button', { name: '교정 시작', exact: true }).click();
     await expect(page.locator('.candidate-card')).toHaveCount(1);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     expect(requests).toEqual([selected]);
     await expect(editor).toHaveValue(source);
   });
@@ -142,6 +114,12 @@ for (const direction of ['forward', 'backward'] as const) {
 
 for (const interruption of ['pointercancel', 'blur'] as const) {
   test(`interrupted drag ignores other pointers and allows keyboard selection after ${interruption}`, async ({ page }) => {
+    const requests: string[] = [];
+    await page.route('**/api/corrections', async route => {
+      const input = route.request().postDataJSON();
+      requests.push(input.sourceText);
+      await route.fulfill({ json: { ...input, candidates: [{ id: 'interrupted', text: input.sourceText + ' 수정' }] } });
+    });
     await page.goto('/');
     const editor = page.getByLabel('원문 입력');
     const source = '포인터 취소 뒤에도 키보드 선택이 동작합니다.';
@@ -165,30 +143,93 @@ for (const interruption of ['pointercancel', 'blur'] as const) {
     await page.keyboard.press('Shift');
     const floating = page.getByRole('button', { name: '교정하기', exact: true });
     await expect(floating).toBeVisible();
+    expect(requests).toHaveLength(0);
     await floating.click();
-    expect(await page.getByTestId('selected-text').textContent()).toBe(source);
-    await page.keyboard.press('Escape');
-    await expect(editor).toBeFocused();
+    await expect(page.locator('.candidate-card')).toHaveCount(1);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(requests).toEqual([source]);
     await expect(editor).toHaveValue(source);
   });
 }
 
-test('preview snapshot cannot submit after source changes', async ({ page }) => {
-  let calls = 0;
-  page.on('request', req => { if (req.url().endsWith('/api/corrections')) calls++; });
+test('rapid activation submits only once while the correction is pending', async ({ page }) => {
+  let release: () => void = () => {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const requests: string[] = [];
+  await page.route('**/api/corrections', async route => {
+    const input = route.request().postDataJSON();
+    requests.push(input.sourceText);
+    await gate;
+    await route.fulfill({ json: { ...input, candidates: [{ id: 'once', text: input.sourceText + ' 수정' }] } });
+  });
+  await page.goto('/');
+  const editor = page.getByLabel('원문 입력');
+  await editor.fill('한 번만 교정합니다.');
+  await editor.press('Control+a');
+  await page.getByRole('button', { name: '교정 실행', exact: true }).evaluate((element: HTMLButtonElement) => {
+    element.click();
+    element.click();
+  });
+  await expect.poll(() => requests.length).toBe(1);
+  await expect(page.getByRole('button', { name: '교정 중', exact: true })).toBeDisabled();
+  await expect(page.locator('.floating-correction')).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  release();
+  await expect(page.locator('.candidate-card')).toHaveCount(1);
+  expect(requests).toEqual(['한 번만 교정합니다.']);
+});
+
+test('editing the source discards an in-flight direct correction', async ({ page }) => {
+  let release: () => void = () => {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let received: () => void = () => {};
+  const requested = new Promise<void>(resolve => { received = resolve; });
+  await page.route('**/api/corrections', async route => {
+    const input = route.request().postDataJSON();
+    expect(input.sourceText).toBe('처음 문장');
+    received();
+    await gate;
+    await route.fulfill({ json: { ...input, candidates: [{ id: 'stale', text: '오래된 후보' }] } }).catch(() => {});
+  });
   await page.goto('/');
   const editor = page.getByLabel('원문 입력');
   await editor.fill('처음 문장');
   await editor.press('Control+a');
   await page.getByRole('button', { name: '교정 실행', exact: true }).click();
-  // Simulate a non-pointer edit while the modal owns focus; background user input is inert.
-  await editor.evaluate((el: HTMLTextAreaElement) => {
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(el, '바뀐 원문');
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-  await page.getByRole('button', { name: '교정 시작', exact: true }).click();
+  await requested;
+  await editor.fill('바뀐 원문');
+  release();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(editor).toHaveValue('바뀐 원문');
-  await expect(page.locator('.selection-highlight')).toHaveCount(0);
-  expect(calls).toBe(0);
+  await expect(page.locator('.candidate-card')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '교정 실행', exact: true })).toBeDisabled();
 });
+
+for (const width of [1440, 390]) {
+  test(`scrolled partial selection survives resize and immediate execution at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const prefix = '선택하지 않은 앞 문장입니다.\n'.repeat(40);
+    const target = '목요일  오후 3시 😀에 회의합니다.\n참석 가능한 분들은\t수요일까지 알려주세요.\n자료를 확인해주세요.';
+    const source = prefix + target + '\n선택하지 않은 뒤 문장입니다.';
+    const requests: string[] = [];
+    await page.route('**/api/corrections', async route => {
+      const input = route.request().postDataJSON();
+      requests.push(input.sourceText);
+      await route.fulfill({ json: { ...input, candidates: [{ id: 'partial', text: target + ' 수정' }] } });
+    });
+    await page.goto('/');
+    const editor = page.getByLabel('원문 입력');
+    await editor.fill(source);
+    await editor.press('Control+End');
+    await editor.evaluate((el: HTMLTextAreaElement, range) => el.setSelectionRange(range[0], range[1]), [prefix.length, prefix.length + target.length]);
+    await editor.press('Shift');
+    await page.setViewportSize({ width: width === 1440 ? 1000 : 430, height: 850 });
+    await page.getByRole('button', { name: '교정 실행', exact: true }).click();
+    await expect(page.locator('.candidate-card')).toHaveCount(1);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(requests).toEqual([target]);
+    await expect(editor).toHaveValue(source);
+    expect(await editor.evaluate((el: HTMLTextAreaElement) => [el.selectionStart, el.selectionEnd])).toEqual([prefix.length, prefix.length + target.length]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+}

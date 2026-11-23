@@ -117,7 +117,6 @@ test('selection scope survives focus and caret moves; requests follow the latest
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/');
   const editor = page.getByLabel('원문 입력');
-  const selected = page.getByTestId('selected-text');
   const run = page.getByRole('button', { name: '교정 실행', exact: true });
   const source = '첫 문장은 주변 정보입니다.\n금요일까지 자료를 보내 주세여.\n마지막 문장도 주변 정보입니다.';
   await editor.fill(source);
