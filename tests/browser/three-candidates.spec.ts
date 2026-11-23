@@ -42,7 +42,7 @@ test('three fresh candidates support explanations, third-candidate application a
   await expect(cards).toHaveCount(3);
   await expect(cards.locator('.candidate-text')).toHaveText(candidates.map(candidate => candidate.text));
   await page.getByRole('button', { name: '교정 이유', exact: true }).click();
-  await expect(cards.locator('.candidate-explanation')).toHaveCount(3);
+  await expect(cards.locator('.candidate-explanation p')).toHaveText(Array(3).fill('보내 주세여를 보내 주세요 또는 보내 주시기 바랍니다로 다듬었습니다.'));
   await cards.nth(2).getByRole('button', { name: '이 문장 적용', exact: true }).click();
   await expect(editor).toHaveValue(before + candidates[2].text + after);
   await expect.poll(() => page.evaluate(key => {

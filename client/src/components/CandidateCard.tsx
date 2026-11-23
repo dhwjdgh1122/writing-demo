@@ -12,8 +12,9 @@ function DiffLine({ parts, side }: { parts: DiffPart[]; side: 'source' | 'candid
   })}</>;
 }
 
-export function CandidateCard({ candidate, source, index, explanation, onApply, actionsDisabled = false, rerunControl, title }: {
+export function CandidateCard({ candidate, source, index, explanation, explanationPending, comparisonOpen, onComparisonToggle, onApply, actionsDisabled = false, rerunControl, title }: {
   candidate: Candidate; source: string; index: number; explanation?: ExplanationResult;
+  explanationPending?: string; comparisonOpen?: boolean; onComparisonToggle?: (open: boolean) => void;
   onApply?: () => void; actionsDisabled?: boolean; rerunControl?: ReactNode; title?: string;
 }) {
   const comparison = useMemo(() => { try { return diffExpressions(source, candidate.text); } catch { return null; } }, [source, candidate.text]);
@@ -21,7 +22,7 @@ export function CandidateCard({ candidate, source, index, explanation, onApply, 
   return <article className="candidate-card">
     <div className="candidate-heading">{!title && <span className="candidate-number">{String(index + 1).padStart(2, '0')}</span>}<h3>{title ?? `후보 ${index + 1}`}</h3>{identical && <span className="neutral-label">원문과 동일</span>}</div>
     <p className="candidate-text">{candidate.text}</p>
-    <details className="comparison">
+    <details className="comparison" open={comparisonOpen} onToggle={event => onComparisonToggle?.(event.currentTarget.open)}>
       <summary>원문 비교</summary>
       <div className="comparison-content">
         {comparison && <div className="comparison-legend" role="group" aria-label="변경 표시 안내">
@@ -39,6 +40,7 @@ export function CandidateCard({ candidate, source, index, explanation, onApply, 
     {explanation && <div className="candidate-explanation"><h4>교정 이유</h4><p>{'error' in explanation
       ? explanation.error === 'EXPLANATION_QUOTE_MISMATCH' ? '원문·교정안과 인용이 맞지 않아 이 후보의 설명을 표시하지 않았습니다.' : '이 후보의 설명 형식을 확인하지 못해 표시하지 않았습니다.'
       : explanation.explanation}</p></div>}
+    {explanationPending && <div className="candidate-explanation"><h4>교정 이유</h4><p className="loading-message" role="status"><span className="spinner" />{explanationPending}</p></div>}
     {onApply && <div className="candidate-actions"><button className="apply-button" disabled={identical || actionsDisabled} onClick={onApply}>{identical ? '변경 없음' : '이 문장 적용'}<Icon name={identical ? 'check' : 'arrow'} size={17} /></button>{rerunControl}</div>}
   </article>;
 }
