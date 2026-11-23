@@ -6,7 +6,7 @@
 
 ### 현재 작업을 확인하는 방법
 
-11/12 이후 확인창·원문 비교 안내·선택 표시 유지와 줄바꿈 보존 지침이 main에 반영됐고, 문장 누락 사례의 제한 반복 점검과 AI 사전 점검 자료를 기록했다. 11/19에는 [PR #36](https://github.com/dhwjdgh1122/writing-demo/pull/36)의 후보별 설명 실패 처리 등을 main에 반영했다. [#22](https://github.com/dhwjdgh1122/writing-demo/issues/22)의 설명 내용 품질 개선은 미완료이며, [독립 반영 범위와 남은 변경](검증%20기록.md#explanation-isolation-01)을 구분한다. 구현 범위는 [기능명세](FEATURE_SPEC.md), 확인 결과와 한계는 [검증 기록](검증%20기록.md)을 따른다. 아래 11/12 경과와 11/9 계획은 과거 기록이며 현재 상태표가 아니다.
+현재 main은 일반 교정 3개·카드 재교정 1개, 비교·설명 읽기 유지, 표현별 이유 탐색과 브라우저 이력·행동 기록을 제공한다. [표현별 설명 반영 후 전체 정합성 점검](검증%20기록.md#project-consistency-post-expression-20261123)에 구현·검증·미병합 브랜치·보류 범위를 구분했다. [#22](https://github.com/dhwjdgh1122/writing-demo/issues/22)의 설명 내용 품질 개선은 미완료이며 기존 장시간 목표는 미달성 종료 상태다. 구현 기준은 [기능명세](FEATURE_SPEC.md), 실제 확인 결과는 [검증 기록](검증%20기록.md)을 따른다. 아래 11/12 경과와 11/9 계획은 과거 기록이며 현재 상태표가 아니다.
 
 11/23 사용자 요청으로 확인창을 제거하는 후속 작업은 [#64](https://github.com/dhwjdgh1122/writing-demo/issues/64)에 연결한다. 드래그 버튼·상단 버튼은 유지하고 누르면 바로 요청한다. 과거 확인창 도입 기록을 현재 동작으로 읽지 않도록 [변경 근거·검증](검증%20기록.md#direct-correction-entry-01)을 구분한다.
 
@@ -16,7 +16,7 @@
 
 **11/23 후속 점검:** [#62의 후보별 수정·실행 위치 유지 검증](검증%20기록.md#candidate-revision-01)과 [프로젝트 전반의 정합성 점검](검증%20기록.md#project-consistency-20261123)을 연결한다. 최초·일반/적용 후 교정의 후보 3개와 카드 재교정의 1개 교체, 실제 생성 요청별 설명·이력 연결을 구분한다. #7·#9·#22·#59와 보존 Draft는 별도 남은 작업이며 이번 기능 검증으로 해결 처리하지 않는다.
 
-**표현별 교정 이유 후속 개선:** [#68](https://github.com/dhwjdgh1122/writing-demo/issues/68)에서 변경 표현 직접 선택, 대응 강조·이유 연결, 화면 밖 설명으로 이동, 내용 길이에 맞는 높이를 다룬다. 임시 시안의 준비된 설명을 실제 모델의 구간별 응답과 연결하는 작업이며, #22의 내용 품질 완료와 구분한다. [구현·검증과 한계](검증%20기록.md#expression-linked-reasons-01)를 연결하고 최신 main 반영·진행 상태는 Issue·PR·Projects에서 확인한다.
+**표현별 교정 이유 후속 개선:** [#68](https://github.com/dhwjdgh1122/writing-demo/issues/68)·[PR #69](https://github.com/dhwjdgh1122/writing-demo/pull/69)로 변경 표현 직접 선택, 대응 강조·이유 연결, 화면 밖 설명으로 이동, 내용 길이에 맞는 높이를 main에 반영했다. 임시 시안의 준비된 설명 대신 실제 모델의 구간별 응답을 연결하며, #22의 내용 품질 완료와 구분한다. [구현·검증과 한계](검증%20기록.md#expression-linked-reasons-01)를 연결한다.
 
 ### 11/12 확인한 실제 진행 경과
 
@@ -199,7 +199,7 @@ TASKS는 작업 안내·출처·링크를, Issue는 상세 작업 내용·완료
 | 작업 | Issue·근거 |
 |---|---|
 | 고정 후보로 현재 교정 설명의 품질과 차단 결과 평가 | [#20](https://github.com/dhwjdgh1122/writing-demo/issues/20) — #5 후속 평가 진행 요청과 [평가 기준](교정%20설명%20평가%20기준.md), 실제 결과는 [EXPLANATION-EVAL-01](검증%20기록.md#explanation-eval-01) |
-| 일부 후보의 설명 미표시 후 재시도 경로 확인 | [#59](https://github.com/dhwjdgh1122/writing-demo/issues/59) — 실패 후 재시도에서 후보 3에만 이유가 보이고 후보 1·2의 재시도 경로를 이용하지 못했다는 제보. [접수·코드 대조·미확인 범위](검증%20기록.md#explanation-retry-report-01)를 보존하며, #22의 내용 품질과 별도로 후속 점검한다. [후보 표시 전 연속 오류](검증%20기록.md#correction-entry-report-01)는 관련 추가 관찰로 연결하되 실패 단계와 공통 원인 미확인을 구분한다. |
+| 일부 후보의 설명 미표시 후 재시도 경로 확인 | [#59](https://github.com/dhwjdgh1122/writing-demo/issues/59) — 실패 후 재시도에서 후보 3에만 이유가 보이고 후보 1·2의 재시도 경로를 이용하지 못했다는 제보. [접수·코드 대조·미확인 범위](검증%20기록.md#explanation-retry-report-01)를 보존하며, #22의 내용 품질과 별도로 후속 점검한다. [11/23 팀원 재시험](검증%20기록.md#explanation-retry-followup-20261123)에서는 실패한 설명의 추가 재시도가 가능해 원래 현상을 재현하지 못했다. [후보 표시 전 연속 오류](검증%20기록.md#correction-entry-report-01)는 별도 단계의 관찰이며 공통 원인은 미확인이다. |
 | 교정 설명의 조건부 선택 안내와 쉬운 표현 보완 | [#22](https://github.com/dhwjdgh1122/writing-demo/issues/22) — #20에서 확인한 선택 기준 부족·부정확한 설명의 후속 개선. [PR #23](https://github.com/dhwjdgh1122/writing-demo/pull/23)·[PR #34](https://github.com/dhwjdgh1122/writing-demo/pull/34)의 품질 실험은 보존하고, 실패 처리의 독립 반영 범위는 [EXPLANATION-ISOLATION-01](검증%20기록.md#explanation-isolation-01)에서 구분한다. |
 
 #20은 현재 설정 제공자의 고정 후보 설명 평가다. #9의 제공자 간 비교 계획, 교정 후보 생성 품질, 실제 사용자 효과 검증과 구분한다.
