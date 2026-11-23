@@ -5,6 +5,7 @@ import { providerFromEnv } from '../server/llm/config.js';
 import { ProviderError, type ProviderFailure } from '../server/llm/provider.js';
 import { explanationQuotesMatch } from '../server/llm/explanation-check.js';
 import multilineReport from './fixtures/explanation-reported-multiline.json';
+import { candidatesWithExplanationChanges } from '../shared/explanation-changes.js';
 
 test('reported multiline quote consumes the whole span instead of the particle between closing and opening quotes', () => {
   assert.equal(explanationQuotesMatch(multilineReport.sourceText, multilineReport.candidate.text, multilineReport.reportedExplanation), true);
@@ -175,7 +176,7 @@ test('explanations use only source and candidates; IDs are preserved and identic
   const provider = createGeminiProvider(config, async (_url, options) => {
     calls++;
     const body = JSON.parse(String(options?.body));
-    assert.deepEqual(JSON.parse(body.contents[0].parts[0].text), { sourceText: '목요일에 안내합니다.', candidates });
+    assert.deepEqual(JSON.parse(body.contents[0].parts[0].text), { sourceText: '목요일에 안내합니다.', candidates: candidatesWithExplanationChanges('목요일에 안내합니다.', candidates) });
     assert.match(body.systemInstruction.parts[0].text, /정당화하지 않는다/);
     return new Response(JSON.stringify(completion({ explanations: [
       { candidateId: 'same', explanation: '더 명확해졌습니다.' },

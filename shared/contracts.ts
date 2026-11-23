@@ -41,7 +41,15 @@ export function targetCandidatesMatch(left?: Candidate, right?: Candidate): bool
 export const explanationInputSchema = correctionInputSchema.extend({
   candidates: z.array(candidateSchema).min(1).max(3).refine(cs => new Set(cs.map(c => c.id)).size === cs.length),
 }).strict();
-export const explanationsSchema = z.array(z.object({ candidateId: requestIdSchema, explanation: nonBlank(400) }).strict()).min(1).max(3);
+export const changeExplanationSchema = z.object({
+  changeId: requestIdSchema, title: nonBlank(40), explanation: nonBlank(200), caution: nonBlank(160).optional(),
+}).strict();
+export type ChangeExplanation = z.infer<typeof changeExplanationSchema>;
+export const explanationsSchema = z.array(z.object({
+  candidateId: requestIdSchema, explanation: nonBlank(400),
+  // Absent for older history and a model's explicit whole-candidate fallback.
+  changes: z.array(changeExplanationSchema).max(LIMITS.selection).optional(),
+}).strict()).min(1).max(3);
 export const explanationFailureSchema = z.object({
   candidateId: requestIdSchema,
   error: z.enum(['EXPLANATION_QUOTE_MISMATCH', 'EXPLANATION_INVALID']),

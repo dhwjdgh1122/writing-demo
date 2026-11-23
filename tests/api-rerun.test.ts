@@ -10,6 +10,7 @@ import { createGeminiProvider } from '../server/llm/gemini.js';
 import { createEliceProvider } from '../server/llm/elice.js';
 import { correctionInstruction, explanationInstruction } from '../server/llm/prompt.js';
 import type { CorrectionProvider } from '../server/llm/provider.js';
+import { candidatesWithExplanationChanges } from '../shared/explanation-changes.js';
 
 const sourceText = '목요일에 10명에게 안내합니다.\n\n확인을 기다립니다.';
 const previousSourceText = '담당자가 승인하면 목요일에 8명에게 안내할 예정입니다.\n\n확인을 기다립니다.';
@@ -121,7 +122,7 @@ for (const name of ['gemini', 'elice'] as const) {
     const provider = providerWith(name, async (_url, options) => {
       calls++;
       const sent = readSent(name, options);
-      assert.deepEqual(sent.input, { sourceText: '현재 원문', candidates, retryContext: context, targetCandidate });
+      assert.deepEqual(sent.input, { sourceText: '현재 원문', candidates: candidatesWithExplanationChanges('현재 원문', candidates), retryContext: context, targetCandidate });
       assert.match(sent.instruction, /설명 대상은 현재 sourceText와 현재 candidates 사이의 실제 변화/);
       assert.match(sent.instruction, /요구를 전달했다는 사실만으로 충족했다고 주장하지 않는다/);
       return Response.json(completion(name, { explanations: [{ candidateId: 'new-third', explanation: calls === 1
@@ -182,7 +183,7 @@ for (const name of ['gemini', 'elice'] as const) {
     const provider = providerWith(name, async (_url, options) => {
       calls++;
       const sent = readSent(name, options);
-      assert.deepEqual(sent.input, { sourceText, candidates: currentCandidates, retryContext: context });
+      assert.deepEqual(sent.input, { sourceText, candidates: candidatesWithExplanationChanges(sourceText, currentCandidates), retryContext: context });
       assert.match(sent.instruction, /요구를 전달했다는 사실만으로 충족했다고 주장/);
       assert.match(sent.instruction, /현재 sourceText와 현재 candidates 사이의 차이/);
       assert.match(sent.instruction, /이전 자료에만 있는 표현을 인용 근거로 쓰지 않는다/);
@@ -208,7 +209,7 @@ for (const name of ['gemini', 'elice'] as const) {
       calls++;
       const sent = readSent(name, options);
       const explaining = 'candidates' in sent.input;
-      assert.deepEqual(sent.input, explaining ? { sourceText, candidates: currentCandidates } : { sourceText });
+      assert.deepEqual(sent.input, explaining ? { sourceText, candidates: candidatesWithExplanationChanges(sourceText, currentCandidates) } : { sourceText });
       assert.equal(sent.instruction, explaining ? explanationInstruction : correctionInstruction);
       return Response.json(completion(name, explaining
         ? { explanations: [{ candidateId: 'new-one', explanation: '안내 인원이 달라졌습니다.' }] }

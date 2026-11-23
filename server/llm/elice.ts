@@ -3,6 +3,7 @@ import { modelOutputSchema, candidateRevisionOutputSchema } from '../../shared/c
 import { parseExplanations } from './parse-explanations.js';
 import { ProviderError, type CorrectionProvider } from './provider.js';
 import { activeRetryContext, correctionInstructionFor, explanationInstructionFor } from './prompt.js';
+import { candidatesWithExplanationChanges } from '../../shared/explanation-changes.js';
 
 const envelopeSchema = z.object({
   choices: z.array(z.object({
@@ -76,7 +77,7 @@ export function createEliceProvider(config: { apiKey: string; model: string; bas
     },
     async generateExplanations(sourceText, candidates, signal, retryContext, targetCandidate) {
       const context = activeRetryContext(retryContext);
-      const decoded = await generate(explanationInstructionFor(context, targetCandidate), { sourceText, candidates, ...(context ? { retryContext: context } : {}), ...(targetCandidate ? { targetCandidate } : {}) }, signal);
+      const decoded = await generate(explanationInstructionFor(context, targetCandidate), { sourceText, candidates: candidatesWithExplanationChanges(sourceText, candidates), ...(context ? { retryContext: context } : {}), ...(targetCandidate ? { targetCandidate } : {}) }, signal);
       return parseExplanations(sourceText, candidates, decoded);
     },
   };

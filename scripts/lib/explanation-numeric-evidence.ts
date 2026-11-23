@@ -1,4 +1,6 @@
-import { explanationInputSchema, type Candidate } from '../../shared/contracts.js';
+import { z } from 'zod';
+import { candidateSchema, explanationInputSchema, LIMITS, requestIdSchema, type Candidate } from '../../shared/contracts.js';
+import { getExplanationChanges, type ExplanationChange } from '../../shared/explanation-changes.js';
 
 export type NumberSpelling = { text: string; count: number };
 export type NumericEvidence = {
@@ -47,7 +49,22 @@ type GeminiRequest = {
   contents: [{ role: string; parts: [{ text: string }] }];
 };
 type EliceRequest = { messages: [{ role: string; content: string }, { role: string; content: string }] };
-const modelInputSchema = explanationInputSchema.omit({ requestId: true });
+// This manual experiment accepts legacy input and the production adapter's
+// computed groups, but must not silently drop or rewrite those groups.
+const groupSchema = z.object({
+  id: requestIdSchema, sourceText: z.string().max(LIMITS.selection * 2), candidateText: z.string().max(LIMITS.candidate * 2),
+  sourceStart: z.number().int().min(0).max(LIMITS.selection * 2), sourceEnd: z.number().int().min(0).max(LIMITS.selection * 2),
+  candidateStart: z.number().int().min(0).max(LIMITS.candidate * 2), candidateEnd: z.number().int().min(0).max(LIMITS.candidate * 2),
+}).strict();
+const modelInputSchema = explanationInputSchema.omit({ requestId: true }).extend({
+  candidates: z.array(candidateSchema.extend({ changes: z.array(groupSchema).max(LIMITS.selection).optional() }))
+    .min(1).max(3).refine(candidates => new Set(candidates.map(candidate => candidate.id)).size === candidates.length),
+}).refine(input => input.candidates.every(candidate => {
+  if (!candidate.changes) return true;
+  const expected = getExplanationChanges(input.sourceText, candidate.text);
+  return candidate.changes.length === expected.length && expected.every((group, index) =>
+    Object.entries(group).every(([key, value]) => candidate.changes![index][key as keyof ExplanationChange] === value));
+}));
 
 // Manual evaluation boundary only. The production adapters keep their prompt,
 // API contract and model settings. Never repair or transform a model response.

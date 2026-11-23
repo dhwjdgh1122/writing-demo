@@ -7,6 +7,7 @@ import { createGeminiProvider } from '../server/llm/gemini.js';
 import { createEliceProvider } from '../server/llm/elice.js';
 import { explanationInstruction } from '../server/llm/prompt.js';
 import coverageCases from './fixtures/correction-coverage-cases.json';
+import { candidatesWithExplanationChanges } from '../shared/explanation-changes.js';
 
 const generatedCandidates = ['금요일까지 자료를 보내주세요.', '금요일까지 자료를 보내 주세요.', '자료를 금요일까지 보내주시기 바랍니다.'];
 
@@ -47,7 +48,7 @@ for (const name of ['gemini', 'elice'] as const) {
       calls++;
       const request = JSON.parse(String(options?.body));
       assert.equal(name === 'gemini' ? request.systemInstruction.parts[0].text : request.messages[0].content, explanationInstruction);
-      assert.deepEqual(JSON.parse(name === 'gemini' ? request.contents[0].parts[0].text : request.messages[1].content), { sourceText, candidates });
+      assert.deepEqual(JSON.parse(name === 'gemini' ? request.contents[0].parts[0].text : request.messages[1].content), { sourceText, candidates: candidatesWithExplanationChanges(sourceText, candidates) });
       if (name === 'gemini') assert.deepEqual(request.generationConfig.responseJsonSchema.properties.explanations.items.required, ['candidateId', 'explanation']);
       const text = JSON.stringify({ explanations: [
         { candidateId: 'format', ...malformed },
@@ -109,7 +110,7 @@ for (const name of ['gemini', 'elice'] as const) {
           calls++;
           const request = JSON.parse(String(options?.body));
           const sent = JSON.parse(name === 'gemini' ? request.contents[0].parts[0].text : request.messages[1].content);
-          assert.deepEqual(sent, explaining ? { sourceText: input.sourceText, candidates: input.candidates } : { sourceText: input.sourceText });
+          assert.deepEqual(sent, explaining ? { sourceText: input.sourceText, candidates: candidatesWithExplanationChanges(input.sourceText, input.candidates!) } : { sourceText: input.sourceText });
           return Response.json(name === 'gemini'
             ? { candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: raw }] } }] }
             : { choices: [{ finish_reason: 'length', message: { content: raw } }] });

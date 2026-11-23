@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { correctionInputSchema, explanationInputSchema, explanationResultsSchema, explanationsMatch, modelOutputSchema, candidateRevisionOutputSchema, LIMITS, requestIdSchema, type ApiErrorBody, type ErrorCode, type ExplanationResult } from '../shared/contracts.js';
 import { ProviderError, unavailableProvider, type CorrectionProvider } from './llm/provider.js';
 import { explanationQuotesMatch } from './llm/explanation-check.js';
+import { explanationChangesMatch } from '../shared/explanation-changes.js';
 
 export function createApp(provider: CorrectionProvider = unavailableProvider, timeoutMs: number = LIMITS.timeout) {
   const app = express();
@@ -46,7 +47,13 @@ export function createApp(provider: CorrectionProvider = unavailableProvider, ti
         const results: ExplanationResult[] = explanations.data.map(item => {
           if ('error' in item) return item;
           const candidate = explanationInput.data.candidates.find(c => c.id === item.candidateId)!;
-          return explanationQuotesMatch(explanationInput.data.sourceText, candidate.text, item.explanation) ? item
+          const source = explanationInput.data.sourceText;
+          if (item.changes && !explanationChangesMatch(source, candidate.text, item.changes)) {
+            return { candidateId: item.candidateId, error: 'EXPLANATION_INVALID' };
+          }
+          const texts = [item.explanation, ...(item.changes ?? []).flatMap(change =>
+            [change.title, change.explanation, ...(change.caution ? [change.caution] : [])])];
+          return texts.every(text => explanationQuotesMatch(source, candidate.text, text)) ? item
             : { candidateId: item.candidateId, error: 'EXPLANATION_QUOTE_MISMATCH' };
         });
         if (!res.destroyed) res.json({ ...explanationInput.data, explanations: results });
