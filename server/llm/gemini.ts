@@ -3,6 +3,7 @@ import { CORRECTION_CANDIDATE_COUNT, modelOutputSchema, candidateRevisionOutputS
 import { parseExplanations } from './parse-explanations.js';
 import { ProviderError, type CorrectionProvider } from './provider.js';
 import { activeRetryContext, correctionInstructionFor, explanationInstructionFor } from './prompt.js';
+import { candidatesWithExplanationChanges } from '../../shared/explanation-changes.js';
 
 // One Gemini completion contains our three alternatives, not three API calls.
 const envelopeSchema = z.object({
@@ -72,9 +73,14 @@ export function createGeminiProvider(config: { apiKey: string; model: string }, 
     },
     async generateExplanations(sourceText, candidates, signal, retryContext, targetCandidate) {
       const context = activeRetryContext(retryContext);
-      const decoded = await generate(explanationInstructionFor(context, targetCandidate), { sourceText, candidates, ...(context ? { retryContext: context } : {}), ...(targetCandidate ? { targetCandidate } : {}) }, {
+      const decoded = await generate(explanationInstructionFor(context, targetCandidate), { sourceText, candidates: candidatesWithExplanationChanges(sourceText, candidates), ...(context ? { retryContext: context } : {}), ...(targetCandidate ? { targetCandidate } : {}) }, {
         type: 'object', properties: { explanations: { type: 'array', minItems: 1, maxItems: 3,
-          items: { type: 'object', properties: { candidateId: { type: 'string', enum: candidates.map(c => c.id) }, explanation: { type: 'string' } },
+          items: { type: 'object', properties: {
+            candidateId: { type: 'string', enum: candidates.map(c => c.id) }, explanation: { type: 'string' },
+            changes: { type: 'array', items: { type: 'object', properties: {
+              changeId: { type: 'string' }, title: { type: 'string' }, explanation: { type: 'string' }, caution: { type: 'string' },
+            }, required: ['changeId', 'title', 'explanation'], additionalProperties: false } },
+          },
             required: ['candidateId', 'explanation'], additionalProperties: false } } },
         required: ['explanations'], additionalProperties: false,
       }, signal);

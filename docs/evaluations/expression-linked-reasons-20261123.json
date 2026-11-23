@@ -1,0 +1,155 @@
+{
+  "recordedAt": "2026-11-23T08:40:16.495Z",
+  "finishedAt": "2026-11-23T08:40:21.027Z",
+  "baseCommit": "5256882372bcb9992fdbd853362b604c6a0067d4",
+  "purpose": "Issue #68 구간별 설명 연결의 실제 모델 1회 점검. #22 품질 평가나 후보 생성 시험이 아님.",
+  "provider": "gemini",
+  "model": "gemini-3.5-flash-lite",
+  "upstreamCallCount": 1,
+  "providerHttpStatus": 200,
+  "apiStatus": 200,
+  "usage": {
+    "promptTokenCount": 2477,
+    "candidatesTokenCount": 982,
+    "totalTokenCount": 3459,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 2477
+      }
+    ],
+    "serviceTier": "standard"
+  },
+  "expectedGroupCounts": [
+    {
+      "candidateId": "smoke-formal",
+      "count": 8
+    },
+    {
+      "candidateId": "smoke-spacing",
+      "count": 7
+    },
+    {
+      "candidateId": "smoke-same",
+      "count": 0
+    }
+  ],
+  "response": {
+    "requestId": "expression-reasons-smoke-20261123",
+    "sourceText": "안녕 하세요. 다음주 목요일 오후 3시에 팀 회의를 진행할 예정 입니다.\n참석 가능하신 분들은 수요일 까지 댓글로 알려 주시기바랍니다.\n회의 자료는 미리 읽어보시고, 궁금한점은 따로 적어 주세요.\n참석이 어려우신 분들에게는 회의가 끝난뒤 내용을 공유 하겠습니다.",
+    "candidates": [
+      {
+        "id": "smoke-formal",
+        "text": "안녕하세요. 다가오는 목요일 오후 3시에 팀 회의를 열고자 합니다.\n참석 여부는 수요일까지 댓글로 남겨 주시기 바랍니다.\n회의 자료를 사전에 검토하시고, 의문 사항은 따로 메모해 주세요.\n부득이하게 참석하지 못하는 분들께는 회의 종료 후 내용을 전달해 드리겠습니다."
+      },
+      {
+        "id": "smoke-spacing",
+        "text": "안녕하세요. 다음 주 목요일 오후 3시에 팀 회의를 진행할 예정입니다.\n참석 가능하신 분들은 수요일까지 댓글로 알려 주시기 바랍니다.\n회의 자료는 미리 읽어 보시고, 궁금한 점은 따로 적어 주세요.\n참석이 어려우신 분들에게는 회의가 끝난 뒤 내용을 공유하겠습니다."
+      },
+      {
+        "id": "smoke-same",
+        "text": "안녕 하세요. 다음주 목요일 오후 3시에 팀 회의를 진행할 예정 입니다.\n참석 가능하신 분들은 수요일 까지 댓글로 알려 주시기바랍니다.\n회의 자료는 미리 읽어보시고, 궁금한점은 따로 적어 주세요.\n참석이 어려우신 분들에게는 회의가 끝난뒤 내용을 공유 하겠습니다."
+      }
+    ],
+    "explanations": [
+      {
+        "candidateId": "smoke-formal",
+        "explanation": "전반적인 표현을 격식체로 수정하고 어휘를 다듬었습니다.",
+        "changes": [
+          {
+            "changeId": "change-2kg0h8ajpvgkf-0-11-0-11",
+            "title": "인사말 및 일정 수정",
+            "explanation": "인사말을 수정하고 다음주를 다가오는로 바꾸었습니다."
+          },
+          {
+            "changeId": "change-2kg0h8ajpvgkf-29-40-29-37",
+            "title": "진행 표현 변경",
+            "explanation": "진행할 예정 입니다를 열고자 합니다로 변경했습니다."
+          },
+          {
+            "changeId": "change-2kg0h8ajpvgkf-44-59-41-50",
+            "title": "참석 여부 표현 간소화",
+            "explanation": "참석 가능하신 분들은 수요일 까지를 참석 여부는 수요일까지로 바꿨습니다."
+          },
+          {
+            "changeId": "change-2kg0h8ajpvgkf-64-75-55-67",
+            "title": "요청 표현 다듬기",
+            "explanation": "알려 주시기바랍니다를 남겨 주시기 바랍니다로 수정했습니다."
+          },
+          {
+            "changeId": "change-2kg0h8ajpvgkf-79-98-71-92",
+            "title": "사전 검토 표현 변경",
+            "explanation": "미리 읽어보시고, 궁금한점은을 사전에 검토하시고, 의문 사항은으로 변경했습니다."
+          },
+          {
+            "changeId": "change-2kg0h8ajpvgkf-102-104-96-99",
+            "title": "메모 표현 변경",
+            "explanation": "적어를 메모해로 수정했습니다."
+          },
+          {
+            "changeId": "change-2kg0h8ajpvgkf-110-132-105-132",
+            "title": "참석 불가 안내 변경",
+            "explanation": "참석이 어려우신 분들에게는 회의가 끝난뒤를 부득이하게 참석하지 못하는 분들께는 회의 종료 후로 바꿨습니다."
+          },
+          {
+            "changeId": "change-2kg0h8ajpvgkf-137-146-137-148",
+            "title": "공유 표현 변경",
+            "explanation": "공유 하겠습니다를 전달해 드리겠습니다로 수정했습니다."
+          }
+        ]
+      },
+      {
+        "candidateId": "smoke-spacing",
+        "explanation": "맞춤법과 띄어쓰기를 올바르게 교정했습니다.",
+        "changes": [
+          {
+            "changeId": "change-2k9nozdtn3j5z-0-11-0-11",
+            "title": "인사말 및 띄어쓰기 교정",
+            "explanation": "안녕 하세요와 다음주를 올바른 띄어쓰기로 수정했습니다."
+          },
+          {
+            "changeId": "change-2k9nozdtn3j5z-33-40-33-39",
+            "title": "예정입니다 띄어쓰기 교정",
+            "explanation": "예정 입니다를 예정입니다로 붙여 썼습니다."
+          },
+          {
+            "changeId": "change-2k9nozdtn3j5z-53-59-52-57",
+            "title": "수요일까지 띄어쓰기 교정",
+            "explanation": "수요일 까지를 수요일까지로 붙였습니다."
+          },
+          {
+            "changeId": "change-2k9nozdtn3j5z-67-75-65-74",
+            "title": "주시기 바랍니다 띄어쓰기 교정",
+            "explanation": "주시기바랍니다를 주시기 바랍니다로 띄어 썼습니다."
+          },
+          {
+            "changeId": "change-2k9nozdtn3j5z-86-98-85-99",
+            "title": "읽어 보시고 띄어쓰기 교정",
+            "explanation": "읽어보시고, 궁금한점은을 읽어 보시고, 궁금한 점은으로 고쳤습니다."
+          },
+          {
+            "changeId": "change-2k9nozdtn3j5z-129-132-130-134",
+            "title": "끝난 뒤 띄어쓰기 교정",
+            "explanation": "끝난뒤를 끝난 뒤로 띄어 썼습니다."
+          },
+          {
+            "changeId": "change-2k9nozdtn3j5z-137-146-139-147",
+            "title": "공유하겠습니다 띄어쓰기 교정",
+            "explanation": "공유 하겠습니다를 공유하겠습니다로 붙여 썼습니다."
+          }
+        ]
+      },
+      {
+        "candidateId": "smoke-same",
+        "explanation": "원문과 동일하여 변경된 표현이나 의미가 없습니다.",
+        "changes": []
+      }
+    ]
+  },
+  "limitations": [
+    "기존 사용자 예문과 준비된 후보를 입력했다. 이 점검에서 후보 생성은 호출하지 않았다.",
+    "구간 ID·개수·응답 형식과 기존 인용 검사를 통과했다. 의미 정확성이나 사용자 효과 통과를 뜻하지 않는다.",
+    "날짜·요청 대상·불참 사유 변화의 영향과 선택 기준이 충분히 설명되지 않고 변화 나열에 머문 항목이 있다.",
+    "엘리스와 긴 입력의 실제 모델 연결은 이 점검에서 실행하지 않았다."
+  ]
+}

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { explanationsSchema, explanationsMatch, requestIdSchema, type Candidate, type ExplanationResult } from '../../shared/contracts.js';
+import { explanationChangesMatch } from '../../shared/explanation-changes.js';
 import { ProviderError } from './provider.js';
 
 // Keep the existing model response contract. Only isolate errors after every ID
@@ -14,8 +15,12 @@ export function parseExplanations(source: string, candidates: Candidate[], raw: 
   return envelope.data.explanations.map(item => {
     const parsed = explanationsSchema.element.safeParse(item);
     if (!parsed.success) return { candidateId: item.candidateId, error: 'EXPLANATION_INVALID' };
-    return candidates.find(c => c.id === item.candidateId)!.text === source
-      ? { candidateId: item.candidateId, explanation: '원문과 동일하여 변경된 표현이나 의미가 없습니다.' }
+    const candidate = candidates.find(c => c.id === item.candidateId)!;
+    if (parsed.data.changes && !explanationChangesMatch(source, candidate.text, parsed.data.changes)) {
+      return { candidateId: item.candidateId, error: 'EXPLANATION_INVALID' };
+    }
+    return candidate.text === source
+      ? { candidateId: item.candidateId, explanation: '원문과 동일하여 변경된 표현이나 의미가 없습니다.', ...(parsed.data.changes ? { changes: [] } : {}) }
       : parsed.data;
   });
 }

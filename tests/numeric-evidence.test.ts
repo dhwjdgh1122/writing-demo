@@ -5,6 +5,7 @@ import { createGeminiProvider } from '../server/llm/gemini.js';
 import { createEliceProvider } from '../server/llm/elice.js';
 import { explanationInstruction } from '../server/llm/prompt.js';
 import { ProviderError } from '../server/llm/provider.js';
+import { candidatesWithExplanationChanges } from '../shared/explanation-changes.js';
 
 const evidence = (source: string, candidate: string) => buildNumericEvidence(source, [{ id: 'one', text: candidate }])[0];
 
@@ -69,9 +70,9 @@ for (const name of ['gemini', 'elice'] as const) {
       assert.equal(options?.signal, abort);
       assert.equal(options?.redirect, 'error');
       const originalInput = JSON.parse(name === 'gemini' ? original.contents[0].parts[0].text : original.messages[1].content);
-      assert.deepEqual(originalInput, { sourceText, candidates });
+      assert.deepEqual(originalInput, { sourceText, candidates: candidatesWithExplanationChanges(sourceText, candidates) });
       const input = JSON.parse(name === 'gemini' ? augmented.contents[0].parts[0].text : augmented.messages[1].content);
-      assert.deepEqual(input, { sourceText, candidates, numericEvidence: buildNumericEvidence(sourceText, candidates) });
+      assert.deepEqual(input, { sourceText, candidates: candidatesWithExplanationChanges(sourceText, candidates), numericEvidence: buildNumericEvidence(sourceText, candidates) });
       const instruction = name === 'gemini' ? augmented.systemInstruction.parts[0].text : augmented.messages[0].content;
       assert.equal(instruction, `${explanationInstruction}\n${numericEvidenceInstruction}`);
       const restored = structuredClone(augmented);
@@ -139,4 +140,19 @@ test('request augmentation rejects other request shapes without leaking their co
     return true;
   });
   assert.throws(() => augmentExplanationRequest('unknown' as 'gemini', {}), /Unsupported explanation request/);
+});
+
+test('numeric augmentation preserves exact computed groups and rejects tampered IDs, offsets and phrases', () => {
+  const makeRequest = (linkedCandidates: unknown) => ({
+    systemInstruction: { parts: [{ text: explanationInstruction }] },
+    contents: [{ role: 'user', parts: [{ text: JSON.stringify({ sourceText, candidates: linkedCandidates }) }] }],
+  });
+  const linked = candidatesWithExplanationChanges(sourceText, candidates);
+  for (const patch of [{ id: 'foreign' }, { sourceStart: 0 }, { candidateText: '없는 표현' }, { extra: true }]) {
+    const changed = structuredClone(linked);
+    Object.assign(changed[0].changes[0], patch);
+    assert.throws(() => augmentExplanationRequest('gemini', makeRequest(changed)), /Unsupported explanation request/);
+  }
+  const legacy = augmentExplanationRequest('gemini', makeRequest(candidates));
+  assert.deepEqual(JSON.parse(legacy.contents[0].parts[0].text).candidates, candidates);
 });

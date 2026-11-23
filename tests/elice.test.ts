@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createEliceProvider } from '../server/llm/elice.js';
 import { providerFromEnv } from '../server/llm/config.js';
 import { ProviderError, type ProviderFailure } from '../server/llm/provider.js';
+import { candidatesWithExplanationChanges } from '../shared/explanation-changes.js';
 
 const config = { apiKey: 'test-only-elice-key', model: 'gpt-4o-mini', baseUrl: 'https://mlapi.run/40cc17ae-a89b-4f12-a7d6-13293180fc87' };
 const signal = () => new AbortController().signal;
@@ -126,7 +127,7 @@ test('Elice explanations bind source and candidate IDs and normalize unchanged c
   const candidates = [{ id: 'changed', text: '이후에 안내합니다.' }, { id: 'same', text: sourceText }];
   const provider = createEliceProvider(config, async (_url, options) => {
     const body = JSON.parse(String(options?.body));
-    assert.deepEqual(JSON.parse(body.messages[1].content), { sourceText, candidates });
+    assert.deepEqual(JSON.parse(body.messages[1].content), { sourceText, candidates: candidatesWithExplanationChanges(sourceText, candidates) });
     assert.match(body.messages[0].content, /정당화하지 않는다/);
     return Response.json(completion({ explanations: [
       { candidateId: 'changed', explanation: '안내 날짜가 불분명해졌습니다.' },
