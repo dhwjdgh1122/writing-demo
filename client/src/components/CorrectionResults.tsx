@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { LIMITS, type Candidate, type CorrectionResult, type ExplanationResult, type ExplanationInput } from '../../../shared/contracts';
 import { requestExplanations, requestFailureCode } from '../lib/api';
 import { activityErrorCode, type ActivityInput } from '../lib/activity';
@@ -30,10 +30,14 @@ export function CorrectionResults({ result, candidateOrigins, onApply, onExplana
   const [loading, setLoading] = useState(false);
   const [explanations, setExplanations] = useState<ExplanationResult[] | null>(null);
   const [errors, setErrors] = useState<ExplanationError[]>([]);
+  const [comparisonsOpen, setComparisonsOpen] = useState<boolean[]>([]);
   const panelId = useId();
   const explanationCallback = useRef(onExplanationResults);
   const activityCallback = useRef(onActivity);
   const requesting = useRef(false);
+  // A failed automatic request must stay failed until the user explicitly retries.
+  // New candidate IDs are eligible once, even when an earlier request is pending.
+  const requestedCandidateIds = useRef(new Set<string>());
   const currentCandidates = useRef(result.candidates);
   currentCandidates.current = result.candidates;
 
@@ -88,12 +92,16 @@ export function CorrectionResults({ result, candidateOrigins, onApply, onExplana
   const visibleExplanations = explanations?.filter(explanation => result.candidates.some(candidate => candidate.id === explanation.candidateId)) ?? [];
   const failedIds = visibleExplanations.filter(explanation => 'error' in explanation).map(explanation => explanation.candidateId);
   const missingIds = result.candidates.filter(candidate => !visibleExplanations.some(explanation => explanation.candidateId === candidate.id)).map(candidate => candidate.id);
+  // Include queued IDs on the first replacement render, before the request effect,
+  // so restoring the rerun button's position uses the final loading layout.
+  const pendingIds = result.candidates.filter(candidate => missingIds.includes(candidate.id) && !requestedCandidateIds.current.has(candidate.id)
+    || loading && attempts?.some(attempt => attempt.input.candidates.some(sent => sent.id === candidate.id))).map(candidate => candidate.id);
   const error = errors.find(error => error.candidateIds.some(id => result.candidates.some(candidate => candidate.id === id)))?.message;
-  const request = () => {
+  const request = useCallback((candidateIds: string[]) => {
     if (requesting.current || disabled) return;
     const groups = new Map<string, { origin?: Snapshot; candidates: Candidate[] }>();
     for (const candidate of result.candidates) {
-      if (!missingIds.includes(candidate.id) && !failedIds.includes(candidate.id)) continue;
+      if (!candidateIds.includes(candidate.id)) continue;
       const origin = candidateOrigins?.[candidate.id];
       const key = origin?.requestId ?? result.requestId;
       const group = groups.get(key) ?? { origin, candidates: [] };
@@ -111,27 +119,42 @@ export function CorrectionResults({ result, candidateOrigins, onApply, onExplana
       const input: ExplanationInput = { requestId: attemptId, sourceText: origin?.sourceText ?? result.sourceText, candidates,
         ...(retryContext ? { retryContext } : {}), ...(targetCandidate ? { targetCandidate } : {}) };
       activityCallback.current?.({ ...activity, action: 'explanation_requested' });
+      for (const candidate of candidates) requestedCandidateIds.current.add(candidate.id);
       return { input, activity, historyRequestId };
     });
-    setErrors([]); setLoading(true); setAttempts(nextAttempts);
-  };
-  const toggleDisabled = disabled && !visibleExplanations.length;
+    setErrors(previous => previous.map(error => ({ ...error, candidateIds: error.candidateIds.filter(id => !candidateIds.includes(id)) }))
+      .filter(error => error.candidateIds.length > 0));
+    setLoading(true); setAttempts(nextAttempts);
+  }, [disabled, result, candidateOrigins, activityContext]);
+  useEffect(() => {
+    if (!open || loading || disabled) return;
+    // Wait for the previous batch to finish so its unchanged siblings can still
+    // receive their explanations. Closing the view leaves new IDs unrequested.
+    const unrequestedIds = missingIds.filter(id => !requestedCandidateIds.current.has(id));
+    if (unrequestedIds.length) request(unrequestedIds);
+  }, [open, loading, disabled, missingIds, request]);
+  const retry = () => request([...missingIds, ...failedIds]);
+  const toggleDisabled = disabled && !open && !visibleExplanations.length;
   const toggle = () => {
     if (toggleDisabled) return;
     setOpen(!open);
-    if (!open && !visibleExplanations.length && !loading && !error) request();
   };
   return <>
     <div className="explanation-toolbar"><button type="button" className="panel-action explanation-toggle" disabled={toggleDisabled} aria-expanded={open} aria-controls={panelId} onClick={toggle}><Icon name="message" size={18} /><span>교정 이유</span></button></div>
     <div id={panelId} hidden={!open} className="explanation-status" role="status" aria-live="polite">
-      {loading && <p className="loading-message"><span className="spinner" />교정 이유를 확인하고 있습니다.</p>}
-      {error && <div className="explanation-error"><p>{error}</p><button className="text-button" onClick={request} disabled={loading || disabled}>설명 다시 시도</button></div>}
+      {pendingIds.length > 0 && <p className="loading-message"><span className="spinner" />교정 이유를 확인하고 있습니다.</p>}
+      {error && <div className="explanation-error"><p>{error}</p><button className="text-button" onClick={retry} disabled={loading || disabled}>설명 다시 시도</button></div>}
       {visibleExplanations.some(e => 'explanation' in e) && <p>원문과 후보를 비교한 AI 설명입니다. 실제 차이와 함께 확인해주세요.</p>}
-      {!error && failedIds.length > 0 && <div className="explanation-error"><p>{failedIds.length === result.candidates.length ? '교정 이유를 표시하지 못했습니다.' : '일부 후보의 교정 이유를 표시하지 못했습니다.'} {disabled ? '원문 비교를 확인할 수 있습니다.' : '후보 비교와 적용은 계속할 수 있습니다.'}</p><button className="text-button" onClick={request} disabled={loading || disabled}>실패한 설명 다시 시도</button></div>}
-      {!error && !failedIds.length && missingIds.length > 0 && !loading && <div className="explanation-missing"><p>새 후보의 교정 이유는 아직 요청하지 않았습니다.</p><button className="text-button" onClick={request} disabled={disabled}>새 후보 설명 보기</button></div>}
+      {!error && failedIds.length > 0 && <div className="explanation-error"><p>{failedIds.length === result.candidates.length ? '교정 이유를 표시하지 못했습니다.' : '일부 후보의 교정 이유를 표시하지 못했습니다.'} {disabled ? '원문 비교를 확인할 수 있습니다.' : '후보 비교와 적용은 계속할 수 있습니다.'}</p><button className="text-button" onClick={retry} disabled={loading || disabled}>실패한 설명 다시 시도</button></div>}
     </div>
     <div className="candidate-list">{result.candidates.map((candidate, index) => <CandidateCard key={candidate.id} candidate={candidate} index={index} source={result.sourceText}
       explanation={open ? visibleExplanations.find(e => e.candidateId === candidate.id) : undefined} onApply={() => onApply(candidate.id)}
+      explanationPending={open && missingIds.includes(candidate.id) && pendingIds.includes(candidate.id)
+        ? candidateOrigins?.[candidate.id]?.targetCandidate ? '새 교정 이유를 생성하고 있습니다.' : '교정 이유를 생성하고 있습니다.' : undefined}
+      comparisonOpen={comparisonsOpen[index] ?? false} onComparisonToggle={value => setComparisonsOpen(previous => {
+        if ((previous[index] ?? false) === value) return previous;
+        const next = [...previous]; next[index] = value; return next;
+      })}
       actionsDisabled={disabled} rerunControl={renderRerun?.(candidate.id)} />)}</div>
     <p className="result-disclaimer">데모 생성 결과입니다. 적용 전에 내용을 확인해주세요.</p>
   </>;

@@ -230,7 +230,7 @@ test('wrong explanation IDs show an isolated error and can be retried without re
   await expect(page.locator('.candidate-explanation')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '이 문장 적용', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: '설명 다시 시도' }).click();
-  await expect(page.locator('.candidate-explanation')).toHaveCount(2);
+  await expect(page.locator('.candidate-explanation p')).toHaveText(['재시도 설명', '재시도 설명']);
   expect(calls).toBe(2);
 });
 
@@ -278,7 +278,7 @@ test('quotation validation error keeps candidates available and retries only exp
   await expect(page.locator('.candidate-card')).toHaveCount(2);
   await expect(page.getByRole('button', { name: '이 문장 적용', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: '설명 다시 시도' }).click();
-  await expect(page.locator('.candidate-explanation')).toHaveCount(2);
+  await expect(page.locator('.candidate-explanation p')).toHaveText(['재시도 설명', '재시도 설명']);
   expect(corrections).toBe(1);
   expect(explanations).toBe(2);
 });
