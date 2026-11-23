@@ -172,20 +172,26 @@ test('after application, rerun corrects the currently applied text and retains t
   const source = '자료 보내 주세여.';
   const applied = '자료를 보내 주세요.';
   const next = '자료를 보내 주시면 감사하겠습니다.';
-  const calls = await mockModels(page, [[applied], [next]]);
+  const initial = [applied, '자료 전달을 부탁드려요.', '자료를 보내 주시겠어요?'];
+  const replacement = [next, '자료를 전달해 주시면 감사하겠습니다.', '자료 송부를 부탁드립니다.'];
+  const calls = await mockModels(page, [initial, replacement]);
   await page.goto('/');
   await firstCorrection(page, `앞.\n${source}\n뒤.`, source);
-  await results(page).getByRole('button', { name: '이 문장 적용', exact: true }).click();
+  await results(page).getByRole('button', { name: '이 문장 적용', exact: true }).first().click();
   await expect(page.getByLabel('원문 입력')).toHaveValue(`앞.\n${applied}\n뒤.`);
+  await expect(results(page).locator('.candidate-text')).toHaveText(initial);
+  await expect(results(page).getByRole('button', { name: '적용됨', exact: true })).toBeDisabled();
   await selectRequirement(page, 'polite');
+  await expect(rerun(page)).toContainText('적용된 현재 문장을 기준으로 후보 3개를 다시 만듭니다.');
   expect(calls.corrections).toHaveLength(1);
   await rerunButton(page).click();
-  await expect(results(page).locator('.candidate-text')).toHaveText(next);
+  await expect(results(page).locator('.candidate-text')).toHaveText(replacement);
+  await expect(page.getByLabel('원문 입력')).toHaveValue(`앞.\n${applied}\n뒤.`);
   expect(calls.corrections[1]).toMatchObject({ sourceText: applied, retryContext: {
     requirement: 'polite', previousSourceText: source, previousCandidates: [calls.candidates[0][0]],
   } });
   expect(calls.corrections[1].targetCandidate).toBeUndefined();
-  await results(page).getByRole('button', { name: '이 문장 적용', exact: true }).click();
+  await results(page).getByRole('button', { name: '이 문장 적용', exact: true }).first().click();
   await expect(page.getByLabel('원문 입력')).toHaveValue(`앞.\n${next}\n뒤.`);
   const records = await historyRecords(page);
   expect(records.find(record => record.id === calls.corrections[1].requestId)).toMatchObject({ sourceText: applied,
@@ -196,6 +202,66 @@ test('after application, rerun corrects the currently applied text and retains t
   });
   expect(events.filter(event => event.action === 'candidate_applied')).toHaveLength(2);
 });
+
+for (const width of [1440, 390]) {
+  test(`applied candidates remain comparable and switch the same selected occurrence at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const source = '자료 보내 주세여.';
+    const initial = ['자료를 보내 주시면 감사하겠습니다.', '자료를 보내 주세요.', source];
+    const calls = await mockModels(page, [initial]);
+    await page.goto('/');
+    // A preceding identical occurrence must remain untouched even when replacements have different lengths.
+    const prefix = `앞. ${source}\n가운데. `;
+    const suffix = '\n뒤.';
+    const editor = page.getByLabel('원문 입력');
+    await editor.fill(prefix + source + suffix);
+    await selectRange(page, prefix.length, prefix.length + source.length);
+    await startCorrection(page);
+    const cards = results(page).locator('.candidate-card');
+    await expect(cards).toHaveCount(3);
+    await expect(cards.nth(2).getByRole('button', { name: '변경 없음', exact: true })).toBeDisabled();
+    for (const card of await cards.all()) await card.locator('summary').click();
+    await results(page).getByRole('button', { name: /교정 이유/ }).click();
+    await expect(cards.locator('.candidate-explanation p')).toHaveText(Array(3).fill(explanationText));
+    const before = await cards.first().getByRole('button', { name: '다시 교정하기', exact: true }).boundingBox();
+
+    for (const [step, index] of [0, 1, 2, 0].entries()) {
+      const buttonName = step === 0 ? '이 문장 적용' : '이 후보로 바꾸기';
+      await cards.nth(index).getByRole('button', { name: buttonName, exact: true }).click();
+      await expect(editor).toHaveValue(prefix + initial[index] + suffix);
+      await expect(cards.locator('.candidate-text')).toHaveText(initial);
+      await expect(cards.locator('.candidate-explanation p')).toHaveText(Array(3).fill(explanationText));
+      await expect(cards.nth(index).getByRole('button', { name: '적용됨', exact: true })).toBeDisabled();
+      await expect(cards.nth(index).getByRole('button', { name: '다시 교정하기', exact: true })).toBeFocused();
+      for (let sibling = 0; sibling < 3; sibling++) {
+        await expect(cards.nth(sibling).locator('details')).toHaveAttribute('open', '');
+        await expect(cards.nth(sibling).locator('.comparison-content > p').first()).toHaveText(source);
+        if (sibling !== index) {
+          await expect(cards.nth(sibling).getByRole('button', { name: '이 후보로 바꾸기', exact: true })).toBeEnabled();
+          await expect(cards.nth(sibling).getByRole('button', { name: '다시 교정하기', exact: true })).toBeDisabled();
+        }
+      }
+      const apply = await cards.nth(index).getByRole('button', { name: '적용됨', exact: true }).boundingBox();
+      const toggle = await cards.nth(index).getByRole('button', { name: '다시 교정하기', exact: true }).boundingBox();
+      expect(Math.abs(apply!.width - toggle!.width)).toBeLessThanOrEqual(1);
+      expect(Math.abs(apply!.height - toggle!.height)).toBeLessThanOrEqual(1);
+      expect(Math.abs(toggle!.width - before!.width)).toBeLessThanOrEqual(1);
+      expect(Math.abs(toggle!.height - before!.height)).toBeLessThanOrEqual(1);
+    }
+    await expect(results(page).getByRole('heading', { name: '적용한 내용을 확인해주세요' })).toHaveCount(0);
+    expect(calls.corrections).toHaveLength(1);
+    expect(calls.explanations).toHaveLength(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const records = await historyRecords(page);
+    expect(records.find(record => record.id === calls.corrections[0].requestId)?.appliedCandidateId).toBe(calls.candidates[0][0].id);
+    const applications = (await activityRecords(page)).events.filter(event => event.action === 'candidate_applied');
+    expect(applications).toHaveLength(4);
+    expect(applications.map(event => event.candidateId)).toEqual([0, 1, 2, 0].map(index => calls.candidates[0][index].id));
+    expect(applications.every(event => Boolean(event.attemptId))).toBe(true);
+    expect(new Set(applications.map(event => event.attemptId)).size).toBe(4);
+    await page.screenshot({ path: `test-results/applied-candidates-${width}.png`, fullPage: true });
+  });
+}
 
 test('skipping the optional requirement still targets the chosen candidate without leaking an earlier choice', async ({ page }) => {
   const calls = await mockModels(page, [['첫 후보입니다.'], ['다른 후보입니다.']]);
@@ -770,14 +836,27 @@ test('an applied sentence and its rerun notice survive a failed request and rema
   const release = gate();
   const source = '자료 보내 주세여.';
   const applied = '자료를 보내 주세요.';
+  const initial = [applied, '자료 전달 부탁드려요.', '자료를 보내 주시겠어요?'];
   const newCandidates = ['자료를 보내 주시기 바랍니다.', '자료 전달을 부탁드립니다.', '자료를 보내 주시면 감사하겠습니다.'];
-  const calls = await mockModels(page, [[applied, '자료 전달 부탁드려요.', '자료를 보내 주시겠어요?'], 'failure', newCandidates], async (_input, index) => {
+  const refreshedExplanation = '적용한 문장을 다시 다듬은 새 후보 설명입니다.';
+  const calls = await mockModels(page, [initial, 'failure', newCandidates], async (_input, index) => {
     if (index === 1) { requested.resolve(); await release.promise; }
+  });
+  await page.route('**/api/explanations', async route => {
+    const input = route.request().postDataJSON() as ExplanationInput;
+    calls.explanations.push(input);
+    await route.fulfill({ json: { ...input, explanations: input.candidates.map(candidate => ({
+      candidateId: candidate.id, explanation: input.sourceText === applied ? refreshedExplanation : explanationText,
+    })) } });
   });
   await page.goto('/');
   await firstCorrection(page, `앞.\n${source}\n뒤.`, source);
+  const cards = results(page).locator('.candidate-card');
+  await cards.first().locator('summary').click();
+  await results(page).getByRole('button', { name: /교정 이유/ }).click();
+  await expect(cards.locator('.candidate-explanation p')).toHaveText(Array(3).fill(explanationText));
   await results(page).getByRole('button', { name: '이 문장 적용', exact: true }).first().click();
-  const appliedNotice = results(page).getByText('선택한 문장에 적용했습니다.', { exact: true });
+  const appliedNotice = results(page).getByText('선택한 문장에 적용했습니다. 다른 후보와 계속 비교할 수 있습니다.', { exact: true });
   await expect(appliedNotice).toBeVisible();
   await selectRequirement(page, 'polite');
   await rerunButton(page).click();
@@ -785,14 +864,32 @@ test('an applied sentence and its rerun notice survive a failed request and rema
   try {
     await expect(appliedNotice).toBeVisible();
     await expect(page.getByLabel('원문 입력')).toHaveValue(`앞.\n${applied}\n뒤.`);
+    await expect(cards.locator('.candidate-text')).toHaveText(initial);
+    await expect(cards.locator('.candidate-explanation p')).toHaveText(Array(3).fill(explanationText));
+    await expect(cards.first().locator('details')).toHaveAttribute('open', '');
+    await expect(cards.nth(1).getByRole('button', { name: '이 후보로 바꾸기', exact: true })).toBeDisabled();
     await expect(rerunToggle(page)).toBeDisabled();
     await expect(rerunButton(page)).toBeDisabled();
   } finally { release.resolve(); }
   await expect(rerunButton(page)).toHaveText('다시 시도');
   await expect(appliedNotice).toBeVisible();
+  await expect(cards.locator('.candidate-text')).toHaveText(initial);
+  await expect(cards.locator('.candidate-explanation p')).toHaveText(Array(3).fill(explanationText));
+  await expect(cards.first().locator('details')).toHaveAttribute('open', '');
+  await expect(cards.nth(1).getByRole('button', { name: '이 후보로 바꾸기', exact: true })).toBeEnabled();
   await expect(requirement(page, 'polite')).toBeChecked();
   await rerunButton(page).click();
   await expect(results(page).locator('.candidate-text')).toHaveText(newCandidates);
+  await expect(page.getByLabel('원문 입력')).toHaveValue(`앞.\n${applied}\n뒤.`);
+  await expect(cards.first().locator('details')).toHaveAttribute('open', '');
+  await expect(cards.locator('.candidate-explanation p')).toHaveText(Array(3).fill(refreshedExplanation));
+  await expect(results(page).getByRole('button', { name: /교정 이유/ })).toHaveAttribute('aria-expanded', 'true');
+  expect(calls.explanations).toHaveLength(2);
+  expect(calls.explanations[1]).toMatchObject({ sourceText: applied,
+    candidates: calls.candidates[2], retryContext: calls.corrections[2].retryContext });
+  expect(calls.explanations[1].requestId).not.toBe(calls.explanations[0].requestId);
+  expect(calls.explanations[1].requestId).not.toBe(calls.corrections[2].requestId);
+  expect(calls.explanations[1].targetCandidate).toBeUndefined();
   expect(calls.corrections[1].sourceText).toBe(applied);
   expect(calls.corrections[2].sourceText).toBe(applied);
   expect(calls.corrections[2].retryContext).toEqual(calls.corrections[1].retryContext);
@@ -800,6 +897,38 @@ test('an applied sentence and its rerun notice survive a failed request and rema
   expect(records.find(record => record.id === calls.corrections[0].requestId)?.appliedCandidateId).toBe(calls.candidates[0][0].id);
   expect(records.find(record => record.id === calls.corrections[2].requestId)?.parentRecordId).toBe(calls.corrections[0].requestId);
 });
+
+for (const change of ['edit', 'selection', 'undo'] as const) {
+  test(`${change} after application invalidates retained candidate actions and rerun context`, async ({ page }) => {
+    const source = '자료 보내 주세여.';
+    const applied = '자료를 보내 주세요.';
+    const document = `앞 문장.\n${source}\n뒤 문장.`;
+    const calls = await mockModels(page, [[applied, '자료 전달 부탁드려요.', '자료를 보내 주시겠어요?'], ['새로 선택한 부분의 후보.']]);
+    await page.goto('/');
+    await firstCorrection(page, document, source);
+    await results(page).getByRole('button', { name: '이 문장 적용', exact: true }).first().click();
+    await selectRequirement(page, 'plain');
+    const editor = page.getByLabel('원문 입력');
+    if (change === 'edit') await editor.fill('직접 바꾼 새 원문.');
+    if (change === 'selection') await selectRange(page, 0, '앞 문장.'.length);
+    if (change === 'undo') {
+      await editor.focus();
+      await page.keyboard.press('Control+z');
+      await expect(editor).toHaveValue(document);
+    }
+    await expect(results(page).locator('.candidate-card')).toHaveCount(0);
+    await expect(rerun(page)).toHaveCount(0);
+    await expect(results(page).getByRole('button', { name: '이 후보로 바꾸기', exact: true })).toHaveCount(0);
+    expect(calls.corrections).toHaveLength(1);
+    const current = await editor.inputValue();
+    await selectRange(page, 0, change === 'edit' ? current.length : '앞 문장.'.length);
+    await startCorrection(page);
+    await expect(results(page).locator('.candidate-text')).toHaveText('새로 선택한 부분의 후보.');
+    expect(calls.corrections[1].retryContext).toBeUndefined();
+    expect(calls.corrections[1].targetCandidate).toBeUndefined();
+    expect((await historyRecords(page)).find(record => record.id === calls.corrections[1].requestId)?.parentRecordId).toBeUndefined();
+  });
+}
 
 for (const change of ['edit', 'selection'] as const) {
   test(`${change} invalidates the previous rerun context and the next ordinary request has no requirement or parent`, async ({ page }) => {

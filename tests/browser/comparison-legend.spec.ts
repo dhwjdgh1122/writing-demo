@@ -74,7 +74,11 @@ for (const width of [1440, 390]) {
     await page.getByRole('button', { name: '이 문장 적용', exact: true }).click();
     // The unchanged tab and literal symbols survive; generated whitespace markers never enter the document.
     await expect(editor).toHaveValue(prefix + candidate + suffix);
-    await expect(card).toHaveCount(0);
+    await expect(card).toHaveCount(1);
+    await expect(card.getByRole('button', { name: '적용됨', exact: true })).toBeDisabled();
+    await expect(card.locator('details')).toHaveAttribute('open', '');
+    expect(await sourceView.textContent()).toBe(source);
+    expect(await candidateView.textContent()).toBe(candidate);
   });
 }
 

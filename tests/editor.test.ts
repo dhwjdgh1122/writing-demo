@@ -111,7 +111,7 @@ test('applies to the selected occurrence only and preserves surrounding text', (
   state = reduce(state, { type: 'apply', candidateId: 'c1' });
   assert.equal(state.text, '앞. 같은 문장. 중간. 수정한 문장입니다. 끝.');
   assert.equal(state.selection?.text, '수정한 문장입니다.');
-  assert.equal(state.result, null);
+  assert.equal(state.result?.appliedCandidateId, 'c1');
   assert.equal(reduce(state, { type: 'apply', candidateId: 'c1' }).text, state.text);
 });
 test('selection change invalidates results even for identical text at another position', () => {
@@ -120,6 +120,63 @@ test('selection change invalidates results even for identical text at another po
   state = reduce(state, { type: 'apply', candidateId: 'c1' });
   assert.equal(state.text, '문장 문장');
   assert.equal(state.result, null);
+});
+
+test('switching retained candidates advances only the replacement range and preserves generation evidence', () => {
+  const source = '같은 문장.';
+  const document = `앞 ${source} 중간 ${source} 뒤`;
+  const start = document.lastIndexOf(source);
+  const pending = reduce(selected(document, start, start + source.length), { type: 'start', requestId: 'batch' });
+  let state = reduce(pending, { type: 'success', value: { requestId: 'batch', sourceText: source, candidates: [
+    { id: 'original', text: source }, { id: 'long', text: '아주 길게 고친 문장입니다.' }, { id: 'short', text: '짧게.' },
+  ] } });
+  const result = state.result!;
+  assert.equal(reduce(state, { type: 'apply', candidateId: 'original' }), state);
+  for (const id of ['long', 'short', 'original']) {
+    state = reduce(state, { type: 'apply', candidateId: id });
+    const text = result.value.candidates.find(candidate => candidate.id === id)!.text;
+    assert.equal(state.text, `앞 ${source} 중간 ${text} 뒤`);
+    assert.equal(state.selection?.start, start);
+    assert.equal(state.selection?.end, start + text.length);
+    assert.equal(state.result?.application.sourceText, text);
+    assert.equal(state.result?.appliedCandidateId, id);
+    assert.equal(state.result?.value, result.value);
+    assert.equal(state.result?.snapshot, result.snapshot);
+    assert.equal(state.result?.origins, result.origins);
+    assert.equal(reduce(state, { type: 'apply', candidateId: id }), state);
+  }
+});
+
+test('only the applied card can rerun its current text as a new three-candidate batch', () => {
+  const original = threeCandidates();
+  const revised = completeRevision(reduce(original, { type: 'startRerun', requestId: 'rev', candidateId: 'three' }), 'revised', '길게 다듬은 후보');
+  let state = reduce(revised, { type: 'apply', candidateId: 'revised' });
+  assert.equal(reduce(state, { type: 'startRerun', candidateId: 'one', requestId: 'wrong' }), state);
+  state = reduce(state, { type: 'apply', candidateId: 'one' });
+  assert.equal(state.rerun?.parentRequestId, 'batch');
+  const pending = reduce(state, { type: 'startRerun', candidateId: 'one', requestId: 'new-batch', requirement: 'plain' });
+  assert.equal(pending.pending?.targetCandidate, undefined);
+  assert.equal(pending.pending?.sourceText, '첫 번째 후보');
+  assert.equal(pending.pending?.parentRequestId, 'batch');
+  assert.equal(pending.pending?.phase, 'after_apply');
+  assert.equal(pending.result, state.result);
+  assert.equal(reduce(pending, { type: 'apply', candidateId: 'two' }), pending);
+  const completed = reduce(pending, { type: 'success', value: { requestId: 'new-batch', sourceText: '첫 번째 후보',
+    retryContext: pending.pending!.retryContext, candidates: [1, 2, 3].map(n => ({ id: `new-${n}`, text: `새 후보 ${n}` })) } });
+  assert.equal(completed.result?.batchId, 'new-batch');
+  assert.equal(completed.result?.appliedCandidateId, null);
+  assert.equal(completed.result?.value.sourceText, '첫 번째 후보');
+  assert.equal(completed.text, state.text);
+  assert.equal(reduce(completed, { type: 'apply', candidateId: 'new-2' }).text, '새 후보 2');
+});
+
+test('editing or changing selection invalidates retained applied candidates and their replacement range', () => {
+  const applied = reduce(threeCandidates(), { type: 'apply', candidateId: 'three' });
+  for (const action of [{ type: 'edit', text: '원문' }, { type: 'select', start: 0, end: 2 }, { type: 'clear' }] as const) {
+    const changed = reduce(applied, action);
+    assert.equal(changed.result, null);
+    assert.equal(reduce(changed, { type: 'apply', candidateId: 'one' }), changed);
+  }
 });
 test('late success and failure cannot overwrite a newer pending request', () => {
   let state = reduce(selected('첫째 둘째', 0, 2), { type: 'start', requestId: 'old' });
@@ -292,7 +349,7 @@ test('after-apply rerun preserves the applied notice and current text until a va
   const applied = reduce(original, { type: 'apply', candidateId: 'c1' });
   let state = reduce(applied, { type: 'startRerun', requestId: 'r2', requirement: 'alternative' });
   assert.equal(state.notice, applied.notice);
-  assert.equal(state.result, null);
+  assert.equal(state.result, applied.result);
   assert.equal(state.text, '적용한 문장');
   assert.equal(state.pending?.sourceText, '적용한 문장');
   assert.equal(state.pending?.phase, 'after_apply');

@@ -9,10 +9,10 @@ const options: { value: RerunSelection; label: string }[] = [
   { value: 'meaning', label: '원래 뜻 유지' }, { value: 'errors', label: '남은 오류 수정' },
 ];
 
-export function RerunControls({ phase, open, requirement, disabled, pending, problem, error, restoreFocusOnError, onToggle, onChange, onRun }: {
+export function RerunControls({ phase, open, requirement, disabled, pending, problem, error, restoreFocusOnError, unavailable = false, onToggle, onChange, onRun }: {
   phase: 'before_apply' | 'after_apply'; open: boolean; requirement: RerunSelection;
   disabled: boolean; pending: boolean; problem: string | null; error: string | null;
-  restoreFocusOnError: boolean;
+  restoreFocusOnError: boolean; unavailable?: boolean;
   onToggle: () => void; onChange: (value: RerunSelection) => void; onRun: (trigger: HTMLButtonElement) => void;
 }) {
   const id = useId();
@@ -26,11 +26,12 @@ export function RerunControls({ phase, open, requirement, disabled, pending, pro
       && (document.activeElement === document.body || Boolean(entry?.contains(document.activeElement)))) button.focus({ preventScroll: true });
     wasPending.current = pending;
   }, [pending, error, open, restoreFocusOnError]);
-  return <div className={`rerun-entry ${phase === 'after_apply' ? 'rerun-after-apply' : ''}`}>
-    <button type="button" className={phase === 'before_apply' ? 'apply-button rerun-toggle' : 'secondary-button rerun-toggle'}
-      disabled={pending} aria-expanded={open} aria-controls={id} onClick={onToggle}>
+  return <div className="rerun-entry">
+    <button type="button" className="apply-button rerun-toggle"
+      disabled={pending || unavailable} aria-expanded={open} aria-controls={id} aria-describedby={unavailable ? `${id}-unavailable` : undefined} onClick={onToggle}>
       다시 교정하기<span className={`rerun-chevron ${open ? 'is-open' : ''}`}><Icon name="back" size={17} /></span>
     </button>
+    {unavailable && <p className="rerun-unavailable" id={`${id}-unavailable`}>적용한 후보에서 다시 다듬거나, 먼저 이 후보로 바꿔주세요.</p>}
     {open && <section id={id} className="rerun-controls" aria-label="재교정 요청" aria-busy={pending}>
       <fieldset disabled={pending}>
         <legend>이번에는 어떤 점을 바꾸고 싶나요? <span>(선택 사항)</span></legend>

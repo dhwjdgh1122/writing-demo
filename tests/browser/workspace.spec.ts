@@ -38,8 +38,11 @@ test('test-only API response: compares and applies only the selected repeated oc
   await page.getByRole('button', { name: '이 문장 적용', exact: true }).click();
   await expect(page.getByLabel('원문 입력')).toHaveValue(source.slice(0, start) + '목요일에 안내하겠습니다.' + source.slice(start + target.length));
   await expect(page.locator('.correction-view').getByRole('status')).toContainText('적용했습니다');
-  await expect(page.locator('.candidate-card')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: '적용한 내용을 확인해주세요' })).toBeVisible();
+  await expect(page.locator('.candidate-card')).toHaveCount(2);
+  await expect(page.getByRole('button', { name: '적용됨', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '이 후보로 바꾸기', exact: true })).toBeEnabled();
+  await expect(page.locator('.candidate-card').first().locator('details')).toHaveAttribute('open', '');
+  await expect(page.getByRole('heading', { name: '적용한 내용을 확인해주세요' })).toHaveCount(0);
   await expect(page.locator('#selection-help')).toHaveText('원문에 반영된 내용을 확인해주세요.');
   await expect(page.getByRole('heading', { name: '교정할 준비가 되었습니다' })).toHaveCount(0);
   await page.screenshot({ path: 'test-results/applied-guidance.png', fullPage: true });
@@ -214,7 +217,10 @@ test('explanations are opt-in, mapped by ID, cached on reopen, and allow applyin
   expect(calls).toBe(1);
   await page.getByRole('button', { name: '이 문장 적용', exact: true }).click();
   await expect(page.getByLabel('원문 입력')).toHaveValue('앞 문장. 이후에 안내하겠습니다. 뒤 문장.');
-  await expect(toggle).toHaveCount(0);
+  await expect(toggle).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('.candidate-explanation')).toHaveCount(2);
+  expect(calls).toBe(1);
 });
 
 test('wrong explanation IDs show an isolated error and can be retried without regenerating candidates', async ({ page }) => {
@@ -234,7 +240,7 @@ test('wrong explanation IDs show an isolated error and can be retried without re
   expect(calls).toBe(2);
 });
 
-for (const action of ['apply', 'edit', 'select', 'rerun'] as const) {
+for (const action of ['edit', 'select', 'rerun'] as const) {
   test(`late explanation is discarded after ${action}`, async ({ page }) => {
     let release: () => void = () => {};
     const gate = new Promise<void>(resolve => { release = resolve; });
@@ -247,7 +253,6 @@ for (const action of ['apply', 'edit', 'select', 'rerun'] as const) {
     await prepareExplanation(page);
     await page.getByRole('button', { name: /교정 이유/ }).click();
     await requested;
-    if (action === 'apply') await page.getByRole('button', { name: '이 문장 적용', exact: true }).click();
     if (action === 'edit') await page.getByLabel('원문 입력').fill('새 원문');
     if (action === 'select') await select(page, 0, 5);
     if (action === 'rerun') await startCorrection(page);
@@ -259,6 +264,31 @@ for (const action of ['apply', 'edit', 'select', 'rerun'] as const) {
     } else await expect(page.locator('.candidate-card')).toHaveCount(0);
   });
 }
+
+test('an explanation already loading remains connected when its candidate is applied', async ({ page }) => {
+  let release: () => void = () => {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let received: () => void = () => {};
+  const requested = new Promise<void>(resolve => { received = resolve; });
+  let calls = 0;
+  await page.route('**/api/explanations', async route => {
+    calls++;
+    const input = route.request().postDataJSON(); received(); await gate;
+    await route.fulfill({ json: { ...input, explanations: input.candidates.map((candidate: { id: string }) => ({
+      candidateId: candidate.id, explanation: '적용 전 원문과 후보를 비교한 설명입니다.',
+    })) } }).catch(() => {});
+  });
+  await prepareExplanation(page);
+  await page.getByRole('button', { name: /교정 이유/ }).click();
+  await requested;
+  try {
+    await page.getByRole('button', { name: '이 문장 적용', exact: true }).click();
+    await expect(page.getByLabel('원문 입력')).toHaveValue('앞 문장. 이후에 안내하겠습니다. 뒤 문장.');
+    await expect(page.locator('.candidate-card')).toHaveCount(2);
+  } finally { release(); }
+  await expect(page.locator('.candidate-explanation p')).toHaveText(Array(2).fill('적용 전 원문과 후보를 비교한 설명입니다.'));
+  expect(calls).toBe(1);
+});
 test('quotation validation error keeps candidates available and retries only explanations', async ({ page }) => {
   let corrections = 0;
   let explanations = 0;
