@@ -156,6 +156,8 @@ npm.cmd start
 
 자동 테스트는 외부 AI를 호출하지 않습니다. 브라우저 테스트는 키를 비운 별도 서버를 사용합니다. 개발 서버와 동시에 실행하면 Vite 자동 새로고침 포트가 겹칠 수 있으므로, 재현 가능한 검증을 위해 개발 서버를 종료한 뒤 실행하는 것을 권장합니다.
 
+최신 웹 흐름의 제공자 비교는 `node --import tsx scripts/check-provider-workflow.mjs --provider=gemini --output=docs/evaluations/provider-workflow-new/gemini`로 dry-run할 수 있습니다(`elice`도 지원). 기본은 환경파일 읽기·파일 저장·API 호출을 하지 않습니다. `--live`에는 현재 코드의 빌드, 설치된 Edge, 해당 제공자의 서버 환경변수와 **아직 없는 출력 폴더**가 필요하며 실제 모델에 정상 경로 7회·최대 8회 요청합니다. 재시도·제공자 자동 대체는 없고 기본 `.env`도 바꾸지 않습니다. [11/24 실제 비교 결과와 한계](docs/evaluations/provider-workflow-result-2026-11-24.md)를 먼저 확인하세요.
+
 고정 사례의 실제 설명 품질을 비교하려면 `node --import tsx scripts/evaluate-explanations.mjs`를 사용합니다. **`LLM_PROVIDER=gemini` 설정에서 Gemini API를 최대 6회 호출하는 수동 평가 도구**입니다. 엘리스 설정에서는 호출 전에 중단하며, 제공자를 자동 전환하지 않습니다. 자동 테스트와 구분하세요. 결과는 `docs/evaluations/`에 저장되며 상세 해석은 검증 기록에 남깁니다.
 
 #5의 기준 사례로 **현재 설정 제공자·현재 프롬프트**를 평가하려면 `node --import tsx scripts/evaluate-explanation-criteria.mjs`로 입력만 먼저 점검합니다. 실제 호출은 끝에 `--live`를 붙이며 최대 6회 요청합니다. API 사용량이 발생하고 재시도·자동 모델 전환은 하지 않습니다. 앱 API의 형식·인용 검사를 거친 응답과 차단 전 어댑터 결과를 분리 저장합니다. 브라우저 표시나 사용자 효과 시험은 아닙니다. [1차 평가 결과와 한계](docs/검증%20기록.md#explanation-eval-01)를 참고하세요.

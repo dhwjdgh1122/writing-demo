@@ -192,6 +192,8 @@ TASKS는 작업 안내·출처·링크를, Issue는 상세 작업 내용·완료
 | 브라우저 교정 히스토리 저장·조회·삭제·내보내기 | [#8](https://github.com/dhwjdgh1122/writing-demo/issues/8) — 기존 보관 기능과 오른쪽 패널의 이력 진입·복귀 개선을 연결한다. [화면 전환 검증](검증%20기록.md#history-panel-navigation-01), [키보드 검사 표시 대기 보완](검증%20기록.md#history-keyboard-render-wait-01) 참고. |
 | Gemini·엘리스 후보와 설명 품질 비교 계획 | [#9](https://github.com/dhwjdgh1122/writing-demo/issues/9) |
 
+**11/24 최종 제출 전 제한 점검:** [#9의 비교 계획](evaluations/provider-workflow-plan-2026-11-24.md)과 [실제 결과](evaluations/provider-workflow-result-2026-11-24.md)에 같은 웹 흐름·고정 후보 설명, 제공자별 7회 호출과 실패·내용 한계를 연결한다. [#59의 3후보 반복 실패·재시도 회귀](검증%20기록.md#explanation-retry-regression-20261124)는 지정 조건 정상·최초 현상 미재현이며 해결 완료로 간주하지 않는다. [#7의 Edge·Chrome 실제 붙여넣기 검사와 현행 유지 판단](검증%20기록.md#clipboard-selection-20261124)을 연결한다. #22의 종료한 장시간 목표와 보존 Draft는 재개하지 않으며 배포 여부는 미정이다. 상태·담당·목표일은 공동 보드에서 관리한다.
+
 #5의 설명 목적·명칭 검토·대표 사례·수동 평가 방법은 [교정 설명 평가 기준](교정%20설명%20평가%20기준.md)에 정리한다. 코드·프롬프트 개선 및 실제 사용자 효과 검증과 구분하며, 범위·완료 기준은 해당 Issue에서 확인한다.
 
 ### 평가 기준 정리 이후의 후속 작업
