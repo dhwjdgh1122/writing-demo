@@ -5,6 +5,7 @@ import { requestCorrection, requestFailureCode } from './lib/api';
 import { Icon } from './components/Icon';
 import { CorrectionResults, type ExplanationActivity, type ReadingState } from './components/CorrectionResults';
 import { selectionAnchor } from './lib/selectionAnchor';
+import { revealTextRange } from './lib/revealTextRange';
 import { useHistory } from './hooks/useHistory';
 import { HistoryPanel } from './components/HistoryPanel';
 import { RerunControls, type RerunSelection } from './components/RerunControls';
@@ -136,14 +137,31 @@ function Workspace({ activity }: { activity?: ActivityApi }) {
   const compositionRef = useRef(false);
   const applyingRef = useRef(false);
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const appliedSelectionRef = useRef<{ revision: number; start: number; end: number } | null>(null);
+  const [appliedHighlight, setAppliedHighlight] = useState<number | null>(null);
   const runRef = useRef<HTMLButtonElement>(null);
   const [anchor, setAnchor] = useState<{ left: number; top: number } | null>(null);
   const draggingPointerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (appliedHighlight === null) return;
+    const timer = window.setTimeout(() => setAppliedHighlight(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [appliedHighlight]);
+
+  const clearAppliedHighlight = () => {
+    appliedSelectionRef.current = null;
+    setAppliedHighlight(null);
+  };
 
   const captureSelection = useCallback(() => {
     const editor = editorRef.current;
     if (!editor || compositionRef.current || applyingRef.current) return;
     dispatch({ type: 'select', start: editor.selectionStart, end: editor.selectionEnd });
+    const applied = appliedSelectionRef.current;
+    // The selection is feedback for applying, not a new request to show the
+    // floating correction button over the text the user is trying to inspect.
+    if (applied?.revision === editorStateRef.current.revision && applied.start === editor.selectionStart && applied.end === editor.selectionEnd) return;
     if (draggingPointerRef.current === null) setAnchor(selectionAnchor(editor));
   }, [dispatch]);
 
@@ -255,10 +273,23 @@ function Workspace({ activity }: { activity?: ActivityApi }) {
       editorRef.current?.focus({ preventScroll: true });
       editorRef.current?.setSelectionRange(previous.result.application.start, previous.result.application.end);
       document.execCommand('insertText', false, nextState.selection.text);
-      const index = previous.result.value.candidates.findIndex(candidate => candidate.id === candidateId);
+      setAnchor(null);
+      appliedSelectionRef.current = { revision: nextState.revision, start: nextState.selection.start, end: nextState.selection.end };
+      setAppliedHighlight(nextState.revision);
       requestAnimationFrame(() => {
-        if (editorStateRef.current.revision === nextState.revision) correctionPanelRef.current
-          ?.querySelectorAll<HTMLButtonElement>('.correction-view .candidate-card .rerun-toggle')[index]?.focus({ preventScroll: true });
+        const editor = editorRef.current;
+        const selection = appliedSelectionRef.current;
+        if (!editor || !selection || editorStateRef.current.revision !== nextState.revision
+          || editorStateRef.current.selection !== nextState.selection) return;
+        applyingRef.current = true;
+        try {
+          editor.focus({ preventScroll: true });
+          editor.setSelectionRange(selection.start, selection.end, 'backward');
+          // Reserve the sticky controls' actual height, including mobile wraps.
+          const controls = editor.closest('.editor-panel')?.querySelector<HTMLElement>('.editor-controls');
+          const viewportTop = controls ? controls.offsetHeight + (parseFloat(getComputedStyle(controls).top) || 0) + 16 : 16;
+          revealTextRange(editor, selection.start, selection.end, viewportTop);
+        } finally { applyingRef.current = false; }
       });
     } finally { applyingRef.current = false; }
   };
@@ -280,7 +311,7 @@ function Workspace({ activity }: { activity?: ActivityApi }) {
               <p id="selection-help" className={problem && state.selection ? 'selection-help over-limit' : 'selection-help'}>{composing ? '문장 입력을 마치면 실행할 수 있습니다.' : problem ?? (state.notice ? '원문에 반영된 내용을 확인해주세요.' : '선택한 내용을 확인한 후 실행해주세요.')}</p>
             </div>
           </div>
-          <div className="editor-body"><label htmlFor="source-editor" className="sr-only">원문 입력</label><textarea id="source-editor" ref={editorRef} value={state.text} onChange={e => { setAnchor(null); dispatch({ type: 'edit', text: e.target.value }); }} onSelect={captureSelection} onPointerDown={event => { if (event.isPrimary && event.button === 0) { draggingPointerRef.current = event.pointerId; setAnchor(null); } }} onBlur={() => { draggingPointerRef.current = null; }} onKeyUp={captureSelection} onCompositionStart={() => { compositionRef.current = true; setComposing(true); setAnchor(null); }} onCompositionEnd={() => { compositionRef.current = false; setComposing(false); }} placeholder={'이곳에 원문을 입력하거나 붙여넣으세요.\n\n교정하고 싶은 문장을 드래그한 뒤\n교정하기 버튼을 누르면 바로 교정합니다.'} aria-describedby="editor-hint document-count" spellCheck={false} />
+          <div className="editor-body"><label htmlFor="source-editor" className="sr-only">원문 입력</label><textarea id="source-editor" ref={editorRef} value={state.text} className={appliedHighlight === state.revision ? 'applied-highlight' : undefined} onChange={e => { setAnchor(null); dispatch({ type: 'edit', text: e.target.value }); }} onSelect={captureSelection} onPointerDown={event => { clearAppliedHighlight(); if (event.isPrimary && event.button === 0) { draggingPointerRef.current = event.pointerId; setAnchor(null); } }} onBlur={() => { draggingPointerRef.current = null; }} onKeyDown={clearAppliedHighlight} onKeyUp={captureSelection} onCompositionStart={() => { clearAppliedHighlight(); compositionRef.current = true; setComposing(true); setAnchor(null); }} onCompositionEnd={() => { compositionRef.current = false; setComposing(false); }} placeholder={'이곳에 원문을 입력하거나 붙여넣으세요.\n\n교정하고 싶은 문장을 드래그한 뒤\n교정하기 버튼을 누르면 바로 교정합니다.'} aria-describedby="editor-hint document-count" spellCheck={false} />
             <div className="editor-meta"><span id="editor-hint"><Icon name="select" size={16} />드래그한 부분만 교정합니다</span><span id="document-count" className={documentLength > LIMITS.document ? 'over-limit' : ''}>전체 글 {documentLength.toLocaleString()}자<span className="count-limit"> · 최대 20,000자 입력 가능</span></span></div>
           </div>
           <div className="editor-footnote"><Icon name="info" size={16} /><span>선택한 부분의 원문·후보를 이 브라우저에 보관합니다. 작성 중인 글 전체는 새로고침 후 복원하지 않습니다.</span></div>

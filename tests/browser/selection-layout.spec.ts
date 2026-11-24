@@ -73,7 +73,7 @@ for (const width of [1440, 390]) {
     await expect(first.locator('.comparison-content')).not.toBeVisible();
     await first.getByRole('button', { name: '이 문장 적용', exact: true }).click();
     await expect(editor).toHaveValue(prefix + corrected + suffix);
-    await expect(first.getByRole('button', { name: '다시 교정하기', exact: true })).toBeFocused();
+    await expect(editor).toBeFocused();
     await expectSelected(page, corrected);
     await expect(page.locator('.candidate-card')).toHaveCount(3);
     await expect(first.getByRole('button', { name: '적용됨', exact: true })).toBeDisabled();
