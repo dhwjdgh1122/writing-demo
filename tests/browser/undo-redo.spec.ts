@@ -81,8 +81,9 @@ test('Korean multiline and emoji preserve surrounding text during undo/redo', as
   await expect(editor).toHaveValue(source.slice(0, end) + ' FIXED' + source.slice(end));
 });
 
-test('applying a candidate keeps focus at its own rerun button', async ({ page }) => {
+test('applying a candidate focuses its replacement in the original editor', async ({ page }) => {
   await prepare(page, 'First. Second.');
   await apply(page, 0, 6);
-  await expect(page.locator('.candidate-card').getByRole('button', { name: '다시 교정하기', exact: true })).toBeFocused();
+  await expect(page.getByLabel('원문 입력')).toBeFocused();
+  await expectSelected(page, 'First. FIXED');
 });

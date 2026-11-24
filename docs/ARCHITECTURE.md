@@ -107,7 +107,9 @@ flowchart TD
 
 ### 후보 적용과 브라우저 실행 취소
 
-`App.tsx`는 reducer의 적용 결과를 먼저 계산하고, 적용 가능한 경우 현재 적용 대상인 `result.application.start/end`로 textarea의 범위를 지정한 뒤 `document.execCommand('insertText', false, candidateText)`로 해당 부분을 교체한다. 생성 snapshot의 범위를 재사용하지 않으므로 길이가 다른 후보로 반복 교체해도 갱신된 범위만 바꾼다. React 상태 갱신과 함께 브라우저의 편집 이력에 반영하며, 마지막에 해당 카드의 ‘다시 교정하기’로 `preventScroll` 포커스를 연결한다. 적용 대상의 유효성 검사와 최종 문자열 구성은 reducer가 담당한다.
+`App.tsx`는 reducer의 적용 결과를 먼저 계산하고, 적용 가능한 경우 현재 적용 대상인 `result.application.start/end`로 textarea의 범위를 지정한 뒤 `document.execCommand('insertText', false, candidateText)`로 해당 부분을 교체한다. 생성 snapshot의 범위를 재사용하지 않으므로 길이가 다른 후보로 반복 교체해도 갱신된 범위만 바꾼다. React 상태 갱신과 함께 브라우저의 편집 이력에 반영한다. 적용 대상의 유효성 검사와 최종 문자열 구성은 reducer가 담당한다.
+
+적용 성공 뒤 다음 프레임에서 문서 버전·선택이 여전히 유효한지 확인하고 원문 입력란에 포커스를 둬 새 범위를 선택한다. `revealTextRange.ts`가 같은 글꼴·너비·줄바꿈으로 만든 숨은 텍스트 배치에서 범위 위치를 측정하고 입력란 내부와 페이지를 스크롤한다. 고정 도구의 실제 높이를 제외한 공간에 짧은 범위를 보여주며 긴 범위는 시작을 우선한다. 임시 녹색 강조는 2.4초 뒤 해제하며 타이머는 선택·커서를 다시 설정하지 않는다. 입력란의 포인터·키보드·조합 입력은 임시 강조와 프로그램 선택 표시를 해제한다. 프로그램 선택만으로 떠 있는 교정 버튼을 만들지 않는다. [동작 기준](FEATURE_SPEC.md#applied-source-visibility)을 따른다.
 
 실행 취소·다시 실행으로 원문 값이 바뀌면 기존 `edit` 처리로 후보·설명·요청을 무효화한다. Undo/Redo와 11/21 추가한 교정 이력은 독립적이다. 이력의 적용 표시는 과거 행동을 보존하며 Undo로 삭제하지 않는다. 현재 구현은 `execCommand` 반환값에 따른 별도 안내나 대체 Undo 처리를 하지 않으므로 실패 환경까지 보장하지 않는다. 브라우저별 확인과 회귀 테스트의 근거는 [UNDO-01](검증%20기록.md#undo-01)을 따른다.
 

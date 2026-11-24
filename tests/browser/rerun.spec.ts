@@ -235,7 +235,7 @@ for (const width of [1440, 390]) {
       await expect(cards.locator('.candidate-text')).toHaveText(initial);
       await expect(cards.locator('.candidate-explanation p')).toHaveText(Array(3).fill(explanationText));
       await expect(cards.nth(index).getByRole('button', { name: '적용됨', exact: true })).toBeDisabled();
-      await expect(cards.nth(index).getByRole('button', { name: '다시 교정하기', exact: true })).toBeFocused();
+      await expect(editor).toBeFocused();
       for (let sibling = 0; sibling < 3; sibling++) {
         await expect(cards.nth(sibling).locator('details')).toHaveAttribute('open', '');
         await expect(cards.nth(sibling).locator('.comparison-content > p').first()).toHaveText(source);
