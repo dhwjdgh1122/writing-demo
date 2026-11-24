@@ -120,9 +120,9 @@ export function createHistoryController(options: { getStorage: () => HistoryStor
     try { return parseHistory(raw); }
     catch { throw new CorruptHistory(); }
   };
-  const memoryMessage = '이 브라우저에서는 안전한 자동 저장을 사용할 수 없습니다. 기록은 현재 창에만 남으며 JSON으로 내보낼 수 있습니다.';
-  const corruptMessage = '저장된 교정 이력을 읽을 수 없어 원래 데이터를 보존하고 자동 저장을 멈췄습니다. 현재 목록을 내보내거나 저장 데이터를 명시적으로 초기화해주세요.';
-  const writeMessage = '브라우저에 교정 이력을 저장하지 못했습니다. 현재 창의 기록은 유지됩니다. JSON으로 내보내거나 일부 기록을 삭제한 뒤 저장을 다시 시도해주세요.';
+  const memoryMessage = '이 브라우저에서는 안전한 자동 저장을 사용할 수 없습니다. 기록은 현재 창에만 남으며 페이지를 닫거나 새로고침하면 사라질 수 있습니다.';
+  const corruptMessage = '저장된 교정 이력을 읽을 수 없어 원래 데이터를 보존하고 자동 저장을 멈췄습니다. 필요한 내용을 따로 보관한 뒤 저장소 초기화 여부를 확인해주세요.';
+  const writeMessage = '브라우저에 교정 이력을 저장하지 못했습니다. 현재 창의 기록은 유지됩니다. 저장을 다시 시도하고, 페이지를 닫거나 새로고침하기 전에 필요한 내용을 따로 보관해주세요.';
 
   function refresh() {
     if (writing || resetting) { refreshNeeded = true; return; }

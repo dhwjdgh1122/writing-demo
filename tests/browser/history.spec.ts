@@ -44,6 +44,11 @@ async function savedCount(page: Page, count: number) {
   if (count) await expect(history(page).locator('.history-feedback')).toHaveText('이 브라우저에 저장되었습니다.');
 }
 
+async function expectExportUnavailable(page: Page) {
+  await expect(history(page).getByRole('button', { name: 'JSON 내보내기', exact: true })).toHaveCount(0);
+  await expect(history(page)).not.toContainText(/JSON|내보내/);
+}
+
 async function exportRecords(page: Page): Promise<{ version: number; records: HistoryRecord[] }> {
   const wasOpen = await history(page).isVisible();
   if (!wasOpen) await openHistory(page);
@@ -60,6 +65,30 @@ async function exportRecords(page: Page): Promise<{ version: number; records: Hi
 
 test.beforeEach(async ({ context }) => {
   await context.route('**/api/health', route => route.fulfill({ json: { modelConfigured: true } }));
+});
+
+test.describe('explicit history export opt-in', () => {
+  test.use({ baseURL: 'http://127.0.0.1:5175' });
+
+  test('exports stored source, candidates, explanations and application metadata and disables an empty export', async ({ page }) => {
+    const record: HistoryRecord = {
+      id: 'export-record', createdAt: '2026-11-24T01:00:00.000Z', sourceText: '목요일에 안내하겠습니다.',
+      candidates: [{ id: 'export-candidate', text: '이후에 안내하겠습니다.' }],
+      explanations: [{ candidateId: 'export-candidate', explanation: '목요일이 이후로 바뀌어 안내 날짜가 불분명해졌습니다.' }],
+      appliedCandidateId: 'export-candidate', appliedAt: '2026-11-24T01:01:00.000Z',
+    };
+    await page.addInitScript(({ key, record }) => {
+      localStorage.setItem(key, JSON.stringify({ version: 1, records: [record] }));
+    }, { key: storageKey, record });
+    await page.goto('/');
+    await openHistory(page);
+    await expect(history(page).locator('.history-notice')).toContainText('내보낸 JSON에도 문장 내용이 포함');
+    expect(await exportRecords(page)).toEqual({ version: 1, records: [record] });
+    page.once('dialog', dialog => dialog.accept());
+    await history(page).getByRole('button', { name: '전체 삭제' }).click();
+    await expect(history(page).locator('.history-entry')).toHaveCount(0);
+    await expect(history(page).getByRole('button', { name: 'JSON 내보내기', exact: true })).toBeDisabled();
+  });
 });
 
 test('accepted selection, generated explanation and past application survive refresh as read-only history', async ({ page }) => {
@@ -108,13 +137,14 @@ test('accepted selection, generated explanation and past application survive ref
   await expect(history(page).getByRole('button', { name: /교정 이유/ })).toHaveCount(0);
   await history(page).locator('.comparison > summary').click();
   await expect(history(page).locator('.comparison del')).not.toHaveCount(0);
-  const downloaded = await exportRecords(page);
-  expect(downloaded.version).toBe(1);
-  expect(downloaded.records).toHaveLength(1);
-  expect(downloaded.records[0]).toMatchObject({ sourceText: source, candidates: [{ id: 'date', text: candidate }],
+  await expectExportUnavailable(page);
+  const stored = await page.evaluate(key => JSON.parse(localStorage.getItem(key)!), storageKey);
+  expect(stored.version).toBe(1);
+  expect(stored.records).toHaveLength(1);
+  expect(stored.records[0]).toMatchObject({ sourceText: source, candidates: [{ id: 'date', text: candidate }],
     explanations: [{ candidateId: 'date', explanation }], appliedCandidateId: 'date' });
-  expect(downloaded.records[0].appliedAt).not.toBeNull();
-  expect(JSON.stringify(downloaded)).not.toContain('앞 문장.');
+  expect(stored.records[0].appliedAt).not.toBeNull();
+  expect(JSON.stringify(stored)).not.toContain('앞 문장.');
   expect(correctionCalls).toBe(1);
   expect(explanationCalls).toBe(1);
   await page.screenshot({ path: 'test-results/history-saved-readonly.png', fullPage: true });
@@ -146,7 +176,7 @@ for (const action of ['edit', 'select'] as const) {
     await page.reload();
     await expect(history(page).locator('.history-entry')).toHaveCount(0);
     await openHistory(page);
-    await expect(history(page).getByRole('button', { name: 'JSON 내보내기' })).toBeDisabled();
+    await expectExportUnavailable(page);
   });
 }
 
@@ -261,7 +291,7 @@ test('two tabs share new records and explicit single/all deletions without repla
   await other.close();
 });
 
-test('a storage quota error preserves existing and new records for export and a later save retry', async ({ page }) => {
+test('a storage quota error preserves existing and new records for viewing and a later save retry without export', async ({ page }) => {
   await page.route('**/api/corrections', async route => {
     const input = route.request().postDataJSON();
     await route.fulfill({ json: { ...input, candidates: [{ id: 'quota', text: `${input.sourceText} 수정` }] } });
@@ -282,8 +312,8 @@ test('a storage quota error preserves existing and new records for export and a 
   await openHistory(page);
   await expect(history(page).getByText(/변경 내용을 브라우저에 저장하지 못했습니다/)).toBeVisible();
   await expect(history(page).locator('.history-entry')).toHaveCount(2);
-  const downloaded = await exportRecords(page);
-  expect(downloaded.records.map(record => record.sourceText)).toEqual(['저장에 실패한 새 문장.', '먼저 저장한 문장.']);
+  await expectExportUnavailable(page);
+  await expect(history(page).locator('.history-preview')).toHaveText(['저장에 실패한 새 문장.', '먼저 저장한 문장.']);
   expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).records.length, storageKey)).toBe(1);
   await page.evaluate(() => { (window as Window & { historyQuota?: boolean }).historyQuota = false; });
   await history(page).getByRole('button', { name: '저장 다시 시도' }).click();
@@ -295,7 +325,7 @@ test('a storage quota error preserves existing and new records for export and a 
   await expect(history(page).locator('.history-preview')).toHaveText(['저장에 실패한 새 문장.', '먼저 저장한 문장.']);
 });
 
-test('corrupt saved data stays untouched until confirmed reset and new memory records remain exportable', async ({ page }) => {
+test('corrupt saved data stays untouched until confirmed reset and new memory records remain viewable without export', async ({ page }) => {
   const invalid = '{broken-history';
   await page.addInitScript(({ key, raw }) => {
     if (!sessionStorage.getItem('history-corrupt-seeded')) {
@@ -315,9 +345,12 @@ test('corrupt saved data stays untouched until confirmed reset and new memory re
   await openHistory(page);
   await expect(history(page).locator('.history-entry')).toHaveCount(1);
   expect(await page.evaluate(key => localStorage.getItem(key), storageKey)).toBe(invalid);
-  const downloaded = await exportRecords(page);
-  expect(downloaded.records.map(record => record.sourceText)).toEqual(['현재 화면에만 남은 문장.']);
-  page.once('dialog', dialog => dialog.dismiss());
+  await expectExportUnavailable(page);
+  await expect(history(page).locator('.history-preview')).toHaveText('현재 화면에만 남은 문장.');
+  page.once('dialog', async dialog => {
+    expect(dialog.message()).not.toMatch(/JSON|내보내/);
+    await dialog.dismiss();
+  });
   await history(page).getByRole('button', { name: '이력 저장소 초기화' }).click();
   expect(await page.evaluate(key => localStorage.getItem(key), storageKey)).toBe(invalid);
   await expect(history(page).locator('.history-entry')).toHaveCount(1);
@@ -334,7 +367,7 @@ test('corrupt saved data stays untouched until confirmed reset and new memory re
   await expect(history(page).locator('.history-preview')).toHaveText('초기화 후 새로 저장한 문장.');
 });
 
-test('unsupported safe storage is reported as memory-only and offers content export', async ({ page }) => {
+test('unsupported safe storage warns about memory-only records without offering unavailable export', async ({ page }) => {
   await page.addInitScript(() => { Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined }); });
   await page.route('**/api/corrections', async route => {
     const input = route.request().postDataJSON();
@@ -344,7 +377,9 @@ test('unsupported safe storage is reported as memory-only and offers content exp
   await runCorrection(page, '입력한 문장.');
   await openHistory(page);
   await expect(history(page).getByText(/현재 페이지에서만 보관합니다/)).toBeVisible();
-  expect((await exportRecords(page)).records[0].sourceText).toBe('입력한 문장.');
+  await expectExportUnavailable(page);
+  await expect(history(page).locator('.history-preview')).toHaveText('입력한 문장.');
+  await expect(history(page).getByRole('button', { name: '저장 다시 시도' })).toBeVisible();
   expect(await page.evaluate(key => localStorage.getItem(key), storageKey)).toBeNull();
   await page.reload();
   await expect(history(page).locator('.history-entry')).toHaveCount(0);
@@ -488,7 +523,7 @@ test('history is keyboard accessible before any correction and returning preserv
   await expect(history(page)).toBeVisible();
   await expect(history(page).getByRole('button', { name: '교정 문장으로 돌아가기', exact: true })).toBeFocused();
   await expect(history(page).locator('.history-empty')).toBeVisible();
-  await expect(history(page).getByRole('button', { name: 'JSON 내보내기', exact: true })).toBeDisabled();
+  await expectExportUnavailable(page);
   await history(page).getByRole('button', { name: '교정 문장으로 돌아가기', exact: true }).press('Enter');
   await expect(entry).toBeFocused();
   await expect(page.getByLabel('원문 입력')).toHaveValue('아직 교정하지 않은 작성 중인 글입니다.');

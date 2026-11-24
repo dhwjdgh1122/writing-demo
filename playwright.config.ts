@@ -6,9 +6,9 @@ export default defineConfig({
   // Isolate tests from the user's live API key and running demo.
   webServer: [
     { command: 'node --import tsx server/dev.ts', url: 'http://127.0.0.1:5174/api/health', reuseExistingServer: false, timeout: 120_000,
-      env: { PORT: '5174', LLM_PROVIDER: 'gemini', GEMINI_API_KEY: ' ', VITE_ENABLE_ACTIVITY_RECORDING: 'false', PLAYWRIGHT_TEST_SERVER: 'true' } },
-    // Preserve the research-only activity regression checks in an explicit opt-in environment.
+      env: { PORT: '5174', LLM_PROVIDER: 'gemini', GEMINI_API_KEY: ' ', VITE_ENABLE_ACTIVITY_RECORDING: 'false', VITE_ENABLE_HISTORY_EXPORT: 'false', PLAYWRIGHT_TEST_SERVER: 'true' } },
+    // Preserve optional activity and history-export checks in an explicit opt-in environment.
     { command: 'node --import tsx server/dev.ts', url: 'http://127.0.0.1:5175/api/health', reuseExistingServer: false, timeout: 120_000,
-      env: { PORT: '5175', LLM_PROVIDER: 'gemini', GEMINI_API_KEY: ' ', VITE_ENABLE_ACTIVITY_RECORDING: 'true', PLAYWRIGHT_TEST_SERVER: 'true' } },
+      env: { PORT: '5175', LLM_PROVIDER: 'gemini', GEMINI_API_KEY: ' ', VITE_ENABLE_ACTIVITY_RECORDING: 'true', VITE_ENABLE_HISTORY_EXPORT: 'true', PLAYWRIGHT_TEST_SERVER: 'true' } },
   ],
 });
