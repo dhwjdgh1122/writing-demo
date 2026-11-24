@@ -8,9 +8,10 @@ import { selectionAnchor } from './lib/selectionAnchor';
 import { useHistory } from './hooks/useHistory';
 import { HistoryPanel } from './components/HistoryPanel';
 import { RerunControls, type RerunSelection } from './components/RerunControls';
-import { useActivity } from './hooks/useActivity';
+import { useActivity, type ActivityApi } from './hooks/useActivity';
 import { ActivityPanel } from './components/ActivityPanel';
 import { activityErrorCode } from './lib/activity';
+import { ACTIVITY_RECORDING_ENABLED } from './config/features';
 
 const requestMetadata = (snapshot: Snapshot) => ({ requestId: snapshot.requestId,
   ...(snapshot.parentRequestId ? { parentRequestId: snapshot.parentRequestId, phase: snapshot.phase } : {}),
@@ -37,11 +38,19 @@ function rerunPosition(origin: RerunOrigin): RerunPosition | null {
 }
 
 export default function App() {
+  return ACTIVITY_RECORDING_ENABLED ? <WorkspaceWithActivity /> : <Workspace />;
+}
+
+function WorkspaceWithActivity() {
+  const activity = useActivity();
+  return <Workspace activity={activity} />;
+}
+
+function Workspace({ activity }: { activity?: ActivityApi }) {
   const [state, editorDispatch] = useReducer(editorReducer, initialState);
   const history = useHistory();
   const [historyOpen, setHistoryOpen] = useState(false);
   const historyButtonRef = useRef<HTMLButtonElement>(null);
-  const activity = useActivity();
   const editorStateRef = useRef(initialState);
   const [rerunUI, setRerunUI] = useState<RerunUI>(emptyRerunUI);
   const rerunRequestRef = useRef<string | null>(null);
@@ -90,7 +99,7 @@ export default function App() {
         rerunRequestRef.current = next.pending.requestId;
         setRerunUI(current => ({ ...current, error: null }));
       }
-      activity.record({ ...requestMetadata(next.pending), action: 'correction_requested' });
+      activity?.record({ ...requestMetadata(next.pending), action: 'correction_requested' });
     }
     if (action.type === 'success' && next.result && next.result !== previous.result) {
       const snapshot = next.result.snapshot;
@@ -100,28 +109,28 @@ export default function App() {
         ...(snapshot.targetCandidate ? { targetCandidate: snapshot.targetCandidate } : {}),
         ...(snapshot.parentRequestId ? { parentRecordId: snapshot.parentRequestId, phase: snapshot.phase } : {}),
         ...(snapshot.retryContext?.requirement ? { requirement: snapshot.retryContext.requirement } : {}) } });
-      activity.record({ ...requestMetadata(snapshot), action: 'correction_received' });
+      activity?.record({ ...requestMetadata(snapshot), action: 'correction_received' });
     }
     if (previous.pending && !next.pending && next !== previous) {
       if (action.type === 'failure' || (action.type === 'success' && next.result === previous.result)) {
         if (wasRerun) setRerunUI(current => ({ ...current, error: next.error }));
-        activity.record({ ...requestMetadata(previous.pending), action: 'correction_failed',
+        activity?.record({ ...requestMetadata(previous.pending), action: 'correction_failed',
           errorCode: activityErrorCode(action.type === 'failure' ? action.errorCode : 'CLIENT_RESPONSE_INVALID') });
       } else if (action.type !== 'success') {
-        activity.record({ ...requestMetadata(previous.pending), action: 'correction_cancelled' });
+        activity?.record({ ...requestMetadata(previous.pending), action: 'correction_cancelled' });
       }
     }
     if (action.type === 'apply' && previous.result && next.revision !== previous.revision) {
       const origin = previous.result.origins[action.candidateId];
       history.enqueue({ type: 'apply', id: origin.requestId, candidateId: action.candidateId, at: new Date().toISOString() });
-      activity.record({ ...requestMetadata(origin), action: 'candidate_applied', candidateId: action.candidateId, attemptId: crypto.randomUUID() });
+      activity?.record({ ...requestMetadata(origin), action: 'candidate_applied', candidateId: action.candidateId, attemptId: crypto.randomUUID() });
     }
     return next;
-  }, [history.enqueue, activity.record]);
+  }, [history.enqueue, activity?.record]);
   const saveExplanations = useCallback((requestId: string, values: ExplanationResult[]) => {
     history.enqueue({ type: 'explanations', id: requestId, values });
   }, [history.enqueue]);
-  const recordExplanationActivity = useCallback((event: ExplanationActivity) => activity.record(event), [activity.record]);
+  const recordExplanationActivity = useCallback((event: ExplanationActivity) => activity?.record(event), [activity?.record]);
   const [connection, setConnection] = useState<'checking' | 'ready' | 'missing' | 'offline'>('checking');
   const [composing, setComposing] = useState(false);
   const compositionRef = useRef(false);
@@ -286,14 +295,14 @@ export default function App() {
             {state.notice && <div className="applied-state"><p className="success-message" role="status"><Icon name="check" size={18} />{state.notice}</p><p className="applied-comparison-note">원문 비교와 교정 이유는 이 후보를 생성할 당시 원문을 기준으로 합니다.</p></div>}
             {state.result ? <CorrectionResults key={state.result.batchId} result={state.result.value} candidateOrigins={state.result.origins} onApply={apply} onExplanationResults={saveExplanations}
               appliedCandidateId={state.result.appliedCandidateId} currentText={state.result.application.sourceText} initialReading={readingRef.current} onReadingChange={saveReadingState}
-              activityContext={requestMetadata(state.result.snapshot)} onActivity={recordExplanationActivity} disabled={Boolean(state.pending)} renderRerun={renderRerun} /> : !state.pending && <div className="empty-result"><div className="empty-icon"><Icon name="document" size={31} /></div><h3>{emptyHeading}</h3><p>{emptyDescription}</p></div>}
+              activityContext={activity ? requestMetadata(state.result.snapshot) : undefined} onActivity={activity ? recordExplanationActivity : undefined} disabled={Boolean(state.pending)} renderRerun={renderRerun} /> : !state.pending && <div className="empty-result"><div className="empty-icon"><Icon name="document" size={31} /></div><h3>{emptyHeading}</h3><p>{emptyDescription}</p></div>}
           </div>
           {connection === 'missing' && <div className="setup-note"><Icon name="info" size={16} /><p>현재는 화면·선택 기능을 확인할 수 있습니다.<br /><strong>실제 교정은 AI 연결 후 사용할 수 있습니다.</strong></p></div>}
           </div>
           <HistoryPanel {...history} hidden={!historyOpen} onBack={closeHistory} />
         </section>
       </div>
-      <ActivityPanel activity={activity} historyRecords={history.records} />
+      {activity && <ActivityPanel activity={activity} historyRecords={history.records} />}
       <footer className="page-footer"><span>센틴스파이 데스크톱 사용 흐름을 참고한 독립 웹 데모</span><span>교정에는 선택한 문장을 사용하며, 후보별 재교정에는 해당 후보와 원문을 함께 전달합니다.</span></footer>
     </main>
     {anchor && !disabled && <button className="floating-correction" style={anchor} onPointerDown={event => event.preventDefault()} onClick={startCorrection}>교정하기 <Icon name="arrow" size={16} /></button>}
