@@ -285,9 +285,12 @@ function Workspace({ activity }: { activity?: ActivityApi }) {
         try {
           editor.focus({ preventScroll: true });
           editor.setSelectionRange(selection.start, selection.end, 'backward');
-          // Reserve the sticky controls' actual height, including mobile wraps.
+          // Only the independently sticky toolbar can cover the input. On wide
+          // screens it flows inside the sticky panel instead of overlapping it.
           const controls = editor.closest('.editor-panel')?.querySelector<HTMLElement>('.editor-controls');
-          const viewportTop = controls ? controls.offsetHeight + (parseFloat(getComputedStyle(controls).top) || 0) + 16 : 16;
+          const controlsStyle = controls && getComputedStyle(controls);
+          const viewportTop = controls && controlsStyle?.position === 'sticky'
+            ? controls.offsetHeight + (parseFloat(controlsStyle.top) || 0) + 16 : 16;
           revealTextRange(editor, selection.start, selection.end, viewportTop);
         } finally { applyingRef.current = false; }
       });

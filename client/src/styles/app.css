@@ -14,6 +14,15 @@ main{max-width:1488px;margin:0 auto;padding:38px 24px 20px}.page-intro{display:f
 @media(prefers-reduced-motion:reduce){*{transition:none!important}.spinner{animation:none}}
 .editor-panel{overflow:visible;min-width:0}
 .editor-controls{position:sticky;top:8px;z-index:2;background:#fff;border-radius:12px 12px 0 0;box-shadow:0 4px 10px #241c3d06}
+/* Keep the source beside long results, with scrolling confined to its text.
+   Short or single-column viewports retain the normal document layout. */
+@media(min-width:1024px) and (min-height:600px){
+  .editor-panel{position:sticky;top:16px;height:calc(100dvh - 32px);max-height:900px;display:flex;flex-direction:column}
+  .editor-panel .editor-controls{position:static;flex-shrink:0;box-shadow:none}
+  .editor-panel .editor-body{display:flex;flex-direction:column;flex:1;min-height:0}
+  .editor-panel .editor-body textarea{flex:1;min-height:0;height:auto;max-height:none;resize:none}
+  .editor-panel .editor-meta,.editor-panel .editor-footnote{flex-shrink:0}
+}
 .compact-selection{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:12px 24px;border-bottom:1px solid var(--line);font-size:12px;color:#62566f}
 .compact-actions{display:flex;gap:14px;align-items:center;margin-left:auto}
 .compact-selection .selection-help{width:100%;margin:0;font-size:12px;line-height:1.6}
