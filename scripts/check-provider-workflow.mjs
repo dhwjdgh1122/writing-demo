@@ -200,24 +200,25 @@ if (!args.includes('--live')) {
         return { outcome: response.status === 200 ? 'passed' : 'model-failure', siblingsUnchanged: true, status: response.status };
       });
       let applied = -1;
-      await step('apply-candidate', async () => {
-        const candidates = await texts(); applied = candidates.findIndex(text => text !== source);
-        if (applied < 0) return { outcome: 'not-exercised', reason: 'Every candidate identical to source' };
-        await cards.nth(applied).getByRole('button', { name: '이 문장 적용', exact: true }).click();
-        await expect(editor).toHaveValue(prefix + candidates[applied] + suffix); await expect(cards).toHaveCount(3);
-        await expect(cards.nth(applied)).toHaveClass(/is-applied/);
+      const applyOk = await step('apply-candidate', async () => {
+        const candidates = await texts(); const next = candidates.findIndex(text => text !== source);
+        if (next < 0) return { outcome: 'not-exercised', reason: 'Every candidate identical to source' };
+        await cards.nth(next).getByRole('button', { name: '이 문장 적용', exact: true }).click();
+        await expect(editor).toHaveValue(prefix + candidates[next] + suffix); await expect(cards).toHaveCount(3);
+        await expect(cards.nth(next)).toHaveClass(/is-applied/); applied = next;
         return { outcome: 'passed', candidateIndex: applied, surroundingPreserved: true };
       });
-      await step('switch-candidate', async () => {
-        if (applied < 0) return { outcome: 'not-exercised', reason: 'No applied candidate' };
+      const switchOk = await step('switch-candidate', async () => {
+        if (!applyOk || applied < 0) return { outcome: 'not-exercised', reason: 'No verified applied candidate' };
         const candidates = await texts(); const next = candidates.findIndex((text, index) => index !== applied && text !== candidates[applied]);
         if (next < 0) return { outcome: 'not-exercised', reason: 'No textually different candidate to switch to' };
-        await cards.nth(next).getByRole('button', { name: '이 후보로 바꾸기', exact: true }).click(); applied = next;
+        await cards.nth(next).getByRole('button', { name: '이 후보로 바꾸기', exact: true }).click();
         await expect(editor).toHaveValue(prefix + candidates[next] + suffix); await expect(cards).toHaveCount(3);
+        await expect(cards.nth(next)).toHaveClass(/is-applied/); applied = next;
         return { outcome: 'passed', candidateIndex: next, surroundingPreserved: true };
       });
       await step('applied-rerun', async () => {
-        if (applied < 0) return { outcome: 'not-exercised', reason: 'No applied candidate' };
+        if (!applyOk || !switchOk || applied < 0) return { outcome: 'not-exercised', reason: 'Prior application or switch was not verified' };
         const before = await texts(); const document = await editor.inputValue();
         const response = await rerun(applied, 'polite');
         await expect(cards).toHaveCount(3); await expect(editor).toHaveValue(document);
@@ -246,7 +247,12 @@ if (!args.includes('--live')) {
     report.apiSummary = { requests: report.api.length, http200: report.api.filter(item => item.status === 200).length,
       validExplanations: report.api.reduce((sum, item) => sum + (item.validExplanations ?? 0), 0),
       invalidExplanations: report.api.reduce((sum, item) => sum + (item.invalidExplanations ?? 0), 0) };
-    save(); console.log(JSON.stringify({ state: report.state, provider: providerName, modelCalls: report.modelCalls, apiSummary: report.apiSummary, unexecuted: report.unexecuted }));
-    if (report.state === 'runner-or-preflight-failed') process.exitCode = 1;
+    report.stepSummary = { checkFailed: report.steps.filter(item => item.state === 'check-failed').length,
+      notExercised: report.steps.filter(item => item.observations?.outcome === 'not-exercised').length,
+      modelFailure: report.steps.filter(item => item.observations?.outcome === 'model-failure').length };
+    if (report.stepSummary.checkFailed && report.state !== 'runner-or-preflight-failed') report.state = 'checks-failed';
+    save(); console.log(JSON.stringify({ state: report.state, provider: providerName, modelCalls: report.modelCalls,
+      apiSummary: report.apiSummary, stepSummary: report.stepSummary, unexecuted: report.unexecuted }));
+    if (['runner-or-preflight-failed', 'checks-failed'].includes(report.state)) process.exitCode = 1;
   }
 }
