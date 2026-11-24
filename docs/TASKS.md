@@ -6,7 +6,9 @@
 
 ### 현재 작업을 확인하는 방법
 
-현재 main은 일반 교정 3개·카드 재교정 1개, 비교·설명 읽기 유지, 표현별 이유 탐색, 적용 후 후보 유지·다른 후보 전환과 브라우저 이력·행동 기록을 제공한다. [11/24 전체 정합성 점검](검증%20기록.md#project-consistency-20261124)에 main 반영·검증·미병합 브랜치·보류 범위를 구분했다. [#9의 두 제공자 제한 비교](evaluations/provider-workflow-result-2026-11-24.md)와 [#7의 실제 붙여넣기 정책 판단](검증%20기록.md#clipboard-selection-20261124)은 PR #73으로 main에 반영했다. [#59](https://github.com/dhwjdgh1122/writing-demo/issues/59)는 지정 조건 재시도 정상·최초 현상 미재현이며, [#22](https://github.com/dhwjdgh1122/writing-demo/issues/22)의 설명 내용 품질은 미완료이고 기존 장시간 목표는 미달성 종료다. 구현 기준은 [기능명세](FEATURE_SPEC.md), 실제 확인 결과는 [검증 기록](검증%20기록.md)을 따른다. 아래 11/12 경과와 11/9 계획은 과거 기록이며 현재 상태표가 아니다.
+현재 버전은 일반 교정 3개·카드 재교정 1개, 비교·설명 읽기 유지, 표현별 이유 탐색, 적용 후 후보 유지·다른 후보 전환과 브라우저 교정 이력을 제공한다. [11/24 전체 정합성 점검](검증%20기록.md#project-consistency-20261124)에 당시 main 반영·검증·미병합 브랜치·보류 범위를 구분했다. [#9의 두 제공자 제한 비교](evaluations/provider-workflow-result-2026-11-24.md)와 [#7의 실제 붙여넣기 정책 판단](검증%20기록.md#clipboard-selection-20261124)은 PR #73으로 main에 반영했다. [#59](https://github.com/dhwjdgh1122/writing-demo/issues/59)는 지정 조건 재시도 정상·최초 현상 미재현이며, [#22](https://github.com/dhwjdgh1122/writing-demo/issues/22)의 설명 내용 품질은 미완료이고 기존 장시간 목표는 미달성 종료다. 구현 기준은 [기능명세](FEATURE_SPEC.md), 실제 확인 결과는 [검증 기록](검증%20기록.md)을 따른다. 아래 11/12 경과와 11/9 계획은 과거 기록이며 현재 상태표가 아니다.
+
+**11/24 최종 통합:** [#76 행동 기록 기본 비활성화](https://github.com/dhwjdgh1122/writing-demo/issues/76)는 화면과 새 수집을 함께 끄는 후속 변경이다. 코드·기존 자료와 #49의 과거 구현 기록을 보존하며 교정 이력·재교정은 유지한다([기능 범위](FEATURE_SPEC.md#activity-recording-default-off)). [통합 점검](검증%20기록.md#final-integration-20261124)에 연결한다. [#77 후보 교정 누락](https://github.com/dhwjdgh1122/writing-demo/issues/77)은 별도 작업 후보로 보존하며, 함께 발견된 설명 불일치는 #22에 연결한다([자료](evaluations/user-reported-candidate-quality-2026-11-24.md)). 새 품질 실험을 시작한 것이 아니다. 5차 멘토링에서 전달된 발표 구성 지침은 [시연 안내](DEMO_GUIDE.md#final-mentoring-20261124)에 반영하며 최종 자료·시연·ZIP·제출은 #74의 별도 완료 기준을 따른다.
 
 11/23 사용자 요청으로 확인창을 제거하는 후속 작업은 [#64](https://github.com/dhwjdgh1122/writing-demo/issues/64)에 연결한다. 드래그 버튼·상단 버튼은 유지하고 누르면 바로 요청한다. 과거 확인창 도입 기록을 현재 동작으로 읽지 않도록 [변경 근거·검증](검증%20기록.md#direct-correction-entry-01)을 구분한다.
 

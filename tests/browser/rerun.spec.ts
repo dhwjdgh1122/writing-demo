@@ -5,6 +5,9 @@ import type { HistoryRecord } from '../../client/src/lib/history';
 import type { ActivityEvent } from '../../client/src/lib/activity';
 import { startCorrection } from './selection-helpers';
 
+// These scenarios also verify the preserved, explicitly enabled research logger.
+test.use({ baseURL: 'http://127.0.0.1:5175' });
+
 const results = (page: Page) => page.locator('.correction-view');
 const history = (page: Page) => page.locator('.history-panel:not(.activity-panel)');
 const activity = (page: Page) => page.locator('.activity-panel');
